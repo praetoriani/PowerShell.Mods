@@ -1,0 +1,9 @@
+# EXCULDE VSCODE WORKSPACE AND AFFINITY PHOTO FILES
+*.code-workspace
+*.afphoto
+*.lnk
+
+# EXCLUDE BACKUPS/LOGS FOLDER
+**/backup/
+**/backups/
+**/logs/
