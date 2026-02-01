@@ -18,9 +18,13 @@ A comprehensive PowerShell module providing core functionality for PSx Composer,
   - [Binary Verification](#binary-verification)
   - [Temporary Data Management](#temporary-data-management)
   - [SFX Preparation](#sfx-preparation)
-- [Usage Examples](#usage-examples)
+  - [Data Bundle Management](#data-bundle-management)
+  - [Release Creation](#release-creation)
+  - [Integrity Verification](#integrity-verification)
+- [Complete Build Workflow](#complete-build-workflow)
 - [Return Object Structure](#return-object-structure)
 - [Architecture](#architecture)
+- [Function Suggestions](#function-suggestions)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -34,6 +38,9 @@ PSxFramework is designed to support the PSx Composer application by providing mo
 - Verifying required binary dependencies
 - Creating and managing temporary build directories
 - Preparing SFX modules and configuration files
+- Packaging application data into compressed archives
+- Creating final self-extracting executables
+- Generating integrity checksums
 - Comprehensive logging capabilities
 
 By separating these core functions into a dedicated module, the main PSx Composer application remains lightweight and maintainable.
@@ -47,6 +54,9 @@ By separating these core functions into a dedicated module, the main PSx Compose
 - **📁 Temporary Directory Management**: Creates, cleans, and removes hidden temporary build directories
 - **📦 SFX Module Support**: Prepares different SFX modules (GUI, Console, Installer, Custom)
 - **⚙️ Configuration Management**: Handles SFX configuration template preparation
+- **🗜️ Data Bundling**: Copies and packages application files into 7z archives
+- **🏗️ Release Building**: Combines SFX, config, and archive into executable (system/dotnet methods)
+- **🔐 Integrity Verification**: SHA256/SHA512 checksum generation
 - **📝 Advanced Logging**: Timestamps, severity levels, and comprehensive error tracking
 - **🛡️ Robust Error Handling**: Standardized return objects for consistent error reporting
 - **🌐 Multi-Edition Support**: Compatible with PowerShell 5.1+ and PowerShell Core
@@ -59,6 +69,7 @@ By separating these core functions into a dedicated module, the main PSx Compose
 - **.NET Framework**: 4.7.2 or higher (for Windows PowerShell)
 - **Operating System**: Windows (requires registry access)
 - **PSx Composer**: Installation required for full functionality
+- **7-Zip**: Bundled with PSx Composer or external installation
 
 ---
 
@@ -256,83 +267,135 @@ if ($result.code -eq 0) {
 
 ---
 
-## 💡 Usage Examples
+### Data Bundle Management
 
-### Complete Build Process Example
+#### PrepareDataBundle
+
+Copies application data from source directory to build directory.
+
+**Parameters:**
+- `DataSource` (string, mandatory): Source directory with application files
+- `DestFolder` (string, mandatory): Destination directory (typically `{INSTALLDIR}\tmpdata\{APPNAME}`)
+
+**Example:**
+```powershell
+$installDir = (GetInstallDir).data
+$appName = "MyApplication"
+$destPath = Join-Path $installDir "tmpdata\$appName"
+
+$result = PrepareDataBundle -DataSource "C:\MyApp\Files" -DestFolder $destPath
+if ($result.code -eq 0) {
+    Write-Host "Data prepared: $($result.msg)"
+}
+```
+
+---
+
+#### CreateDataBundle
+
+Creates a 7z archive from prepared application data.
+
+**Parameters:**
+- `InputPath` (string, mandatory): Directory to compress
+- `7zBinary` (string, optional): Path to 7z.exe (default: bundled version)
+- `Filename` (string, mandatory): Archive name (without .7z extension)
+- `Output` (string, optional): Output directory (default: `{INSTALLDIR}\tmpdata`)
+- `CompLvl` (int, optional): Compression level 0-9 (default: 5)
+
+**Example:**
+```powershell
+$result = CreateDataBundle -InputPath "C:\PSx\tmpdata\MyApp" -Filename "MyApp" -CompLvl 7
+if ($result.code -eq 0) {
+    Write-Host "Archive created: $($result.data)"
+}
+```
+
+---
+
+### Release Creation
+
+#### CreateRelease
+
+Combines SFX module, config, and archive into final executable.
+
+**Parameters:**
+- `ReleaseName` (string, mandatory): Application name
+- `ReleaseVers` (string, mandatory): Version (e.g., "v1.00.00")
+- `Method` (string, optional): "system" or "dotnet" (default: auto-tries both)
+- `OutputPath` (string, optional): Output directory
+- `SHAchecksum` (bool, optional): Create checksum file (default: $false)
+- `SHAmethod` (int, optional): 256 or 512 (default: 256)
+
+**Example:**
+```powershell
+$result = CreateRelease -ReleaseName "MyApp" -ReleaseVers "v1.00.00" -SHAchecksum $true
+if ($result.code -eq 0) {
+    Write-Host "Release created: $($result.data)"
+}
+```
+
+---
+
+### Integrity Verification
+
+#### CreateChecksum
+
+Generates SHA256 or SHA512 checksum file.
+
+**Parameters:**
+- `InputFile` (string, mandatory): File to checksum
+- `SHA` (int, optional): 256 or 512 (default: 256)
+- `OutputPath` (string, optional): Output directory
+
+**Example:**
+```powershell
+$result = CreateChecksum -InputFile "C:\Release\MyApp.exe" -SHA 512
+if ($result.code -eq 0) {
+    Write-Host "Checksum created: $($result.data)"
+}
+```
+
+---
+
+## 🔄 Complete Build Workflow
 
 ```powershell
-# Import the module
+# Import module
 Import-Module PSxFramework
 
 # Initialize logging
-$logFile = "C:\Logs\psx_build.log"
-WriteLogMessage -Logfile $logFile -Message "Starting PSx build process" -Flag "INFO" -Override 1
+$logFile = "C:\Logs\build.log"
+WriteLogMessage -Logfile $logFile -Message "Starting build" -Flag "INFO" -Override 1
 
 # Verify installation
 $installResult = GetInstallDir
-if ($installResult.code -ne 0) {
-    WriteLogMessage -Logfile $logFile -Message $installResult.msg -Flag "ERROR"
-    exit 1
+if ($installResult.code -ne 0) { exit 1 }
+$installDir = $installResult.data
+
+# Create temp workspace
+CreateHiddenTempData
+
+# Prepare data
+$appName = "MyApplication"
+$destPath = Join-Path $installDir "tmpdata\$appName"
+PrepareDataBundle -DataSource "C:\MyApp\Source" -DestFolder $destPath
+
+# Create 7z archive
+CreateDataBundle -InputPath $destPath -Filename $appName -CompLvl 7
+
+# Prepare SFX and config
+PrepareSFX -SFXmod "GUI-Mode"
+PrepareCFG -SFXmod "GUI-Mode"
+
+# Create release with checksum
+$releaseResult = CreateRelease -ReleaseName $appName -ReleaseVers "v1.00.00" -SHAchecksum $true -SHAmethod 512
+
+if ($releaseResult.code -eq 0) {
+    WriteLogMessage -Logfile $logFile -Message "Build completed: $($releaseResult.data)" -Flag "INFO"
 }
 
-WriteLogMessage -Logfile $logFile -Message "Installation found: $($installResult.data)" -Flag "INFO"
-
-# Create temporary workspace
-$tempResult = CreateHiddenTempData
-if ($tempResult.code -ne 0) {
-    WriteLogMessage -Logfile $logFile -Message $tempResult.msg -Flag "ERROR"
-    exit 1
-}
-
-WriteLogMessage -Logfile $logFile -Message "Temporary workspace created" -Flag "INFO"
-
-# Prepare SFX module
-$sfxResult = PrepareSFX -SFXmod "GUI-Mode"
-if ($sfxResult.code -ne 0) {
-    WriteLogMessage -Logfile $logFile -Message $sfxResult.msg -Flag "ERROR"
-    CleanHiddenTempData
-    exit 1
-}
-
-WriteLogMessage -Logfile $logFile -Message "SFX module prepared" -Flag "INFO"
-
-# Prepare configuration
-$cfgResult = PrepareCFG -SFXmod "GUI-Mode"
-if ($cfgResult.code -ne 0) {
-    WriteLogMessage -Logfile $logFile -Message $cfgResult.msg -Flag "ERROR"
-    CleanHiddenTempData
-    exit 1
-}
-
-WriteLogMessage -Logfile $logFile -Message "Configuration prepared" -Flag "INFO"
-
-# ... additional build steps ...
-
-# Clean up
+# Cleanup
 CleanHiddenTempData
-WriteLogMessage -Logfile $logFile -Message "Build process completed successfully" -Flag "INFO"
-```
-
-### Binary Verification Example
-
-```powershell
-# Verify all required binaries
-$installDir = (GetInstallDir).data
-$requiredBinaries = @(
-    "include\7zip\7z.exe",
-    "include\ResourceHacker\ResourceHacker.exe"
-)
-
-foreach ($binary in $requiredBinaries) {
-    $fullPath = Join-Path $installDir $binary
-    $result = VerifyBinary -ExePath $fullPath
-    
-    if ($result.code -eq 0) {
-        Write-Host "✓ Verified: $binary" -ForegroundColor Green
-    } else {
-        Write-Warning "✗ Missing: $binary - $($result.msg)"
-    }
-}
 ```
 
 ---
@@ -376,15 +439,22 @@ PSxFramework/
 ├── README.md                   # This file
 ├── Private/
 │   └── OPSreturn.ps1          # Internal helper function
-└── Public/
-    ├── WriteLogMessage.ps1     # Logging function
-    ├── GetInstallDir.ps1       # Installation detection
-    ├── VerifyBinary.ps1        # Binary verification
-    ├── CreateHiddenTempData.ps1 # Create temp directory
-    ├── CleanHiddenTempData.ps1  # Clean temp directory
-    ├── RemoveHiddenTempData.ps1 # Remove temp directory
-    ├── PrepareSFX.ps1          # Prepare SFX modules
-    └── PrepareCFG.ps1          # Prepare config files
+├── Public/
+│   ├── WriteLogMessage.ps1     # Logging function
+│   ├── GetInstallDir.ps1       # Installation detection
+│   ├── VerifyBinary.ps1        # Binary verification
+│   ├── CreateHiddenTempData.ps1 # Create temp directory
+│   ├── CleanHiddenTempData.ps1  # Clean temp directory
+│   ├── RemoveHiddenTempData.ps1 # Remove temp directory
+│   ├── PrepareSFX.ps1          # Prepare SFX modules
+│   ├── PrepareCFG.ps1          # Prepare config files
+│   ├── PrepareDataBundle.ps1   # Prepare application data
+│   ├── CreateDataBundle.ps1    # Create 7z archives
+│   ├── CreateChecksum.ps1      # Generate checksums
+│   └── CreateRelease.ps1       # Create final executable
+└── Examples/
+    ├── Complete-Build-Example.ps1
+    └── Individual-Function-Examples.ps1
 ```
 
 ### Design Principles
@@ -394,6 +464,68 @@ PSxFramework/
 3. **Robustness**: Comprehensive error handling and validation
 4. **Documentation**: Extensive inline comments and help documentation
 5. **Reusability**: Functions can be used independently or combined
+
+---
+
+## 💡 Function Suggestions
+
+### Recommended Additional Functions (Public)
+
+1. **SetApplicationIcon**
+   - Uses Resource Hacker to apply custom icons to executables
+   - Parameters: ExePath, IconPath, ResourceHackerPath (optional)
+   - Integrates with CreateRelease workflow
+
+2. **ValidateRelease**
+   - Comprehensive validation of created executable
+   - Checks file size, PE header, digital signature status
+   - Verifies SFX module integrity
+
+3. **CreateVersionInfo**
+   - Generates version information resource data
+   - Parameters: Product name, version, company, copyright, etc.
+   - Can be embedded in executable
+
+4. **CompressWithLZMA**
+   - Alternative compression using LZMA2 algorithm
+   - Better compression ratio for certain file types
+   - Parameters similar to CreateDataBundle
+
+5. **BackupRelease**
+   - Creates backup copies of releases with timestamps
+   - Organizes backups in dated folders
+   - Cleanup of old backups based on retention policy
+
+6. **PublishRelease**
+   - Copies release to deployment/distribution locations
+   - Supports network shares, FTP, cloud storage
+   - Creates deployment manifest
+
+### Recommended Additional Functions (Private/Helper)
+
+1. **ValidateParameter**
+   - Centralized parameter validation helper
+   - Reduces code duplication across functions
+   - Returns standardized validation errors
+
+2. **InvokeProcessSafely**
+   - Wrapper for Process.Start with timeout and error handling
+   - Captures stdout/stderr consistently
+   - Used by CreateDataBundle, CreateRelease, etc.
+
+3. **EnsureDirectory**
+   - Creates directory if not exists
+   - Handles permission issues gracefully
+   - Returns OPSreturn object
+
+4. **GetFileSize**
+   - Returns formatted file size (KB, MB, GB)
+   - Consistent formatting across all functions
+
+5. **WriteVerboseLog**
+   - Enhanced verbose output for debugging
+   - Conditional logging based on verbosity level
+   - Timestamps and caller information
 
 ---
 
@@ -435,6 +567,10 @@ Copyright © 2026 Praetoriani (M.Sczepanski). All rights reserved.
 - ✅ RemoveHiddenTempData: Complete temporary directory removal
 - ✅ PrepareSFX: SFX module preparation
 - ✅ PrepareCFG: Configuration file preparation
+- ✅ PrepareDataBundle: Application data preparation and copying
+- ✅ CreateDataBundle: 7z archive creation with compression control
+- ✅ CreateChecksum: SHA256/SHA512 integrity verification
+- ✅ CreateRelease: Final executable creation (system/dotnet methods)
 
 **Features:**
 - ✅ Standardized return object structure (OPSreturn)
@@ -442,6 +578,7 @@ Copyright © 2026 Praetoriani (M.Sczepanski). All rights reserved.
 - ✅ Full English documentation
 - ✅ PowerShell 5.1+ and Core compatibility
 - ✅ Modular architecture with Public/Private function separation
+- ✅ Complete build workflow support
 
 ---
 
