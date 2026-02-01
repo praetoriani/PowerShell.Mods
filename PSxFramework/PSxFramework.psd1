@@ -52,7 +52,11 @@ FunctionsToExport = @(
     'CleanHiddenTempData',
     'RemoveHiddenTempData',
     'PrepareSFX',
-    'PrepareCFG'
+    'PrepareCFG',
+    'PrepareDataBundle',
+    'CreateDataBundle',
+    'CreateChecksum',
+    'CreateRelease'
 )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -77,6 +81,10 @@ FileList = @(
     'Public\RemoveHiddenTempData.ps1',
     'Public\PrepareSFX.ps1',
     'Public\PrepareCFG.ps1',
+    'Public\PrepareDataBundle.ps1',
+    'Public\CreateDataBundle.ps1',
+    'Public\CreateChecksum.ps1',
+    'Public\CreateRelease.ps1',
     'README.md'
 )
 
@@ -86,7 +94,7 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = @('PowerShell', 'Compiler', 'SFX', 'Executable', 'Packaging', 'PSxComposer')
+        Tags = @('PowerShell', 'Compiler', 'SFX', 'Executable', 'Packaging', 'PSxComposer', '7zip', 'Checksum')
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/praetoriani/PowerShell.Mods'
@@ -103,6 +111,10 @@ Version 1.00.00 (Initial Release)
 - RemoveHiddenTempData: Completely removes temporary data directory
 - PrepareSFX: Prepares SFX modules for archive creation
 - PrepareCFG: Prepares and customizes SFX configuration files
+- PrepareDataBundle: Prepares application data for packaging into archives
+- CreateDataBundle: Creates 7z archives with configurable compression levels
+- CreateChecksum: Generates SHA256/SHA512 checksums for file integrity verification
+- CreateRelease: Combines SFX module, config, and archive into final executable
 - Comprehensive error handling with standardized return objects
 - Full English documentation and code comments
 - Compatible with PowerShell 5.1+ and PowerShell Core
