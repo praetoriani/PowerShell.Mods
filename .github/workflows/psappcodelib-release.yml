@@ -9,14 +9,21 @@
 
 name: PSAppCoreLib Release
 
+# GLOBAL VARS
+env:
+  zip_filename: "PSAppCoreLib-Release.zip"      # Filename for the ZIP-Archive
+  repo_folder: "PSAppCoreLib"                   # Name of the Folder inside the repository
+  temp_folder: "PSAppCoreLib-Module"            # Folder-Name for the temporary folder
+  workflow_file: "psappcorelib-release.yml"     # Filename for the ZIP-Archive
+
 # TRIGGER CONFIGURATION - MULTIPLE TRIGGERS SUPPORTED
 # Defines when this workflow should be executed
 on:
   # AUTOMATIC TRIGGER: Tag-based execution
   push:
     tags:
-      - 'psacl-*'  # Workflow starts only for tags beginning with "psacl-"
-                 # Examples: psacl-v1.0.1, psacl-v2.0.0, psacl-beta-1
+      - 'psacl-*'   # Workflow starts only for tags beginning with "psacl-"
+                    # Examples: psacl-v1.0.1, psacl-v2.0.0, psacl-beta-1
 
   # MANUAL TRIGGER: Allows running workflow from GitHub Actions interface
   workflow_dispatch:
@@ -123,43 +130,43 @@ jobs:
       - name: Create PSAppCoreLib release package
         run: |
           # Debug output - displayed in the Actions log
-          echo "🚀 Starting release package creation for PSAppCoreLib"
+          echo "🚀 Starting release package creation for ${{ env.repo_folder }}"
           
           # Create temporary folder for the release
-          mkdir -p release-temp/PSAppCoreLib-Module
+          mkdir -p release-temp/${{ env.temp_folder }}
           echo "📁 Temporary release folder created"
           
           # Verify source folder exists
-          if [ ! -d "PSAppCoreLib" ]; then
-            echo "❌ Error: 'PSAppCoreLib' folder not found!"
+          if [ ! -d "${{ env.repo_folder }}" ]; then
+            echo "❌ Error: '${{ env.repo_folder }}' folder not found!"
             echo "📂 Available folders:"
             ls -la
             exit 1
           fi
           
-          # IMPORTANT: Copy all files from the PSAppCoreLib folder
+          # IMPORTANT: Copy all files from the ${{ env.repo_folder }} folder
           # Folder name contains spaces, therefore quotes are necessary
-          cp -r "PSAppCoreLib"/* release-temp/PSAppCoreLib-Module/
-          echo "📋 PSAppCoreLib files copied:"
-          ls -la "PSAppCoreLib"/
+          cp -r "${{ env.repo_folder }}"/* release-temp/${{ env.temp_folder }}/
+          echo "📋 ${{ env.repo_folder }} files copied:"
+          ls -la "${{ env.repo_folder }}"/
           
           # Change to temporary folder
           cd release-temp
           
-          # Create ZIP file with all PSAppCoreLib files
+          # Create ZIP file with all ${{ env.repo_folder }} files
           # -r = recursive (include all subdirectories)
-          zip -r ../PSAppCoreLib-Release.zip PSAppCoreLib-Module/
+          zip -r ../${{ env.zip_filename }} ${{ env.temp_folder }}/
           
           # Return to root directory
           cd ..
           
           # Confirmation and display ZIP file size
           echo "✅ ZIP file created:"
-          ls -lh PSAppCoreLib-Release.zip
+          ls -lh ${{ env.zip_filename }}
           
           # Verify ZIP file contents
           echo "📦 ZIP file contents:"
-          unzip -l PSAppCoreLib-Release.zip
+          unzip -l ${{ env.zip_filename }}
 
       # STEP 5: Create GitHub release with enhanced descriptions
       # This is the most important step - the actual release is created here
@@ -177,7 +184,7 @@ jobs:
           body: |
             ## 📂 **File Download:**
             
-            **📦 [`PSAppCoreLib-Release.zip`](https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.tag_name }}/PSAppCoreLib-Release.zip)**
+            **📦 [`${{ env.zip_filename }}`](https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.tag_name }}/${{ env.zip_filename }})**
             <br>
             
             ## ⚠️ System Requirements:
@@ -192,7 +199,7 @@ jobs:
             *This release was automatically created by GitHub Actions.*
           
           # RELEASE SETTINGS
-          files: PSAppCoreLib-Release.zip    # The ZIP file as download asset
+          files: ${{ env.zip_filename }}    # The ZIP file as download asset
           draft: false          # false = Release is published immediately
           prerelease: false     # false = Normal release (not marked as beta)
           
@@ -211,29 +218,31 @@ jobs:
           TAG_NAME="${{ steps.setup.outputs.tag_name }}"
           TRIGGER_TYPE="${{ github.event_name }}"
           
-          echo "🎉 PSAppCoreLib release successfully created!"
+          echo "🎉 ${{ github.workflow }} successfully created!"
           echo ""
           echo "📊 Release Information:"
+          echo "   👤  Actor: ${{ github.actor }}"
           echo "   🏷️  Tag: $TAG_NAME"
           echo "   🔄  Trigger: $TRIGGER_TYPE"
+          echo "   ⚡  Event-Type: ${{ github.event_name }}"
           echo "   📁  Repository: ${{ github.repository }}"
           echo "   🔗  Commit: ${{ github.sha }}"
           echo "   ⏰  Created: $(date '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "🌐 Release Links:"
           echo "   📖  Release Page: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
-          echo "   💾  Direct Download: https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/PSAppCoreLib-Release.zip"
+          echo "   💾  Direct Download: https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/${{ env.zip_filename }}"
           echo ""
           echo "🚀 Next Steps for Users:"
           echo "   1. Visit the release page above"
-          echo "   2. Download 'PSAppCoreLib-Release.zip'"
+          echo "   2. Download '${{ env.zip_filename }}'"
           echo ""
           echo "🔧 For Developers:"
           if [ "$TRIGGER_TYPE" = "workflow_dispatch" ]; then
             echo "   • This release was created manually via GitHub Actions"
-            echo "   • To create another release, go to Actions → PSAppCoreLib Release → Run workflow"
+            echo "   • To create another release, go to Actions → ${{ github.workflow }} → Run workflow"
           else
             echo "   • This release was created automatically by pushing tag: $TAG_NAME"
             echo "   • To create another release, push a new psacl-* tag or use manual trigger"
           fi
-          echo "   • Manual trigger available at: https://github.com/${{ github.repository }}/actions/workflows/psappcorelib-release.yml"
+          echo "   • Manual trigger available at: https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
