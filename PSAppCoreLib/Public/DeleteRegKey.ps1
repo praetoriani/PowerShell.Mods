@@ -38,7 +38,7 @@ function DeleteRegKey {
     .EXAMPLE
     $result = DeleteRegKey -Path "HKCU:\Software\TestApp"
     if ($result.code -eq 0) {
-        Write-Host "Registry key deleted successfully"
+        Write-Host "Registry key deleted: $($result.data)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -50,6 +50,7 @@ function DeleteRegKey {
     - Use the Recurse parameter with caution as it deletes all subkeys
     - Protected system keys cannot be deleted even with Force parameter
     - Consider creating a registry backup before deleting important keys
+    - Returns the deleted key path in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -65,16 +66,9 @@ function DeleteRegKey {
         [switch]$Force
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
@@ -92,8 +86,7 @@ function DeleteRegKey {
         }
         
         if (-not $PathStartsWithValidHive) {
-            $status.msg = "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
         }
         
         # Normalize path - ensure it uses PowerShell drive format
@@ -104,13 +97,12 @@ function DeleteRegKey {
         $NormalizedPath = $NormalizedPath.Replace('HKEY_CURRENT_CONFIG:', 'HKCC:')
         
         # Remove trailing backslash if present
-        $NormalizedPath = $NormalizedPath.TrimEnd('\')
+        $NormalizedPath = $NormalizedPath.TrimEnd('\\')
         
         # Prevent deletion of root hive keys (safety check)
         $RootHivePattern = '^(HKLM:|HKCU:|HKCR:|HKU:|HKCC:)$'
         if ($NormalizedPath -match $RootHivePattern) {
-            $status.msg = "Cannot delete root registry hive '$NormalizedPath'. This operation is not allowed for safety reasons."
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot delete root registry hive '$NormalizedPath'. This operation is not allowed for safety reasons."
         }
         
         # Additional safety check for critical system paths
@@ -122,16 +114,14 @@ function DeleteRegKey {
         )
         
         foreach ($criticalPath in $CriticalPaths) {
-            if ($NormalizedPath -eq $criticalPath -or $NormalizedPath.StartsWith("$criticalPath\", [System.StringComparison]::OrdinalIgnoreCase)) {
-                $status.msg = "Cannot delete critical system registry path '$NormalizedPath'. This operation is blocked for system protection."
-                return $status
+            if ($NormalizedPath -eq $criticalPath -or $NormalizedPath.StartsWith("$criticalPath\\", [System.StringComparison]::OrdinalIgnoreCase)) {
+                return OPSreturn -Code -1 -Message "Cannot delete critical system registry path '$NormalizedPath'. This operation is blocked for system protection."
             }
         }
         
         # Check if the registry key exists
         if (-not (Test-Path -Path $NormalizedPath)) {
-            $status.msg = "Registry key '$NormalizedPath' does not exist"
-            return $status
+            return OPSreturn -Code -1 -Message "Registry key '$NormalizedPath' does not exist"
         }
         
         # If Recurse is not specified, check if the key has subkeys or values
@@ -140,8 +130,7 @@ function DeleteRegKey {
                 # Check for subkeys
                 $SubKeys = Get-ChildItem -Path $NormalizedPath -ErrorAction SilentlyContinue
                 if ($SubKeys -and $SubKeys.Count -gt 0) {
-                    $status.msg = "Registry key '$NormalizedPath' contains $($SubKeys.Count) subkey(s). Use -Recurse parameter to delete the key and all its subkeys."
-                    return $status
+                    return OPSreturn -Code -1 -Message "Registry key '$NormalizedPath' contains $($SubKeys.Count) subkey(s). Use -Recurse parameter to delete the key and all its subkeys."
                 }
                 
                 # Check for values (excluding the default value)
@@ -153,8 +142,7 @@ function DeleteRegKey {
                     }
                     
                     if ($ValueNames -and $ValueNames.Count -gt 0) {
-                        $status.msg = "Registry key '$NormalizedPath' contains $($ValueNames.Count) value(s): $($ValueNames -join ', '). The key must be empty or use -Recurse parameter."
-                        return $status
+                        return OPSreturn -Code -1 -Message "Registry key '$NormalizedPath' contains $($ValueNames.Count) value(s): $($ValueNames -join ', '). The key must be empty or use -Recurse parameter."
                     }
                 }
             }
@@ -192,43 +180,34 @@ function DeleteRegKey {
                     }
                 }
                 else {
-                    $status.msg = "Operation cancelled by user"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Operation cancelled by user"
                 }
             }
             
             # Verify the key was deleted
             if (Test-Path -Path $NormalizedPath) {
-                $status.msg = "Registry key deletion reported success, but verification failed. Key '$NormalizedPath' still exists."
-                return $status
+                return OPSreturn -Code -1 -Message "Registry key deletion reported success, but verification failed. Key '$NormalizedPath' still exists."
             }
             
             Write-Verbose "Successfully deleted registry key: $NormalizedPath"
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when deleting registry key '$NormalizedPath'. Administrator privileges may be required for this operation."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when deleting registry key '$NormalizedPath'. Administrator privileges may be required for this operation."
         }
         catch [System.Security.SecurityException] {
-            $status.msg = "Security exception when deleting registry key '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Security exception when deleting registry key '$NormalizedPath': $($_.Exception.Message)"
         }
         catch [System.ArgumentException] {
-            $status.msg = "Invalid registry key path '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Invalid registry key path '$NormalizedPath': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to delete registry key '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to delete registry key '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with deleted path in data field
+        return OPSreturn -Code 0 -Message "" -Data $NormalizedPath
     }
     catch {
-        $status.msg = "Unexpected error in DeleteRegKey function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in DeleteRegKey function: $($_.Exception.Message)"
     }
 }
