@@ -53,21 +53,13 @@ function WriteLogMessage {
         [int]$Override = 0
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-    }
-    
     # Validate mandatory parameters (now handles empty strings properly)
     if ([string]::IsNullOrEmpty($Logfile)) {
-        $status.msg = "Parameter 'Logfile' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Logfile' is required but was not provided or is empty"
     }
     
     if ([string]::IsNullOrEmpty($Message)) {
-        $status.msg = "Parameter 'Message' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Message' is required but was not provided or is empty"
     }
     
     try {
@@ -75,7 +67,7 @@ function WriteLogMessage {
         $Flag = $Flag.ToUpper()
         
         # Validate flag parameter (case insensitive check already done by ValidateSet)
-        # Adjust flag formatting for consistent spacing - CORRECTED VERSION
+        # Adjust flag formatting for consistent spacing
         switch ($Flag) {
             "INFO"  { $FormattedFlag = "[INFO] " }
             "DEBUG" { $FormattedFlag = "[DEBUG]" }
@@ -107,8 +99,7 @@ function WriteLogMessage {
                 $LogEntry | Out-File -FilePath $Logfile -Encoding UTF8 -Force
             }
             catch {
-                $status.msg = "Failed to create or overwrite log file '$Logfile': $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to create or overwrite log file '$Logfile': $($_.Exception.Message)"
             }
         }
         else {
@@ -117,18 +108,14 @@ function WriteLogMessage {
                 $LogEntry | Out-File -FilePath $Logfile -Encoding UTF8 -Append
             }
             catch {
-                $status.msg = "Failed to append to log file '$Logfile': $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to append to log file '$Logfile': $($_.Exception.Message)"
             }
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success
+        return OPSreturn -Code 0 -Message "" -Data $LogEntry
     }
     catch {
-        $status.msg = "Unexpected error in WriteLogMessage function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in WriteLogMessage function: $($_.Exception.Message)"
     }
 }
