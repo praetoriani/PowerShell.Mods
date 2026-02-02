@@ -11,7 +11,7 @@
 RootModule = 'PSAppCoreLib.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.00.00'
+ModuleVersion = '1.06.00'
 
 # Supported PSEditions
 CompatiblePSEditions = @('Desktop', 'Core')
@@ -29,7 +29,7 @@ CompanyName = 'Praetoriani'
 Copyright = '(c) 2025 Praetoriani. All rights reserved.'
 
 # Description of the functionality provided by this module
-Description = 'Collection of useful functions for PowerShell apps'
+Description = 'Powerfull collection of useful Windows System functions for PowerShell apps'
 
 # Minimum version of the Windows PowerShell engine required by this module
 PowerShellVersion = '5.1'
@@ -44,7 +44,49 @@ DotNetFrameworkVersion = '4.7.2'
 RequiredAssemblies = @('System.Drawing', 'System.Windows.Forms')
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = @('WriteLogMessage', 'GetBitmapIconFromDLL')
+FunctionsToExport = @(
+    # Windows Registry Management
+    'CreateRegKey',
+    'CreateRegVal',
+    'DeleteRegKey',
+    'DeleteRegVal',
+    'GetRegEntryValue',
+    'GetRegEntryType',
+    'SetNewRegValue',
+    # File & Directory Management
+    'CreateNewDir',
+    'CreateNewFile',
+    'CopyDir',
+    'RemoveDir',
+    'RemoveDirs',
+    'CopyFile',
+    'CopyFiles',
+    'RemoveFile',
+    'RemoveFiles',
+    'WriteTextToFile',
+    'ReadTextFile',
+    # Special System Management
+    'RemoveOnReboot',
+    'RemoveAllOnReboot',
+    # Process Management
+    'RunProcess',
+    'GetProcessByName',
+    'GetProcessByID',
+    'RestartProcess',
+    'StopProcess',
+    'KillProcess',
+    # Services Management
+    'StartService',
+    'RestartService',
+    'ForceRestartService',
+    'StopService',
+    'KillService',
+    'SetServiceState',
+    # Logging
+    'WriteLogMessage',
+    # Miscellaneous
+    'GetBitmapIconFromDLL'
+)
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
@@ -56,7 +98,52 @@ VariablesToExport = @()
 AliasesToExport = @()
 
 # List of all files packaged with this module
-FileList = @('PSAppCoreLib.psm1', 'PSAppCoreLib.psd1', 'Public\WriteLogMessage.ps1', 'Public\GetBitmapIconFromDLL.ps1', 'README.md')
+FileList = @(
+    'PSAppCoreLib.psm1',
+    'PSAppCoreLib.psd1',
+    # Windows Registry Management
+    'Public\CreateRegKey.ps1',
+    'Public\CreateRegVal.ps1',
+    'Public\DeleteRegKey.ps1',
+    'Public\DeleteRegVal.ps1',
+    'Public\GetRegEntryValue.ps1',
+    'Public\GetRegEntryType.ps1',
+    'Public\SetNewRegValue.ps1',
+    # File & Directory Management
+    'Public\CreateNewDir.ps1',
+    'Public\CreateNewFile.ps1',
+    'Public\CopyDir.ps1',
+    'Public\RemoveDir.ps1',
+    'Public\RemoveDirs.ps1',
+    'Public\CopyFile.ps1',
+    'Public\CopyFiles.ps1',
+    'Public\RemoveFile.ps1',
+    'Public\RemoveFiles.ps1',
+    'Public\WriteTextToFile.ps1',
+    'Public\ReadTextFile.ps1',
+    # Special System Management
+    'Public\RemoveOnReboot.ps1',
+    'Public\RemoveAllOnReboot.ps1',
+    # Process Management
+    'Public\RunProcess.ps1',
+    'Public\GetProcessByName.ps1',
+    'Public\GetProcessByID.ps1',
+    'Public\RestartProcess.ps1',
+    'Public\StopProcess.ps1',
+    'Public\KillProcess.ps1',
+    # Services Management
+    'Public\StartService.ps1',
+    'Public\RestartService.ps1',
+    'Public\ForceRestartService.ps1',
+    'Public\StopService.ps1',
+    'Public\KillService.ps1',
+    'Public\SetServiceState.ps1',
+    # Logging
+    'Public\WriteLogMessage.ps1',
+    # Miscellaneous
+    'Public\GetBitmapIconFromDLL.ps1',
+    'README.md'
+)
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
 PrivateData = @{
@@ -64,20 +151,94 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = @('PowerShell', 'Logging', 'Icons', 'Utilities', 'AppDevelopment')
+        Tags = @(
+            'PowerShell', 'Logging', 'Icons', 'Utilities', 'AppDevelopment', 'Registry',
+            'Windows', 'FileSystem', 'DirectoryManagement', 'Process', 'ProcessManagement',
+            'Service', 'WindowsService', 'ServiceManagement'
+            )
+
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/praetoriani'
 
         # ReleaseNotes of this module
         ReleaseNotes = @'
+Version 1.06.00 (Windows Service Management)
+===============================================================
+NEW FEATURES:
+- StartService: Starts a Windows service by name
+- RestartService: Restarts a Windows service by name
+- ForceRestartService: Forcefully restarts a Windows service by name
+- StopService: Stops a Windows service by name
+- KillService: Forcefully terminates a Windows service by name
+- SetServiceState: Changes the startup type of a Windows service
+
+Version 1.05.00 (Process Management)
+===============================================================
+NEW FEATURES:
+- RunProcess: Starts a new process and returns the process ID on success
+- GetProcessByName: Gets a process by exact name match and returns the process ID
+- GetProcessByID: Gets a process by process ID and returns a handle to the process
+- RestartProcess: Restarts a process by process ID
+- StopProcess: Gracefully stops a process by process ID
+- KillProcess: Forcefully terminates a process by process ID
+
+Version 1.04.00 (Extended File Operations & Reboot Scheduling)
+===============================================================
+NEW FEATURES:
+- CopyFile: Copy single files with timestamp preservation
+- CopyFiles: Batch copy multiple files from different locations
+- RemoveFile: Delete single files with safety checks
+- RemoveFiles: Batch delete multiple files with detailed reporting
+- WriteTextToFile: Writes text content to a file with specified encoding
+- ReadTextFile: Reads complete ontent from a file with specified encoding
+- RemoveOnReboot: Schedule single files/directories for deletion on reboot
+- RemoveAllOnReboot: Schedules complete removal of a directory and all its contents on next system reboot
+- Support for read-only and hidden file handling
+- Detailed success/failure reporting for batch operations
+- StopOnError option for critical operations
+- Administrator privilege detection
+- PendingFileRenameOperations integration
+
+Version 1.03.00 (File System Management)
+========================================
+NEW FEATURES:
+- CreateNewDir: Create new directories with validation
+- CreateNewFile: Create new files with optional content
+- CopyDir: Copy complete directories recursively
+- RemoveDir: Delete directories with safety checks
+- RemoveDirs: Delete multiple directories with safety checks
+- Support for local and UNC paths
+- File/Directory exclusion patterns for CopyDir
+- Protected critical system paths in RemoveDir
+- UTF-8, ASCII, Unicode encoding support for CreateNewFile
+- Progress reporting and statistics
+
+Version 1.02.00 (Extended Registry Management)
+==============================================
+NEW FEATURES:
+- DeleteRegKey: Delete registry keys with optional recursive deletion
+- DeleteRegVal: Delete individual registry values
+- GetRegEntryValue: Read registry value with type-aware handling
+- GetRegEntryType: Determine registry value type
+- SetNewRegValue: Update existing registry values with validation
+- Enhanced safety checks for system-critical registry paths
+- ShouldProcess support for destructive operations
+- Comprehensive value type validation and conversion
+
+Version 1.01.00 (Registry Functions Update)
+===========================================
+NEW FEATURES:
+- CreateRegKey: Create new registry keys with validation
+- CreateRegVal: Create registry values with all type support
+- Comprehensive parameter validation and security checks
+
 Version 1.00.00 (Initial Release)
 ================================
-- WriteLogMessage: Advanced logging function with timestamp and severity flags
-- GetBitmapIconFromDLL: Extract and convert icons from DLL files to bitmaps
+- WriteLogMessage: Advanced logging function
+- GetBitmapIconFromDLL: Extract icons from DLL files
 - Comprehensive error handling with standardized return objects
-- Full English documentation and code comments
-- Compatible with PowerShell 5.1+ and PowerShell Core
+
 '@
 
     } # End of PSData hashtable
