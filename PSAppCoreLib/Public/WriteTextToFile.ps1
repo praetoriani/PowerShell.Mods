@@ -8,7 +8,7 @@ function WriteTextToFile {
     validation and error handling. It checks if the content is text-based (not binary),
     validates the encoding, creates parent directories if needed, handles existing
     files based on the append/overwrite mode, and reports detailed results through
-    a standardized return object.
+    OPSreturn standardized return pattern.
     
     .PARAMETER Path
     The full path of the file to write to. If the file doesn't exist, it will be
@@ -36,23 +36,32 @@ function WriteTextToFile {
     at the end of the content. Default is $false (newline is added).
     
     .EXAMPLE
-    WriteTextToFile -Path "C:\Logs\app.log" -Content "Application started"
-    Writes a single line to the log file (overwrites if exists).
+    $result = WriteTextToFile -Path "C:\Logs\app.log" -Content "Application started"
+    if ($result.code -eq 0) {
+        Write-Host "Wrote $($result.data.BytesWritten) bytes to file"
+    }
     
     .EXAMPLE
-    WriteTextToFile -Path "C:\Data\report.txt" -Content "Error occurred" -Append
-    Appends the text to the existing file.
+    $result = WriteTextToFile -Path "C:\Data\report.txt" -Content "Error occurred" -Append
+    if ($result.code -eq 0) {
+        Write-Host "Appended to file: $($result.data.Path)"
+    }
     
     .EXAMPLE
     $lines = @("Line 1", "Line 2", "Line 3")
-    WriteTextToFile -Path "C:\Output\data.txt" -Content $lines -Encoding "UTF8NoBOM"
-    Writes multiple lines to file with UTF-8 encoding without BOM.
+    $result = WriteTextToFile -Path "C:\Output\data.txt" -Content $lines -Encoding "UTF8NoBOM"
+    if ($result.code -eq 0) {
+        Write-Host "Wrote $($result.data.LineCount) lines ($($result.data.BytesWritten) bytes)"
+    }
     
     .EXAMPLE
     $result = WriteTextToFile -Path "C:\Config\settings.ini" -Content $configText -Force
     if ($result.code -eq 0) {
-        Write-Host "Successfully wrote $($result.bytesWritten) bytes to file"
-        Write-Host "Lines written: $($result.lineCount)"
+        Write-Host "Successfully wrote file"
+        Write-Host "  Path: $($result.data.Path)"
+        Write-Host "  Size: $($result.data.BytesWritten) bytes"
+        Write-Host "  Lines: $($result.data.LineCount)"
+        Write-Host "  Encoding: $($result.data.Encoding)"
     }
     
     .NOTES
@@ -62,6 +71,7 @@ function WriteTextToFile {
     - BOM (Byte Order Mark) behavior depends on PowerShell version and encoding
     - In PowerShell 5.1, UTF8 encoding includes BOM by default
     - In PowerShell 7+, UTF8 encoding excludes BOM by default (use UTF8BOM to include)
+    - Returns comprehensive file operation metadata in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
@@ -88,61 +98,48 @@ function WriteTextToFile {
         [switch]$NoNewline
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        path = $null
-        bytesWritten = 0
-        lineCount = 0
-        encoding = $null
-        wasAppended = $false
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     if ($null -eq $Content) {
-        $status.msg = "Parameter 'Content' is required but was not provided"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Content' is required but was not provided"
     }
     
     try {
         # Normalize path
-        $NormalizedPath = $Path.Replace('/', '\')
+        $NormalizedPath = $Path.Replace('/', '\\')
+        
+        # Initialize line count
+        $LineCount = 0
         
         # Validate content is text-based (not binary)
         try {
             # Convert content to string array if it's not already
             if ($Content -is [array]) {
                 $TextContent = $Content
-                $status.lineCount = $Content.Count
+                $LineCount = $Content.Count
             }
             else {
                 $TextContent = $Content.ToString()
                 # Count lines in string content
-                $status.lineCount = ($TextContent -split "`r`n|`r|`n").Count
+                $LineCount = ($TextContent -split "`r`n|`r|`n").Count
             }
             
             # Check for null bytes (indicator of binary content)
             $ContentString = if ($TextContent -is [array]) { $TextContent -join "`n" } else { $TextContent }
             if ($ContentString -match [char]0x00) {
-                $status.msg = "Content appears to be binary data. Use Set-Content or [System.IO.File]::WriteAllBytes for binary files."
-                return $status
+                return OPSreturn -Code -1 -Message "Content appears to be binary data. Use Set-Content or [System.IO.File]::WriteAllBytes for binary files."
             }
         }
         catch {
-            $status.msg = "Failed to validate content: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to validate content: $($_.Exception.Message)"
         }
         
         # Check if path points to an existing directory
         if (Test-Path -Path $NormalizedPath -PathType Container) {
-            $status.msg = "Path '$NormalizedPath' is an existing directory, not a file"
-            return $status
+            return OPSreturn -Code -1 -Message "Path '$NormalizedPath' is an existing directory, not a file"
         }
         
         # Ensure parent directory exists
@@ -153,8 +150,7 @@ function WriteTextToFile {
                 New-Item -Path $ParentDirectory -ItemType Directory -Force -ErrorAction Stop | Out-Null
             }
             catch {
-                $status.msg = "Failed to create parent directory '$ParentDirectory': $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to create parent directory '$ParentDirectory': $($_.Exception.Message)"
             }
         }
         
@@ -162,8 +158,7 @@ function WriteTextToFile {
         if ((Test-Path -Path $NormalizedPath -PathType Leaf) -and -not $Force) {
             $ExistingFile = Get-Item -Path $NormalizedPath -ErrorAction SilentlyContinue
             if ($ExistingFile -and $ExistingFile.IsReadOnly) {
-                $status.msg = "File '$NormalizedPath' is readonly. Use -Force to overwrite readonly files."
-                return $status
+                return OPSreturn -Code -1 -Message "File '$NormalizedPath' is readonly. Use -Force to overwrite readonly files."
             }
         }
         
@@ -172,43 +167,25 @@ function WriteTextToFile {
         $ActionMessage = if ($Append -and $FileExists) { "Append to" } elseif ($FileExists) { "Overwrite" } else { "Create" }
         $ConfirmMessage = "$ActionMessage file '$NormalizedPath' with text content"
         
-        # Map encoding names to .NET encoding (PowerShell version compatibility)
-        $EncodingMap = @{
-            'UTF8' = if ($PSVersionTable.PSVersion.Major -ge 6) { [System.Text.UTF8Encoding]::new($false) } else { [System.Text.Encoding]::UTF8 }
-            'UTF8BOM' = [System.Text.UTF8Encoding]::new($true)
-            'UTF8NoBOM' = [System.Text.UTF8Encoding]::new($false)
-            'UTF32' = [System.Text.Encoding]::UTF32
-            'Unicode' = [System.Text.Encoding]::Unicode
-            'ASCII' = [System.Text.Encoding]::ASCII
-            'ANSI' = [System.Text.Encoding]::Default
-            'OEM' = [System.Text.Encoding]::GetEncoding(850)  # DOS/OEM encoding
-            'BigEndianUnicode' = [System.Text.Encoding]::BigEndianUnicode
-        }
-        
-        $SelectedEncoding = $EncodingMap[$Encoding]
-        $status.encoding = $Encoding
-        
         # Attempt to write the file
         try {
             Write-Verbose "Writing text to file: $NormalizedPath (Encoding: $Encoding, Append: $Append)"
             
             if ($PSCmdlet.ShouldProcess($NormalizedPath, $ConfirmMessage)) {
                 
-                # Build parameters for Out-File or Set-Content
+                # Build parameters for Out-File
                 $WriteParams = @{
                     Path = $NormalizedPath
                     Force = $Force
                     ErrorAction = 'Stop'
                 }
                 
-                # Use Out-File for better control over encoding and newlines
                 if ($NoNewline) {
                     $WriteParams['NoNewline'] = $true
                 }
                 
                 if ($Append) {
                     $WriteParams['Append'] = $true
-                    $status.wasAppended = $true
                 }
                 
                 # Handle encoding parameter based on PowerShell version
@@ -233,7 +210,6 @@ function WriteTextToFile {
                 else {
                     # PowerShell 5.1
                     if ($Encoding -eq 'UTF8NoBOM') {
-                        # UTF8 without BOM requires special handling in PS 5.1
                         $WriteParams['Encoding'] = 'utf8'
                     }
                     elseif ($Encoding -eq 'UTF8BOM' -or $Encoding -eq 'UTF8') {
@@ -272,43 +248,43 @@ function WriteTextToFile {
                 
                 # Verify file was written
                 if (-not (Test-Path -Path $NormalizedPath -PathType Leaf)) {
-                    $status.msg = "Write operation reported success, but file '$NormalizedPath' was not created"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Write operation reported success, but file '$NormalizedPath' was not created"
                 }
                 
                 # Get file information
                 $WrittenFile = Get-Item -Path $NormalizedPath -ErrorAction Stop
-                $status.path = $WrittenFile.FullName
-                $status.bytesWritten = $WrittenFile.Length
+                $FilePath = $WrittenFile.FullName
+                $BytesWritten = $WrittenFile.Length
                 
-                Write-Verbose "Successfully wrote $($status.bytesWritten) bytes to file: $($status.path)"
-                Write-Verbose "Lines written: $($status.lineCount), Encoding: $($status.encoding), Appended: $($status.wasAppended)"
+                Write-Verbose "Successfully wrote $BytesWritten bytes to file: $FilePath"
+                Write-Verbose "Lines written: $LineCount, Encoding: $Encoding, Appended: $Append"
             }
             else {
-                $status.msg = "Operation cancelled by user"
-                return $status
+                return OPSreturn -Code -1 -Message "Operation cancelled by user"
             }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied writing to file '$NormalizedPath'. Check file and directory permissions."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied writing to file '$NormalizedPath'. Check file and directory permissions."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error writing to file: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error writing to file: $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to write text to file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to write text to file '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Prepare return data with comprehensive file operation metadata
+        $ReturnData = [PSCustomObject]@{
+            Path         = $FilePath
+            BytesWritten = $BytesWritten
+            LineCount    = $LineCount
+            Encoding     = $Encoding
+            WasAppended  = $Append.IsPresent
+        }
+        
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in WriteTextToFile function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in WriteTextToFile function: $($_.Exception.Message)"
     }
 }

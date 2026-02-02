@@ -7,8 +7,8 @@ function ReadTextFile {
     The ReadTextFile function reads the entire content of a text-based file with
     comprehensive validation and error handling. It validates that the file exists,
     checks if it's text-based (not binary), detects or uses specified encoding,
-    reads the complete file content, and reports detailed results through a
-    standardized return object.
+    reads the complete file content, and reports detailed results through
+    OPSreturn standardized return pattern.
     
     .PARAMETER Path
     The full path of the file to read. Must be an existing file with read permissions.
@@ -33,24 +33,31 @@ function ReadTextFile {
     text (no null bytes or binary content). Default is $true.
     
     .EXAMPLE
-    ReadTextFile -Path "C:\Logs\app.log"
-    Reads the complete log file with automatic encoding detection.
+    $result = ReadTextFile -Path "C:\Logs\app.log"
+    if ($result.code -eq 0) {
+        $lines = $result.data.Content
+        Write-Host "Read $($result.data.LineCount) lines"
+    }
     
     .EXAMPLE
     $result = ReadTextFile -Path "C:\Config\settings.ini" -Encoding "UTF8NoBOM"
-    $settings = $result.data.Content
-    Reads configuration file with specific UTF-8 encoding without BOM.
+    if ($result.code -eq 0) {
+        $settings = $result.data.Content
+        Write-Host "File size: $($result.data.SizeBytes) bytes"
+    }
     
     .EXAMPLE
     $result = ReadTextFile -Path "C:\Data\large.txt" -Raw
-    $fullText = $result.data.Content
-    Reads the entire file as a single string preserving line endings.
+    if ($result.code -eq 0) {
+        $fullText = $result.data.Content
+        Write-Host "Read entire file as single string"
+    }
     
     .EXAMPLE
     $result = ReadTextFile -Path "C:\Data\file.txt" -MaxSizeBytes 1MB
     if ($result.code -eq 0) {
         Write-Host "Read $($result.data.LineCount) lines ($($result.data.SizeBytes) bytes)"
-        Write-Host "Detected encoding: $($result.data.Encoding)"
+        Write-Host "Detected encoding: $($result.data.DetectedEncoding)"
         foreach ($line in $result.data.Content) {
             Write-Host $line
         }
@@ -63,7 +70,7 @@ function ReadTextFile {
     - Binary files (containing null bytes) are rejected by default
     - Large files can consume significant memory - use MaxSizeBytes to prevent issues
     - Returns content as array of lines by default, or single string with -Raw
-    - Returns file information and content in the data field on success
+    - Returns comprehensive file information and content in the data field
     #>
     
     [CmdletBinding()]

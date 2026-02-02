@@ -7,7 +7,7 @@ function GetProcessByID {
     The GetProcessByID function retrieves detailed information about a process
     using its process ID. It validates that the process exists, retrieves
     comprehensive process information, and returns a handle to the process
-    through a standardized return object. Requires exact match of the process ID.
+    through OPSreturn standardized return pattern. Requires exact match of the process ID.
     
     .PARAMETER ProcessId
     The process ID (PID) of the process to retrieve. Must be a valid positive integer
@@ -23,8 +23,12 @@ function GetProcessByID {
     threads in the process. Default is $false.
     
     .EXAMPLE
-    GetProcessByID -ProcessId 1234
-    Retrieves information about the process with PID 1234.
+    $result = GetProcessByID -ProcessId 1234
+    if ($result.code -eq 0) {
+        Write-Host "Process Name: $($result.data.ProcessName)"
+        Write-Host "Path: $($result.data.Path)"
+        Write-Host "Memory: $($result.data.WorkingSetMB) MB"
+    }
     
     .EXAMPLE
     $result = GetProcessByID -ProcessId $pid
@@ -38,8 +42,11 @@ function GetProcessByID {
     
     .EXAMPLE
     $result = GetProcessByID -ProcessId 5678 -IncludeModules
-    foreach ($module in $result.data.Modules) {
-        Write-Host "Module: $($module.ModuleName) - $($module.FileName)"
+    if ($result.code -eq 0) {
+        Write-Host "Loaded $($result.data.Modules.Count) modules:"
+        foreach ($module in $result.data.Modules) {
+            Write-Host "  $($module.ModuleName) - $($module.FileName)"
+        }
     }
     
     .EXAMPLE
@@ -47,6 +54,8 @@ function GetProcessByID {
     $result = GetProcessByID -ProcessId 9999
     if ($result.code -eq 0 -and -not $result.data.HasExited) {
         Write-Host "Process is running"
+    } else {
+        Write-Host "Process not found or has exited"
     }
     
     .NOTES
@@ -109,6 +118,7 @@ function GetProcessByID {
         $ExitCode = $null
         $ModulesList = @()
         $ThreadsList = @()
+        $ModuleCount = 0
         
         Write-Verbose "Found process: $ProcessName (PID: $ProcessId)"
         
@@ -168,7 +178,8 @@ function GetProcessByID {
             Write-Verbose "Retrieving loaded modules..."
             try {
                 $ModulesList = @($Process.Modules)
-                Write-Verbose "Found $($ModulesList.Count) loaded modules"
+                $ModuleCount = $ModulesList.Count
+                Write-Verbose "Found $ModuleCount loaded modules"
             }
             catch {
                 Write-Verbose "Warning: Could not retrieve modules: $($_.Exception.Message)"
@@ -210,6 +221,7 @@ function GetProcessByID {
             TotalProcessorTime  = $TotalProcessorTime
             HasExited           = $HasExited
             ExitCode            = $ExitCode
+            ModuleCount         = $ModuleCount
             Modules             = $ModulesList
             Threads             = $ThreadsList
         }

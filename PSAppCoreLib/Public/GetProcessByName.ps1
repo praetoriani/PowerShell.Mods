@@ -7,8 +7,8 @@ function GetProcessByName {
     The GetProcessByName function searches for a process by its exact name
     (case-insensitive) and returns detailed information including the process ID.
     It requires an exact match of the process name and handles multiple instances
-    of the same process. Returns detailed process information through a
-    standardized return object.
+    of the same process. Returns detailed process information through OPSreturn
+    standardized return pattern.
     
     .PARAMETER Name
     The exact name of the process to find (without .exe extension).
@@ -30,21 +30,26 @@ function GetProcessByName {
     of all matching processes. Default is $false.
     
     .EXAMPLE
-    GetProcessByName -Name "notepad"
-    Finds the notepad process and returns its process ID.
+    $result = GetProcessByName -Name "notepad"
+    if ($result.code -eq 0) {
+        Write-Host "Found Notepad with PID: $($result.data.ProcessId)"
+    }
     
     .EXAMPLE
     $result = GetProcessByName -Name "chrome" -SelectFirst
     if ($result.code -eq 0) {
         Write-Host "Found Chrome with PID: $($result.data.ProcessId)"
         Write-Host "Memory: $($result.data.WorkingSetMB) MB"
+        Write-Host "Started: $($result.data.StartTime)"
     }
     
     .EXAMPLE
     $result = GetProcessByName -Name "svchost.exe" -IncludeExtension -SelectAll
-    Write-Host "Found $($result.data.ProcessCount) svchost processes"
-    foreach ($proc in $result.data.Processes) {
-        Write-Host "PID: $($proc.Id), Memory: $($proc.WorkingSet64)"
+    if ($result.code -eq 0) {
+        Write-Host "Found $($result.data.ProcessCount) svchost processes"
+        foreach ($proc in $result.data.Processes) {
+            Write-Host "PID: $($proc.Id), Memory: $([Math]::Round($proc.WorkingSet64/1MB,2)) MB"
+        }
     }
     
     .EXAMPLE
@@ -53,7 +58,7 @@ function GetProcessByName {
     if ($result.code -eq 0) {
         Write-Host "Process is running with PID: $($result.data.ProcessId)"
     } else {
-        Write-Host "Process not found"
+        Write-Host "Process not found: $($result.msg)"
     }
     
     .NOTES
@@ -61,8 +66,8 @@ function GetProcessByName {
     - Requires exact name match (no wildcards)
     - Returns error if multiple processes exist (unless -SelectFirst or -SelectAll)
     - Does not require .exe extension by default
-    - Returns detailed process information including memory usage and start time
     - Returns comprehensive process information in the data field
+    - Use .data.ProcessHandle to access the Process object for further operations
     #>
     
     [CmdletBinding()]
@@ -174,6 +179,7 @@ function GetProcessByName {
                     ProcessName  = $SearchName
                     ProcessCount = $ProcessCount
                     Processes    = $MatchingProcesses
+                    PIDs         = $PIDs
                 }
                 
                 return OPSreturn -Code -1 -Message "Multiple processes found with name '$SearchName' (PIDs: $PIDs). Use -SelectFirst to get the first one or -SelectAll to get all." -Data $ReturnData

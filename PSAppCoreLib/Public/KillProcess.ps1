@@ -8,7 +8,7 @@ function KillProcess {
     This is an immediate termination that does not allow the process to clean up
     or save state. It should be used only when graceful shutdown (StopProcess) fails.
     The function validates the process exists, kills it immediately, and reports
-    results through a standardized return object.
+    results through OPSreturn standardized return pattern.
     
     .PARAMETER ProcessId
     The process ID (PID) of the process to kill. Must be a valid positive integer
@@ -23,15 +23,20 @@ function KillProcess {
     Default is 5 seconds. If verification fails, returns an error.
     
     .EXAMPLE
-    KillProcess -ProcessId 1234
-    Immediately kills the process with PID 1234.
+    $result = KillProcess -ProcessId 1234
+    if ($result.code -eq 0) {
+        Write-Host "Process killed successfully"
+    }
     
     .EXAMPLE
-    KillProcess -ProcessId 5678 -Force
-    Kills process 5678 and all its child processes.
+    $result = KillProcess -ProcessId 5678 -Force
+    if ($result.code -eq 0) {
+        Write-Host "Killed $($result.data.KilledProcessCount) process(es)"
+        Write-Host "Termination took $($result.data.TerminationDurationMs) ms"
+    }
     
     .EXAMPLE
-    $result = KillProcess -ProcessId $pid
+    $result = KillProcess -ProcessId $pid -WaitForExit 10
     if ($result.code -eq 0) {
         Write-Host "Process killed successfully"
         Write-Host "Termination time: $($result.data.TerminationDurationMs) ms"
@@ -92,6 +97,7 @@ function KillProcess {
                 ProcessId             = $ProcessId
                 ProcessName           = $ProcessName
                 KilledProcessCount    = 0
+                ChildProcessCount     = 0
                 TerminationDurationMs = 0
             }
             return OPSreturn -Code 0 -Message "" -Data $ReturnData
@@ -131,6 +137,7 @@ function KillProcess {
         
         $StopWatch = [System.Diagnostics.Stopwatch]::StartNew()
         $KilledCount = 0
+        $ChildCount = $ChildProcesses.Count
         
         # Kill child processes first
         if ($ChildProcesses.Count -gt 0) {
@@ -165,6 +172,7 @@ function KillProcess {
                 ProcessId             = $ProcessId
                 ProcessName           = $ProcessName
                 KilledProcessCount    = $KilledCount
+                ChildProcessCount     = $ChildCount
                 TerminationDurationMs = $StopWatch.ElapsedMilliseconds
             }
             
@@ -186,12 +194,13 @@ function KillProcess {
                 ProcessId             = $ProcessId
                 ProcessName           = $ProcessName
                 KilledProcessCount    = $KilledCount
+                ChildProcessCount     = $ChildCount
                 TerminationDurationMs = $StopWatch.ElapsedMilliseconds
             }
             
             if ($Exited) {
                 Write-Verbose "Process terminated successfully"
-                Write-Verbose "  Killed processes: $KilledCount"
+                Write-Verbose "  Killed processes: $KilledCount (including $ChildCount child processes)"
                 Write-Verbose "  Duration: $($StopWatch.ElapsedMilliseconds) ms"
                 
                 return OPSreturn -Code 0 -Message "" -Data $ReturnData
@@ -215,6 +224,7 @@ function KillProcess {
                     ProcessId             = $ProcessId
                     ProcessName           = $ProcessName
                     KilledProcessCount    = $KilledCount
+                    ChildProcessCount     = $ChildCount
                     TerminationDurationMs = $StopWatch.ElapsedMilliseconds
                 }
                 
