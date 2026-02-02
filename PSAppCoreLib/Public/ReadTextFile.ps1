@@ -38,20 +38,20 @@ function ReadTextFile {
     
     .EXAMPLE
     $result = ReadTextFile -Path "C:\Config\settings.ini" -Encoding "UTF8NoBOM"
-    $settings = $result.content
+    $settings = $result.data.Content
     Reads configuration file with specific UTF-8 encoding without BOM.
     
     .EXAMPLE
     $result = ReadTextFile -Path "C:\Data\large.txt" -Raw
-    $fullText = $result.content
+    $fullText = $result.data.Content
     Reads the entire file as a single string preserving line endings.
     
     .EXAMPLE
     $result = ReadTextFile -Path "C:\Data\file.txt" -MaxSizeBytes 1MB
     if ($result.code -eq 0) {
-        Write-Host "Read $($result.lineCount) lines ($($result.sizeBytes) bytes)"
-        Write-Host "Detected encoding: $($result.encoding)"
-        foreach ($line in $result.content) {
+        Write-Host "Read $($result.data.LineCount) lines ($($result.data.SizeBytes) bytes)"
+        Write-Host "Detected encoding: $($result.data.Encoding)"
+        foreach ($line in $result.data.Content) {
             Write-Host $line
         }
     }
@@ -63,6 +63,7 @@ function ReadTextFile {
     - Binary files (containing null bytes) are rejected by default
     - Large files can consume significant memory - use MaxSizeBytes to prevent issues
     - Returns content as array of lines by default, or single string with -Raw
+    - Returns file information and content in the data field on success
     #>
     
     [CmdletBinding()]
@@ -86,66 +87,54 @@ function ReadTextFile {
         [bool]$ValidateText = $true
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        path = $null
-        content = $null
-        lineCount = 0
-        sizeBytes = 0
-        encoding = $null
-        detectedEncoding = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
         # Normalize path
-        $NormalizedPath = $Path.Replace('/', '\')
+        $NormalizedPath = $Path.Replace('/', '\\')
         
         # Check if file exists
         if (-not (Test-Path -Path $NormalizedPath -PathType Leaf)) {
-            $status.msg = "File '$NormalizedPath' does not exist or is not a file"
-            return $status
+            return OPSreturn -Code -1 -Message "File '$NormalizedPath' does not exist or is not a file"
         }
         
         # Check if path is a directory instead of file
         if (Test-Path -Path $NormalizedPath -PathType Container) {
-            $status.msg = "Path '$NormalizedPath' is a directory, not a file"
-            return $status
+            return OPSreturn -Code -1 -Message "Path '$NormalizedPath' is a directory, not a file"
         }
         
         # Get file information
         try {
             $FileItem = Get-Item -Path $NormalizedPath -ErrorAction Stop
-            $status.path = $FileItem.FullName
-            $status.sizeBytes = $FileItem.Length
+            $FilePath = $FileItem.FullName
+            $FileSizeBytes = $FileItem.Length
         }
         catch {
-            $status.msg = "Failed to access file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to access file '$NormalizedPath': $($_.Exception.Message)"
         }
         
         # Check file size
         if ($FileItem.Length -gt $MaxSizeBytes) {
-            $status.msg = "File size ($($FileItem.Length) bytes) exceeds maximum allowed size ($MaxSizeBytes bytes). Use larger MaxSizeBytes value if needed."
-            return $status
+            return OPSreturn -Code -1 -Message "File size ($($FileItem.Length) bytes) exceeds maximum allowed size ($MaxSizeBytes bytes). Use larger MaxSizeBytes value if needed."
         }
         
         # Check for empty file
         if ($FileItem.Length -eq 0) {
             Write-Verbose "File is empty: $NormalizedPath"
-            $status.content = if ($Raw) { "" } else { @() }
-            $status.lineCount = 0
-            $status.encoding = $Encoding
-            $status.code = 0
-            $status.msg = ""
-            return $status
+            
+            $ReturnData = [PSCustomObject]@{
+                Path             = $FilePath
+                Content          = if ($Raw) { "" } else { @() }
+                LineCount        = 0
+                SizeBytes        = 0
+                Encoding         = $Encoding
+                DetectedEncoding = $null
+            }
+            
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         
         # Detect encoding if Auto is specified
@@ -184,16 +173,13 @@ function ReadTextFile {
                 }
                 
                 $Encoding = $DetectedEncoding
-                $status.detectedEncoding = $DetectedEncoding
             }
             catch {
                 Write-Verbose "Warning: Could not detect encoding, defaulting to UTF-8: $($_.Exception.Message)"
                 $Encoding = 'UTF8'
-                $status.detectedEncoding = 'UTF8 (fallback)'
+                $DetectedEncoding = 'UTF8 (fallback)'
             }
         }
-        
-        $status.encoding = $Encoding
         
         # Validate file is text-based if requested
         if ($ValidateText) {
@@ -209,8 +195,7 @@ function ReadTextFile {
                 # Check for null bytes (strong indicator of binary content)
                 $NullByteCount = ($SampleBytes | Where-Object { $_ -eq 0 }).Count
                 if ($NullByteCount -gt 0) {
-                    $status.msg = "File '$NormalizedPath' appears to be binary (contains $NullByteCount null bytes in first $BytesRead bytes). Set -ValidateText `$false to read anyway."
-                    return $status
+                    return OPSreturn -Code -1 -Message "File '$NormalizedPath' appears to be binary (contains $NullByteCount null bytes in first $BytesRead bytes). Set -ValidateText `$false to read anyway."
                 }
                 
                 Write-Verbose "File validation passed (no null bytes detected)"
@@ -218,19 +203,6 @@ function ReadTextFile {
             catch {
                 Write-Verbose "Warning: Could not validate file content: $($_.Exception.Message)"
             }
-        }
-        
-        # Map encoding names to .NET encoding
-        $EncodingMap = @{
-            'UTF8' = if ($PSVersionTable.PSVersion.Major -ge 6) { [System.Text.UTF8Encoding]::new($false) } else { [System.Text.Encoding]::UTF8 }
-            'UTF8BOM' = [System.Text.UTF8Encoding]::new($true)
-            'UTF8NoBOM' = [System.Text.UTF8Encoding]::new($false)
-            'UTF32' = [System.Text.Encoding]::UTF32
-            'Unicode' = [System.Text.Encoding]::Unicode
-            'ASCII' = [System.Text.Encoding]::ASCII
-            'ANSI' = [System.Text.Encoding]::Default
-            'OEM' = [System.Text.Encoding]::GetEncoding(850)
-            'BigEndianUnicode' = [System.Text.Encoding]::BigEndianUnicode
         }
         
         # Attempt to read the file
@@ -285,39 +257,40 @@ function ReadTextFile {
             # Read content from file
             $FileContent = Get-Content @ReadParams
             
-            $status.content = $FileContent
-            
-            # Count lines if not raw
-            if ($Raw) {
-                $status.lineCount = ($FileContent -split "`r`n|`r|`n").Count
-            }
-            else {
-                $status.lineCount = if ($FileContent -is [array]) { $FileContent.Count } else { 1 }
+            # Count lines
+            $LineCount = if ($Raw) {
+                ($FileContent -split "`r`n|`r|`n").Count
+            } else {
+                if ($FileContent -is [array]) { $FileContent.Count } else { 1 }
             }
             
-            Write-Verbose "Successfully read $($status.sizeBytes) bytes from file: $($status.path)"
-            Write-Verbose "Lines: $($status.lineCount), Encoding: $($status.encoding)"
+            Write-Verbose "Successfully read $FileSizeBytes bytes from file: $FilePath"
+            Write-Verbose "Lines: $LineCount, Encoding: $Encoding"
+            
+            # Prepare return data object with file information and content
+            $ReturnData = [PSCustomObject]@{
+                Path             = $FilePath
+                Content          = $FileContent
+                LineCount        = $LineCount
+                SizeBytes        = $FileSizeBytes
+                Encoding         = $Encoding
+                DetectedEncoding = $DetectedEncoding
+            }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied reading file '$NormalizedPath'. Check file permissions."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied reading file '$NormalizedPath'. Check file permissions."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error reading file: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error reading file: $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to read file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to read file '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with file content and metadata in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in ReadTextFile function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in ReadTextFile function: $($_.Exception.Message)"
     }
 }

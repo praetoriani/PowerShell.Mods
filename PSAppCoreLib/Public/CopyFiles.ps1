@@ -44,9 +44,12 @@ function CopyFiles {
     
     .EXAMPLE
     $result = CopyFiles -SourcePaths @("C:\file1.txt", "C:\file2.txt") -DestinationDirectory "D:\Backup"
-    Write-Host "Successfully copied: $($result.successCount) files"
-    Write-Host "Failed: $($result.failureCount) files"
-    Write-Host "Total size: $($result.totalSizeBytes) bytes"
+    Write-Host "Successfully copied: $($result.data.SuccessCount) files"
+    Write-Host "Failed: $($result.data.FailureCount) files"
+    Write-Host "Total size: $($result.data.TotalSizeBytes) bytes"
+    foreach ($file in $result.data.CopiedFiles) {
+        Write-Host "Copied: $($file.SourcePath) -> $($file.DestinationPath)"
+    }
     
     .EXAMPLE
     # Stop on first error
@@ -60,6 +63,7 @@ function CopyFiles {
     - Returns detailed results including success/failure counts and error messages
     - With -StopOnError, no files are copied if any error occurs
     - File attributes and timestamps are preserved by default
+    - Returns copy statistics and detailed file information in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -82,37 +86,22 @@ function CopyFiles {
         [switch]$StopOnError
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        successCount = 0
-        failureCount = 0
-        totalSizeBytes = 0
-        destinationDirectory = $null
-        copiedFiles = @()
-        failedFiles = @()
-    }
-    
     # Validate mandatory parameters
     if ($null -eq $SourcePaths -or $SourcePaths.Count -eq 0) {
-        $status.msg = "Parameter 'SourcePaths' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'SourcePaths' is required but was not provided or is empty"
     }
     
     if ([string]::IsNullOrWhiteSpace($DestinationDirectory)) {
-        $status.msg = "Parameter 'DestinationDirectory' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'DestinationDirectory' is required but was not provided or is empty"
     }
     
     try {
         # Normalize destination directory path
-        $NormalizedDestination = $DestinationDirectory.Replace('/', '\').TrimEnd('\')
+        $NormalizedDestination = $DestinationDirectory.Replace('/', '\\').TrimEnd('\\')
         
         # Check if destination exists as a file
         if (Test-Path -Path $NormalizedDestination -PathType Leaf) {
-            $status.msg = "Destination path '$NormalizedDestination' exists as a file, not a directory"
-            return $status
+            return OPSreturn -Code -1 -Message "Destination path '$NormalizedDestination' exists as a file, not a directory"
         }
         
         # Create destination directory if it doesn't exist
@@ -122,27 +111,24 @@ function CopyFiles {
                 New-Item -Path $NormalizedDestination -ItemType Directory -Force -ErrorAction Stop | Out-Null
             }
             catch {
-                $status.msg = "Failed to create destination directory '$NormalizedDestination': $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to create destination directory '$NormalizedDestination': $($_.Exception.Message)"
             }
         }
         
-        $status.destinationDirectory = (Get-Item -Path $NormalizedDestination).FullName
+        $DestinationDirPath = (Get-Item -Path $NormalizedDestination).FullName
         
         # Validate all source files first (if StopOnError is specified)
         if ($StopOnError) {
             Write-Verbose "Validating all source files before copying..."
             foreach ($sourcePath in $SourcePaths) {
                 if ([string]::IsNullOrWhiteSpace($sourcePath)) {
-                    $status.msg = "One of the source paths is null or empty"
-                    return $status
+                    return OPSreturn -Code -1 -Message "One of the source paths is null or empty"
                 }
                 
-                $NormalizedSource = $sourcePath.Replace('/', '\').TrimEnd('\')
+                $NormalizedSource = $sourcePath.Replace('/', '\\').TrimEnd('\\')
                 
                 if (-not (Test-Path -Path $NormalizedSource -PathType Leaf)) {
-                    $status.msg = "Source file '$NormalizedSource' does not exist or is not a file"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Source file '$NormalizedSource' does not exist or is not a file"
                 }
             }
         }
@@ -158,6 +144,8 @@ function CopyFiles {
             $CopiedCount = 0
             $FailedCount = 0
             $TotalSize = 0
+            $CopiedFilesList = @()
+            $FailedFilesList = @()
             
             foreach ($sourcePath in $SourcePaths) {
                 try {
@@ -167,22 +155,27 @@ function CopyFiles {
                         continue
                     }
                     
-                    $NormalizedSource = $sourcePath.Replace('/', '\').TrimEnd('\')
+                    $NormalizedSource = $sourcePath.Replace('/', '\\').TrimEnd('\\')
                     
                     # Check if source file exists
                     if (-not (Test-Path -Path $NormalizedSource -PathType Leaf)) {
                         $errorMsg = "Source file '$NormalizedSource' does not exist or is not a file"
-                        $status.failedFiles += [PSCustomObject]@{
+                        $FailedFilesList += [PSCustomObject]@{
                             SourcePath = $NormalizedSource
                             Error = $errorMsg
                         }
                         $FailedCount++
                         
                         if ($StopOnError) {
-                            $status.msg = $errorMsg
-                            $status.successCount = $CopiedCount
-                            $status.failureCount = $FailedCount
-                            return $status
+                            $ReturnData = [PSCustomObject]@{
+                                DestinationDirectory = $DestinationDirPath
+                                SuccessCount         = $CopiedCount
+                                FailureCount         = $FailedCount
+                                TotalSizeBytes       = $TotalSize
+                                CopiedFiles          = $CopiedFilesList
+                                FailedFiles          = $FailedFilesList
+                            }
+                            return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                         }
                         
                         Write-Verbose "Skipping: $errorMsg"
@@ -196,17 +189,22 @@ function CopyFiles {
                     # Check if destination file exists
                     if ((Test-Path -Path $DestinationPath) -and -not $Force) {
                         $errorMsg = "Destination file '$DestinationPath' already exists. Use -Force to overwrite."
-                        $status.failedFiles += [PSCustomObject]@{
+                        $FailedFilesList += [PSCustomObject]@{
                             SourcePath = $NormalizedSource
                             Error = $errorMsg
                         }
                         $FailedCount++
                         
                         if ($StopOnError) {
-                            $status.msg = $errorMsg
-                            $status.successCount = $CopiedCount
-                            $status.failureCount = $FailedCount
-                            return $status
+                            $ReturnData = [PSCustomObject]@{
+                                DestinationDirectory = $DestinationDirPath
+                                SuccessCount         = $CopiedCount
+                                FailureCount         = $FailedCount
+                                TotalSizeBytes       = $TotalSize
+                                CopiedFiles          = $CopiedFilesList
+                                FailedFiles          = $FailedFilesList
+                            }
+                            return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                         }
                         
                         Write-Verbose "Skipping: $errorMsg"
@@ -220,17 +218,22 @@ function CopyFiles {
                     # Verify copy
                     if (-not (Test-Path -Path $DestinationPath -PathType Leaf)) {
                         $errorMsg = "Copy operation reported success, but destination file was not created"
-                        $status.failedFiles += [PSCustomObject]@{
+                        $FailedFilesList += [PSCustomObject]@{
                             SourcePath = $NormalizedSource
                             Error = $errorMsg
                         }
                         $FailedCount++
                         
                         if ($StopOnError) {
-                            $status.msg = $errorMsg
-                            $status.successCount = $CopiedCount
-                            $status.failureCount = $FailedCount
-                            return $status
+                            $ReturnData = [PSCustomObject]@{
+                                DestinationDirectory = $DestinationDirPath
+                                SuccessCount         = $CopiedCount
+                                FailureCount         = $FailedCount
+                                TotalSizeBytes       = $TotalSize
+                                CopiedFiles          = $CopiedFilesList
+                                FailedFiles          = $FailedFilesList
+                            }
+                            return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                         }
                         
                         continue
@@ -251,10 +254,10 @@ function CopyFiles {
                     }
                     
                     # Record success
-                    $status.copiedFiles += [PSCustomObject]@{
-                        SourcePath = $SourceFile.FullName
+                    $CopiedFilesList += [PSCustomObject]@{
+                        SourcePath      = $SourceFile.FullName
                         DestinationPath = $DestinationFile.FullName
-                        SizeBytes = $SourceFile.Length
+                        SizeBytes       = $SourceFile.Length
                     }
                     
                     $CopiedCount++
@@ -264,51 +267,56 @@ function CopyFiles {
                 }
                 catch {
                     $errorMsg = "Failed to copy '$sourcePath': $($_.Exception.Message)"
-                    $status.failedFiles += [PSCustomObject]@{
+                    $FailedFilesList += [PSCustomObject]@{
                         SourcePath = $sourcePath
                         Error = $errorMsg
                     }
                     $FailedCount++
                     
                     if ($StopOnError) {
-                        $status.msg = $errorMsg
-                        $status.successCount = $CopiedCount
-                        $status.failureCount = $FailedCount
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            DestinationDirectory = $DestinationDirPath
+                            SuccessCount         = $CopiedCount
+                            FailureCount         = $FailedCount
+                            TotalSizeBytes       = $TotalSize
+                            CopiedFiles          = $CopiedFilesList
+                            FailedFiles          = $FailedFilesList
+                        }
+                        return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                     }
                     
                     Write-Verbose "Error: $errorMsg"
                 }
             }
             
-            # Set final statistics
-            $status.successCount = $CopiedCount
-            $status.failureCount = $FailedCount
-            $status.totalSizeBytes = $TotalSize
-            
             Write-Verbose "Copy operation completed: $CopiedCount succeeded, $FailedCount failed, Total size: $TotalSize bytes"
+            
+            # Prepare return data object with copy statistics and file details
+            $ReturnData = [PSCustomObject]@{
+                DestinationDirectory = $DestinationDirPath
+                SuccessCount         = $CopiedCount
+                FailureCount         = $FailedCount
+                TotalSizeBytes       = $TotalSize
+                CopiedFiles          = $CopiedFilesList
+                FailedFiles          = $FailedFilesList
+            }
             
             # Determine overall success
             if ($FailedCount -eq 0) {
-                $status.code = 0
-                $status.msg = ""
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             elseif ($CopiedCount -gt 0) {
-                $status.code = 0
-                $status.msg = "Partial success: $CopiedCount file(s) copied, $FailedCount file(s) failed"
+                return OPSreturn -Code 0 -Message "Partial success: $CopiedCount file(s) copied, $FailedCount file(s) failed" -Data $ReturnData
             }
             else {
-                $status.msg = "All copy operations failed"
+                return OPSreturn -Code -1 -Message "All copy operations failed" -Data $ReturnData
             }
         }
         else {
-            $status.msg = "Operation cancelled by user"
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
-        
-        return $status
     }
     catch {
-        $status.msg = "Unexpected error in CopyFiles function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in CopyFiles function: $($_.Exception.Message)"
     }
 }
