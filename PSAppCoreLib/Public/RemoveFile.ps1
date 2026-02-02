@@ -29,8 +29,8 @@ function RemoveFile {
     .EXAMPLE
     $result = RemoveFile -Path "C:\Logs\old.log" -Force
     if ($result.code -eq 0) {
-        Write-Host "File deleted: $($result.deletedPath)"
-        Write-Host "Size: $($result.sizeBytes) bytes"
+        Write-Host "File deleted: $($result.data.DeletedPath)"
+        Write-Host "Size: $($result.data.SizeBytes) bytes"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -41,6 +41,7 @@ function RemoveFile {
     - Protected system files in critical directories are blocked from deletion
     - Read-only attribute must be removed before deletion (automatic with -Force)
     - Hidden and system files can only be deleted with -Force parameter
+    - Returns deleted file path and size in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -53,51 +54,39 @@ function RemoveFile {
         [switch]$Force
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        deletedPath = $null
-        sizeBytes = 0
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
         # Normalize path
-        $NormalizedPath = $Path.Replace('/', '\').TrimEnd('\')
+        $NormalizedPath = $Path.Replace('/', '\\').TrimEnd('\\')
         
         # Check if file exists
         if (-not (Test-Path -Path $NormalizedPath -PathType Leaf)) {
-            $status.msg = "File '$NormalizedPath' does not exist or is not a file"
-            return $status
+            return OPSreturn -Code -1 -Message "File '$NormalizedPath' does not exist or is not a file"
         }
         
         # Check if path is a directory instead of file
         if (Test-Path -Path $NormalizedPath -PathType Container) {
-            $status.msg = "Path '$NormalizedPath' is a directory, not a file. Use RemoveDir for directories."
-            return $status
+            return OPSreturn -Code -1 -Message "Path '$NormalizedPath' is a directory, not a file. Use RemoveDir for directories."
         }
         
         # Get file information
         try {
             $FileInfo = Get-Item -Path $NormalizedPath -Force -ErrorAction Stop
-            $status.deletedPath = $FileInfo.FullName
-            $status.sizeBytes = $FileInfo.Length
+            $DeletedPath = $FileInfo.FullName
+            $FileSizeBytes = $FileInfo.Length
         }
         catch {
-            $status.msg = "Failed to access file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to access file '$NormalizedPath': $($_.Exception.Message)"
         }
         
         # Critical safety check - prevent deletion of system files in critical directories
         $CriticalDirs = @(
-            "$env:SystemRoot\System32",
-            "$env:SystemRoot\SysWOW64",
+            "$env:SystemRoot\\System32",
+            "$env:SystemRoot\\SysWOW64",
             "$env:SystemRoot",
             "$env:ProgramFiles",
             "${env:ProgramFiles(x86)}"
@@ -116,8 +105,7 @@ function RemoveFile {
         if ($IsInCriticalDir) {
             # Check if it's a critical system file
             if ($FileInfo.Attributes -band [System.IO.FileAttributes]::System) {
-                $status.msg = "Cannot delete system file '$NormalizedPath' in critical directory. This operation is blocked for system protection."
-                return $status
+                return OPSreturn -Code -1 -Message "Cannot delete system file '$NormalizedPath' in critical directory. This operation is blocked for system protection."
             }
         }
         
@@ -132,12 +120,11 @@ function RemoveFile {
             if ($IsHidden) { $attributes += "Hidden" }
             if ($IsSystem) { $attributes += "System" }
             
-            $status.msg = "File '$NormalizedPath' has special attributes ($($attributes -join ', ')). Use -Force parameter to delete."
-            return $status
+            return OPSreturn -Code -1 -Message "File '$NormalizedPath' has special attributes ($($attributes -join ', ')). Use -Force parameter to delete."
         }
         
         # Prepare confirmation message
-        $ConfirmMessage = "Permanently delete file '$NormalizedPath' ($($status.sizeBytes) bytes) - THIS CANNOT BE UNDONE"
+        $ConfirmMessage = "Permanently delete file '$NormalizedPath' ($FileSizeBytes bytes) - THIS CANNOT BE UNDONE"
         
         # Attempt to delete the file
         try {
@@ -164,39 +151,37 @@ function RemoveFile {
                     Remove-Item -Path $NormalizedPath -ErrorAction Stop
                 }
                 else {
-                    $status.msg = "Operation cancelled by user"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Operation cancelled by user"
                 }
             }
             
             # Verify the file was deleted
             if (Test-Path -Path $NormalizedPath) {
-                $status.msg = "File deletion reported success, but file '$NormalizedPath' still exists"
-                return $status
+                return OPSreturn -Code -1 -Message "File deletion reported success, but file '$NormalizedPath' still exists"
             }
             
-            Write-Verbose "Successfully deleted file: $($status.deletedPath) ($($status.sizeBytes) bytes)"
+            Write-Verbose "Successfully deleted file: $DeletedPath ($FileSizeBytes bytes)"
+            
+            # Prepare return data object with deletion information
+            $ReturnData = [PSCustomObject]@{
+                DeletedPath = $DeletedPath
+                SizeBytes   = $FileSizeBytes
+            }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when deleting file '$NormalizedPath'. Check your permissions or try running as administrator."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when deleting file '$NormalizedPath'. Check your permissions or try running as administrator."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error when deleting file '$NormalizedPath': $($_.Exception.Message). The file may be in use."
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error when deleting file '$NormalizedPath': $($_.Exception.Message). The file may be in use."
         }
         catch {
-            $status.msg = "Failed to delete file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to delete file '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with deletion information in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in RemoveFile function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RemoveFile function: $($_.Exception.Message)"
     }
 }

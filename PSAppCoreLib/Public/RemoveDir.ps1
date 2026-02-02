@@ -39,7 +39,7 @@ function RemoveDir {
     .EXAMPLE
     $result = RemoveDir -Path "C:\Temp\TestFolder" -Recurse -Force
     if ($result.code -eq 0) {
-        Write-Host "Deleted $($result.filesDeleted) files and $($result.directoriesDeleted) directories"
+        Write-Host "Deleted $($result.data.FilesDeleted) files and $($result.data.DirectoriesDeleted) directories"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -53,6 +53,7 @@ function RemoveDir {
     - Large directory operations may take significant time
     - Progress information is written to Verbose stream
     - Critical paths (C:\Windows, C:\Program Files, etc.) are protected
+    - Returns deletion statistics in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -68,34 +69,23 @@ function RemoveDir {
         [switch]$Recurse
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        filesDeleted = 0
-        directoriesDeleted = 0
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
         # Normalize path
-        $NormalizedPath = $Path.TrimEnd('\', '/')
+        $NormalizedPath = $Path.TrimEnd('\\', '/')
         
         # Check if directory exists
         if (-not (Test-Path -Path $NormalizedPath -PathType Container)) {
-            $status.msg = "Directory '$NormalizedPath' does not exist or is not a directory"
-            return $status
+            return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' does not exist or is not a directory"
         }
         
         # Check if path is a file instead of directory
         if (Test-Path -Path $NormalizedPath -PathType Leaf) {
-            $status.msg = "Path '$NormalizedPath' is a file, not a directory. Use Remove-Item for files."
-            return $status
+            return OPSreturn -Code -1 -Message "Path '$NormalizedPath' is a file, not a directory. Use Remove-Item for files."
         }
         
         # Critical safety check - prevent deletion of system directories
@@ -108,38 +98,35 @@ function RemoveDir {
             "$env:SystemRoot",
             "$env:ProgramFiles",
             "${env:ProgramFiles(x86)}",
-            "$env:SystemDrive\",
-            'C:\'
+            "$env:SystemDrive\\",
+            'C:\\'
         )
         
         # Normalize critical paths for comparison
         $NormalizedCriticalPaths = $CriticalPaths | ForEach-Object { 
-            if ($_) { $_.TrimEnd('\', '/').ToLower() }
+            if ($_) { $_.TrimEnd('\\', '/').ToLower() }
         } | Where-Object { $_ }
         
-        $NormalizedPathLower = $NormalizedPath.ToLower().TrimEnd('\', '/')
+        $NormalizedPathLower = $NormalizedPath.ToLower().TrimEnd('\\', '/')
         
         # Check if attempting to delete a critical system directory
         foreach ($criticalPath in $NormalizedCriticalPaths) {
             if ($NormalizedPathLower -eq $criticalPath -or 
-                $NormalizedPathLower.StartsWith("$criticalPath\")) {
-                $status.msg = "Cannot delete critical system directory '$NormalizedPath'. This operation is blocked for system protection."
-                return $status
+                $NormalizedPathLower.StartsWith("$criticalPath\\")) {
+                return OPSreturn -Code -1 -Message "Cannot delete critical system directory '$NormalizedPath'. This operation is blocked for system protection."
             }
         }
         
         # Additional check for drive root
-        if ($NormalizedPath -match '^[A-Za-z]:\\?$') {
-            $status.msg = "Cannot delete drive root '$NormalizedPath'. This operation is blocked for safety."
-            return $status
+        if ($NormalizedPath -match '^[A-Za-z]:\\\\?$') {
+            return OPSreturn -Code -1 -Message "Cannot delete drive root '$NormalizedPath'. This operation is blocked for safety."
         }
         
         # Check if directory is empty (if Recurse is not specified)
         if (-not $Recurse) {
             $DirContents = Get-ChildItem -Path $NormalizedPath -Force -ErrorAction SilentlyContinue
             if ($DirContents -and $DirContents.Count -gt 0) {
-                $status.msg = "Directory '$NormalizedPath' is not empty (contains $($DirContents.Count) item(s)). Use -Recurse parameter to delete the directory and all its contents."
-                return $status
+                return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' is not empty (contains $($DirContents.Count) item(s)). Use -Recurse parameter to delete the directory and all its contents."
             }
         }
         
@@ -192,47 +179,40 @@ function RemoveDir {
                     }
                 }
                 else {
-                    $status.msg = "Operation cancelled by user"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Operation cancelled by user"
                 }
             }
             
             # Verify the directory was deleted
             if (Test-Path -Path $NormalizedPath) {
-                $status.msg = "Directory deletion reported success, but directory '$NormalizedPath' still exists"
-                return $status
+                return OPSreturn -Code -1 -Message "Directory deletion reported success, but directory '$NormalizedPath' still exists"
             }
             
-            # Set statistics
-            $status.filesDeleted = $FileCount
-            $status.directoriesDeleted = $DirCount + 1  # +1 for the main directory itself
-            
             Write-Verbose "Successfully deleted directory: $NormalizedPath ($FileCount files, $DirCount subdirectories)"
+            
+            # Prepare return data object with deletion statistics
+            $ReturnData = [PSCustomObject]@{
+                FilesDeleted       = $FileCount
+                DirectoriesDeleted = $DirCount + 1  # +1 for the main directory itself
+            }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when deleting directory '$NormalizedPath'. Check your permissions or try running as administrator."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when deleting directory '$NormalizedPath'. Check your permissions or try running as administrator."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error when deleting directory '$NormalizedPath': $($_.Exception.Message). The directory may be in use."
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error when deleting directory '$NormalizedPath': $($_.Exception.Message). The directory may be in use."
         }
         catch [System.IO.DirectoryNotFoundException] {
-            $status.msg = "Directory '$NormalizedPath' was not found during deletion operation"
-            return $status
+            return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' was not found during deletion operation"
         }
         catch {
-            $status.msg = "Failed to delete directory '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to delete directory '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with deletion statistics in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in RemoveDir function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RemoveDir function: $($_.Exception.Message)"
     }
 }
