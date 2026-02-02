@@ -59,7 +59,7 @@ function CreateRegVal {
     .EXAMPLE
     $result = CreateRegVal -Path "HKCU:\Software\Test" -Name "TestValue" -Type "String" -Value "Test"
     if ($result.code -eq 0) {
-        Write-Host "Registry value created successfully"
+        Write-Host "Registry value created: $($result.data.Name) = $($result.data.Value)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -71,6 +71,7 @@ function CreateRegVal {
     - If the value already exists, the function will return an error
     - For MultiString type, pass an array of strings as the Value parameter
     - For Binary type, pass a byte array as the Value parameter
+    - Returns value name and actual stored value in the data field on success
     #>
     
     [CmdletBinding()]
@@ -92,16 +93,9 @@ function CreateRegVal {
         [object]$Value
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     # Note: Name can be empty (for default value), so we don't validate it
@@ -122,8 +116,7 @@ function CreateRegVal {
         }
         
         if (-not $PathStartsWithValidHive) {
-            $status.msg = "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
         }
         
         # Normalize path - ensure it uses PowerShell drive format
@@ -134,12 +127,11 @@ function CreateRegVal {
         $NormalizedPath = $NormalizedPath.Replace('HKEY_CURRENT_CONFIG:', 'HKCC:')
         
         # Remove trailing backslash if present
-        $NormalizedPath = $NormalizedPath.TrimEnd('\')
+        $NormalizedPath = $NormalizedPath.TrimEnd('\\')
         
         # Check if the registry key exists
         if (-not (Test-Path -Path $NormalizedPath)) {
-            $status.msg = "Registry key '$NormalizedPath' does not exist. Please create the key first using CreateRegKey."
-            return $status
+            return OPSreturn -Code -1 -Message "Registry key '$NormalizedPath' does not exist. Please create the key first using CreateRegKey."
         }
         
         # Handle default value case
@@ -149,8 +141,7 @@ function CreateRegVal {
         try {
             $ExistingValue = Get-ItemProperty -Path $NormalizedPath -Name $Name -ErrorAction SilentlyContinue
             if ($null -ne $ExistingValue) {
-                $status.msg = "Registry value '$ValueName' already exists at path '$NormalizedPath'"
-                return $status
+                return OPSreturn -Code -1 -Message "Registry value '$ValueName' already exists at path '$NormalizedPath'"
             }
         }
         catch {
@@ -194,8 +185,7 @@ function CreateRegVal {
                         $ValidatedValue = [byte[]]$Value
                     }
                     catch {
-                        $status.msg = "Parameter 'Value' for type 'Binary' must be a byte array. Conversion failed: $($_.Exception.Message)"
-                        return $status
+                        return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'Binary' must be a byte array. Conversion failed: $($_.Exception.Message)"
                     }
                 }
             }
@@ -208,13 +198,11 @@ function CreateRegVal {
                     try {
                         $ValidatedValue = [int]$Value
                         if ($ValidatedValue -lt 0 -or $ValidatedValue -gt [UInt32]::MaxValue) {
-                            $status.msg = "Parameter 'Value' for type 'DWord' must be between 0 and $([UInt32]::MaxValue)"
-                            return $status
+                            return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'DWord' must be between 0 and $([UInt32]::MaxValue)"
                         }
                     }
                     catch {
-                        $status.msg = "Parameter 'Value' for type 'DWord' must be a valid 32-bit integer: $($_.Exception.Message)"
-                        return $status
+                        return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'DWord' must be a valid 32-bit integer: $($_.Exception.Message)"
                     }
                 }
             }
@@ -227,13 +215,11 @@ function CreateRegVal {
                     try {
                         $ValidatedValue = [long]$Value
                         if ($ValidatedValue -lt 0 -or $ValidatedValue -gt [UInt64]::MaxValue) {
-                            $status.msg = "Parameter 'Value' for type 'QWord' must be between 0 and $([UInt64]::MaxValue)"
-                            return $status
+                            return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'QWord' must be between 0 and $([UInt64]::MaxValue)"
                         }
                     }
                     catch {
-                        $status.msg = "Parameter 'Value' for type 'QWord' must be a valid 64-bit integer: $($_.Exception.Message)"
-                        return $status
+                        return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'QWord' must be a valid 64-bit integer: $($_.Exception.Message)"
                     }
                 }
             }
@@ -253,14 +239,12 @@ function CreateRegVal {
                         $ValidatedValue = @([string]$Value)
                     }
                     catch {
-                        $status.msg = "Parameter 'Value' for type 'MultiString' must be a string array: $($_.Exception.Message)"
-                        return $status
+                        return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'MultiString' must be a string array: $($_.Exception.Message)"
                     }
                 }
             }
             default {
-                $status.msg = "Invalid registry value type '$Type'. Valid types are: String, ExpandString, Binary, DWord, QWord, MultiString"
-                return $status
+                return OPSreturn -Code -1 -Message "Invalid registry value type '$Type'. Valid types are: String, ExpandString, Binary, DWord, QWord, MultiString"
             }
         }
         
@@ -278,45 +262,44 @@ function CreateRegVal {
             }
             
             if ($null -eq $NewValue) {
-                $status.msg = "Failed to create registry value '$ValueName' at path '$NormalizedPath'. New-ItemProperty returned null."
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to create registry value '$ValueName' at path '$NormalizedPath'. New-ItemProperty returned null."
             }
             
             # Verify the value was created
             try {
                 $VerifyValue = Get-ItemProperty -Path $NormalizedPath -Name $Name -ErrorAction Stop
                 if ($null -eq $VerifyValue) {
-                    $status.msg = "Registry value creation reported success, but verification failed for '$ValueName' at path '$NormalizedPath'"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Registry value creation reported success, but verification failed for '$ValueName' at path '$NormalizedPath'"
                 }
             }
             catch {
-                $status.msg = "Registry value creation reported success, but verification failed for '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Registry value creation reported success, but verification failed for '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
             }
             
             Write-Verbose "Successfully created registry value '$ValueName' at path '$NormalizedPath'"
+            
+            # Prepare return data object with created value information
+            $ReturnData = [PSCustomObject]@{
+                Path  = $NormalizedPath
+                Name  = $ValueName
+                Type  = $Type
+                Value = $ValidatedValue
+            }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when creating registry value '$ValueName' at path '$NormalizedPath'. Administrator privileges may be required for this operation."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when creating registry value '$ValueName' at path '$NormalizedPath'. Administrator privileges may be required for this operation."
         }
         catch [System.Security.SecurityException] {
-            $status.msg = "Security exception when creating registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Security exception when creating registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to create registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to create registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with value information in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in CreateRegVal function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in CreateRegVal function: $($_.Exception.Message)"
     }
 }
