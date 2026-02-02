@@ -38,8 +38,9 @@ function RestartProcess {
     $result = RestartProcess -ProcessId $pid
     if ($result.code -eq 0) {
         Write-Host "Process restarted successfully"
-        Write-Host "Old PID: $($result.oldProcessId)"
-        Write-Host "New PID: $($result.newProcessId)"
+        Write-Host "Old PID: $($result.data.OldProcessId)"
+        Write-Host "New PID: $($result.data.NewProcessId)"
+        Write-Host "Process: $($result.data.ProcessName)"
     }
     
     .NOTES
@@ -49,6 +50,7 @@ function RestartProcess {
     - Original command-line arguments are preserved when possible
     - Window style and working directory are preserved when possible
     - If process path cannot be determined, restart will fail
+    - Returns restart statistics in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -68,73 +70,55 @@ function RestartProcess {
         [bool]$PreserveWindowStyle = $true
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        oldProcessId = 0
-        newProcessId = 0
-        processName = $null
-        processPath = $null
-        wasForced = $false
-        restartTime = $null
-    }
-    
     # Validate mandatory parameters
     if ($ProcessId -le 0) {
-        $status.msg = "Parameter 'ProcessId' must be a positive integer"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'ProcessId' must be a positive integer"
     }
     
     try {
-        $status.oldProcessId = $ProcessId
-        
         Write-Verbose "Attempting to restart process with PID: $ProcessId"
         
         # Get process information first
         $GetResult = GetProcessByID -ProcessId $ProcessId
         
         if ($GetResult.code -ne 0) {
-            $status.msg = "Failed to retrieve process information: $($GetResult.msg)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to retrieve process information: $($GetResult.msg)"
         }
         
-        $Process = $GetResult.processHandle
-        $status.processName = $GetResult.processName
-        $status.processPath = $GetResult.path
+        $Process = $GetResult.data.ProcessHandle
+        $ProcessName = $GetResult.data.ProcessName
+        $ProcessPath = $GetResult.data.Path
+        $CommandLine = $GetResult.data.CommandLine
         
         # Validate that process has a path (required for restart)
-        if ([string]::IsNullOrWhiteSpace($status.processPath)) {
-            $status.msg = "Cannot restart process '$($status.processName)' - executable path could not be determined. This may be a system process."
-            return $status
+        if ([string]::IsNullOrWhiteSpace($ProcessPath)) {
+            return OPSreturn -Code -1 -Message "Cannot restart process '$ProcessName' - executable path could not be determined. This may be a system process."
         }
         
         # Verify executable still exists
-        if (-not (Test-Path -Path $status.processPath -PathType Leaf)) {
-            $status.msg = "Cannot restart process - executable file '$($status.processPath)' no longer exists"
-            return $status
+        if (-not (Test-Path -Path $ProcessPath -PathType Leaf)) {
+            return OPSreturn -Code -1 -Message "Cannot restart process - executable file '$ProcessPath' no longer exists"
         }
         
         Write-Verbose "Process information:"
-        Write-Verbose "  Name: $($status.processName)"
-        Write-Verbose "  Path: $($status.processPath)"
-        Write-Verbose "  Command Line: $($GetResult.commandLine)"
+        Write-Verbose "  Name: $ProcessName"
+        Write-Verbose "  Path: $ProcessPath"
+        Write-Verbose "  Command Line: $CommandLine"
         
         # Extract command-line arguments (excluding the executable path)
         $ArgumentList = @()
-        if (-not [string]::IsNullOrWhiteSpace($GetResult.commandLine)) {
+        if (-not [string]::IsNullOrWhiteSpace($CommandLine)) {
             try {
                 # Parse command line to extract arguments
-                # This is simplified - production code might need more robust parsing
-                $CmdLine = $GetResult.commandLine.Trim()
+                $CmdLine = $CommandLine.Trim()
                 
                 # Remove the executable path from the command line
-                $ExePathQuoted = "`"$($status.processPath)`""
+                $ExePathQuoted = "`"$ProcessPath`""
                 if ($CmdLine.StartsWith($ExePathQuoted)) {
                     $CmdLine = $CmdLine.Substring($ExePathQuoted.Length).Trim()
                 }
-                elseif ($CmdLine.StartsWith($status.processPath)) {
-                    $CmdLine = $CmdLine.Substring($status.processPath.Length).Trim()
+                elseif ($CmdLine.StartsWith($ProcessPath)) {
+                    $CmdLine = $CmdLine.Substring($ProcessPath.Length).Trim()
                 }
                 
                 # Split remaining arguments (simplified)
@@ -151,23 +135,23 @@ function RestartProcess {
         
         # Get working directory
         $WorkingDirectory = try {
-            Split-Path -Path $status.processPath -Parent
+            Split-Path -Path $ProcessPath -Parent
         } catch {
             $PWD.Path
         }
         
         # Confirmation prompt
-        $ConfirmMessage = "Restart process '$($status.processName)' (PID: $ProcessId)"
+        $ConfirmMessage = "Restart process '$ProcessName' (PID: $ProcessId)"
         
-        if (-not $PSCmdlet.ShouldProcess($status.processName, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+        if (-not $PSCmdlet.ShouldProcess($ProcessName, $ConfirmMessage)) {
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         # Stop the process
         Write-Verbose "Stopping process (PID: $ProcessId)..."
         
         $StopResult = StopProcess -ProcessId $ProcessId -WaitForExit $WaitForExit
+        $WasForced = $false
         
         if ($StopResult.code -ne 0) {
             # Graceful stop failed
@@ -176,16 +160,14 @@ function RestartProcess {
                 $KillResult = KillProcess -ProcessId $ProcessId
                 
                 if ($KillResult.code -ne 0) {
-                    $status.msg = "Failed to stop process for restart: $($KillResult.msg)"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Failed to stop process for restart: $($KillResult.msg)"
                 }
                 
-                $status.wasForced = $true
+                $WasForced = $true
                 Write-Verbose "Process forcefully terminated"
             }
             else {
-                $status.msg = "Failed to stop process gracefully: $($StopResult.msg). Use -Force to kill the process."
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to stop process gracefully: $($StopResult.msg). Use -Force to kill the process."
             }
         }
         else {
@@ -196,10 +178,10 @@ function RestartProcess {
         Start-Sleep -Milliseconds 500
         
         # Start the process again
-        Write-Verbose "Starting process: $($status.processPath)"
+        Write-Verbose "Starting process: $ProcessPath"
         
         $StartParams = @{
-            FilePath = $status.processPath
+            FilePath = $ProcessPath
             WorkingDirectory = $WorkingDirectory
         }
         
@@ -210,24 +192,29 @@ function RestartProcess {
         $StartResult = RunProcess @StartParams
         
         if ($StartResult.code -ne 0) {
-            $status.msg = "Process was stopped but failed to restart: $($StartResult.msg)"
-            return $status
+            return OPSreturn -Code -1 -Message "Process was stopped but failed to restart: $($StartResult.msg)"
         }
         
-        $status.newProcessId = $StartResult.processId
-        $status.restartTime = Get-Date
+        $NewProcessId = $StartResult.data.ProcessId
+        $RestartTime = Get-Date
         
         Write-Verbose "Process restarted successfully"
-        Write-Verbose "  Old PID: $($status.oldProcessId)"
-        Write-Verbose "  New PID: $($status.newProcessId)"
+        Write-Verbose "  Old PID: $ProcessId"
+        Write-Verbose "  New PID: $NewProcessId"
         
-        # Success
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Prepare return data object with restart details
+        $ReturnData = [PSCustomObject]@{
+            OldProcessId    = $ProcessId
+            NewProcessId    = $NewProcessId
+            ProcessName     = $ProcessName
+            ProcessPath     = $ProcessPath
+            WasForced       = $WasForced
+            RestartTime     = $RestartTime
+        }
+        
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in RestartProcess function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RestartProcess function: $($_.Exception.Message)"
     }
 }

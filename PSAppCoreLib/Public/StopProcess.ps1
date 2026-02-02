@@ -35,8 +35,9 @@ function StopProcess {
     $result = StopProcess -ProcessId $pid
     if ($result.code -eq 0) {
         Write-Host "Process stopped successfully"
-        Write-Host "Exit code: $($result.exitCode)"
-        Write-Host "Duration: $($result.shutdownDurationSeconds) seconds"
+        Write-Host "Exit code: $($result.data.ExitCode)"
+        Write-Host "Duration: $($result.data.ShutdownDurationSeconds) seconds"
+        Write-Host "Was graceful: $($result.data.WasGraceful)"
     } else {
         Write-Host "Failed to stop process: $($result.msg)"
     }
@@ -47,6 +48,7 @@ function StopProcess {
     - System processes and services may require administrative privileges
     - If graceful shutdown fails, use KillProcess for forced termination
     - The process can refuse to close (e.g., prompting to save unsaved work)
+    - Returns shutdown statistics in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -63,68 +65,55 @@ function StopProcess {
         [bool]$CloseMainWindow = $true
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        processId = 0
-        processName = $null
-        exitCode = $null
-        shutdownDurationSeconds = 0
-        wasGraceful = $false
-    }
-    
     # Validate mandatory parameters
     if ($ProcessId -le 0) {
-        $status.msg = "Parameter 'ProcessId' must be a positive integer"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'ProcessId' must be a positive integer"
     }
     
     try {
-        $status.processId = $ProcessId
-        
         Write-Verbose "Attempting to stop process with PID: $ProcessId"
         
         # Get process
         $GetResult = GetProcessByID -ProcessId $ProcessId
         
         if ($GetResult.code -ne 0) {
-            $status.msg = "Failed to retrieve process: $($GetResult.msg)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to retrieve process: $($GetResult.msg)"
         }
         
-        $Process = $GetResult.processHandle
-        $status.processName = $GetResult.processName
+        $Process = $GetResult.data.ProcessHandle
+        $ProcessName = $GetResult.data.ProcessName
         
         # Check if process has already exited
         $Process.Refresh()
         if ($Process.HasExited) {
-            $status.code = 0
-            $status.msg = ""
-            $status.exitCode = $Process.ExitCode
-            $status.wasGraceful = $true
-            Write-Verbose "Process has already exited with code: $($status.exitCode)"
-            return $status
+            $ReturnData = [PSCustomObject]@{
+                ProcessId               = $ProcessId
+                ProcessName             = $ProcessName
+                ExitCode                = $Process.ExitCode
+                ShutdownDurationSeconds = 0
+                WasGraceful             = $true
+            }
+            
+            Write-Verbose "Process has already exited with code: $($Process.ExitCode)"
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         
         Write-Verbose "Process information:"
-        Write-Verbose "  Name: $($status.processName)"
+        Write-Verbose "  Name: $ProcessName"
         Write-Verbose "  PID: $ProcessId"
         Write-Verbose "  Has Main Window: $($Process.MainWindowHandle -ne [IntPtr]::Zero)"
         
         # Confirmation prompt
-        $ConfirmMessage = "Stop process '$($status.processName)' (PID: $ProcessId)"
+        $ConfirmMessage = "Stop process '$ProcessName' (PID: $ProcessId)"
         
-        if (-not $PSCmdlet.ShouldProcess($status.processName, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+        if (-not $PSCmdlet.ShouldProcess($ProcessName, $ConfirmMessage)) {
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         $StopWatch = [System.Diagnostics.Stopwatch]::StartNew()
-        
-        # Attempt graceful shutdown
         $ShutdownSuccessful = $false
         
+        # Attempt graceful shutdown
         try {
             # Try CloseMainWindow for GUI applications
             if ($CloseMainWindow -and $Process.MainWindowHandle -ne [IntPtr]::Zero) {
@@ -149,18 +138,13 @@ function StopProcess {
             }
         }
         catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
-            $status.msg = "Process with ID $ProcessId no longer exists"
-            return $status
+            return OPSreturn -Code -1 -Message "Process with ID $ProcessId no longer exists"
         }
         catch [System.InvalidOperationException] {
-            $status.msg = "Process has already exited"
-            $status.code = 0
-            $status.msg = ""
-            return $status
+            return OPSreturn -Code 0 -Message "Process has already exited"
         }
         catch {
-            $status.msg = "Error sending stop signal to process: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error sending stop signal to process: $($_.Exception.Message)"
         }
         
         # Wait for process to exit
@@ -170,39 +154,39 @@ function StopProcess {
             try {
                 $Exited = $Process.WaitForExit($WaitForExit * 1000)
                 $StopWatch.Stop()
-                $status.shutdownDurationSeconds = [Math]::Round($StopWatch.Elapsed.TotalSeconds, 2)
+                $ShutdownDuration = [Math]::Round($StopWatch.Elapsed.TotalSeconds, 2)
                 
                 if ($Exited) {
-                    $status.exitCode = $Process.ExitCode
-                    $status.wasGraceful = $true
+                    $ExitCode = $Process.ExitCode
                     
                     Write-Verbose "Process exited gracefully"
-                    Write-Verbose "  Exit code: $($status.exitCode)"
-                    Write-Verbose "  Duration: $($status.shutdownDurationSeconds) seconds"
+                    Write-Verbose "  Exit code: $ExitCode"
+                    Write-Verbose "  Duration: $ShutdownDuration seconds"
                     
-                    # Success
-                    $status.code = 0
-                    $status.msg = ""
-                    return $status
+                    $ReturnData = [PSCustomObject]@{
+                        ProcessId               = $ProcessId
+                        ProcessName             = $ProcessName
+                        ExitCode                = $ExitCode
+                        ShutdownDurationSeconds = $ShutdownDuration
+                        WasGraceful             = $true
+                    }
+                    
+                    return OPSreturn -Code 0 -Message "" -Data $ReturnData
                 }
                 else {
-                    $status.msg = "Process did not exit within timeout period of $WaitForExit seconds. Use KillProcess to force termination."
                     Write-Verbose "Timeout waiting for process to exit"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Process did not exit within timeout period of $WaitForExit seconds. Use KillProcess to force termination."
                 }
             }
             catch {
-                $status.msg = "Error waiting for process to exit: $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Error waiting for process to exit: $($_.Exception.Message)"
             }
         }
         else {
-            $status.msg = "Failed to send stop signal to process"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to send stop signal to process"
         }
     }
     catch {
-        $status.msg = "Unexpected error in StopProcess function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in StopProcess function: $($_.Exception.Message)"
     }
 }

@@ -70,7 +70,7 @@ function RunProcess {
     .EXAMPLE
     $result = RunProcess -FilePath "C:\Tools\app.exe" -ArgumentList @("/silent", "/config:default")
     if ($result.code -eq 0) {
-        Write-Host "Process started with PID: $($result.processId)"
+        Write-Host "Process started with PID: $($result.data.ProcessId)"
     }
     
     .EXAMPLE
@@ -97,6 +97,7 @@ function RunProcess {
     - With -Wait, exit code is returned in the exitCode property
     - Some combinations of parameters are mutually exclusive (documented in parameter help)
     - Administrative privileges may be required for certain operations
+    - Returns comprehensive process start details in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
@@ -141,51 +142,35 @@ function RunProcess {
         [string]$RedirectStandardError
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        filePath = $null
-        processId = 0
-        processHandle = $null
-        exitCode = $null
-        startTime = $null
-        hasExited = $false
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($FilePath)) {
-        $status.msg = "Parameter 'FilePath' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'FilePath' is required but was not provided or is empty"
     }
     
     try {
         # Normalize file path
-        $NormalizedPath = $FilePath.Replace('/', '\')
+        $NormalizedPath = $FilePath.Replace('/', '\\')
         
         # Check if file exists
         if (-not (Test-Path -Path $NormalizedPath -PathType Leaf)) {
-            $status.msg = "Executable file '$NormalizedPath' does not exist or is not a file"
-            return $status
+            return OPSreturn -Code -1 -Message "Executable file '$NormalizedPath' does not exist or is not a file"
         }
         
         # Get file information
         try {
             $FileItem = Get-Item -Path $NormalizedPath -ErrorAction Stop
-            $status.filePath = $FileItem.FullName
+            $FullFilePath = $FileItem.FullName
         }
         catch {
-            $status.msg = "Failed to access executable file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to access executable file '$NormalizedPath': $($_.Exception.Message)"
         }
         
         # Validate working directory if specified
         if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory)) {
-            $NormalizedWorkingDir = $WorkingDirectory.Replace('/', '\').TrimEnd('\')
+            $NormalizedWorkingDir = $WorkingDirectory.Replace('/', '\\').TrimEnd('\\')
             
             if (-not (Test-Path -Path $NormalizedWorkingDir -PathType Container)) {
-                $status.msg = "Working directory '$NormalizedWorkingDir' does not exist or is not a directory"
-                return $status
+                return OPSreturn -Code -1 -Message "Working directory '$NormalizedWorkingDir' does not exist or is not a directory"
             }
             
             $WorkingDirectory = (Get-Item -Path $NormalizedWorkingDir).FullName
@@ -196,51 +181,44 @@ function RunProcess {
         
         # Validate parameter combinations
         if ($UseShellExecute -and ($RedirectStandardOutput -or $RedirectStandardError)) {
-            $status.msg = "Cannot use -UseShellExecute with -RedirectStandardOutput or -RedirectStandardError"
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot use -UseShellExecute with -RedirectStandardOutput or -RedirectStandardError"
         }
         
         if ($UseShellExecute -and $Credential) {
-            $status.msg = "Cannot use -UseShellExecute with -Credential"
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot use -UseShellExecute with -Credential"
         }
         
         if ($Verb -and -not $UseShellExecute) {
-            $status.msg = "Parameter -Verb requires -UseShellExecute to be specified"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter -Verb requires -UseShellExecute to be specified"
         }
         
         if ($TimeoutSeconds -and -not $Wait) {
-            $status.msg = "Parameter -TimeoutSeconds requires -Wait to be specified"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter -TimeoutSeconds requires -Wait to be specified"
         }
         
         if ($LoadUserProfile -and -not $Credential) {
-            $status.msg = "Parameter -LoadUserProfile requires -Credential to be specified"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter -LoadUserProfile requires -Credential to be specified"
         }
         
         # Validate redirect output paths
         if ($RedirectStandardOutput) {
             $OutputParent = Split-Path -Path $RedirectStandardOutput -Parent
             if ($OutputParent -and -not (Test-Path -Path $OutputParent -PathType Container)) {
-                $status.msg = "Parent directory for RedirectStandardOutput '$OutputParent' does not exist"
-                return $status
+                return OPSreturn -Code -1 -Message "Parent directory for RedirectStandardOutput '$OutputParent' does not exist"
             }
         }
         
         if ($RedirectStandardError) {
             $ErrorParent = Split-Path -Path $RedirectStandardError -Parent
             if ($ErrorParent -and -not (Test-Path -Path $ErrorParent -PathType Container)) {
-                $status.msg = "Parent directory for RedirectStandardError '$ErrorParent' does not exist"
-                return $status
+                return OPSreturn -Code -1 -Message "Parent directory for RedirectStandardError '$ErrorParent' does not exist"
             }
         }
         
         # Build argument string
         $ArgumentString = if ($ArgumentList.Count -gt 0) {
             ($ArgumentList | ForEach-Object {
-                if ($_ -match '\s') { "`"$_`"" } else { $_ }
+                if ($_ -match '\\s') { "`"$_`"" } else { $_ }
             }) -join ' '
         } else {
             ""
@@ -261,7 +239,7 @@ function RunProcess {
         
         # Attempt to start the process
         try {
-            Write-Verbose "Starting process: $($status.filePath)"
+            Write-Verbose "Starting process: $FullFilePath"
             if ($ArgumentString) { Write-Verbose "Arguments: $ArgumentString" }
             Write-Verbose "Working directory: $WorkingDirectory"
             Write-Verbose "Window style: $WindowStyle"
@@ -270,7 +248,7 @@ function RunProcess {
                 
                 # Create ProcessStartInfo
                 $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
-                $StartInfo.FileName = $status.filePath
+                $StartInfo.FileName = $FullFilePath
                 $StartInfo.Arguments = $ArgumentString
                 $StartInfo.WorkingDirectory = $WorkingDirectory
                 $StartInfo.WindowStyle = $WindowStyleMap[$WindowStyle]
@@ -315,15 +293,13 @@ function RunProcess {
                 $ProcessStarted = $Process.Start()
                 
                 if (-not $ProcessStarted) {
-                    $status.msg = "Failed to start process. Process.Start() returned false."
-                    return $status
+                    return OPSreturn -Code -1 -Message "Failed to start process. Process.Start() returned false."
                 }
                 
-                $status.processId = $Process.Id
-                $status.processHandle = $Process
-                $status.startTime = $Process.StartTime
+                $ProcessId = $Process.Id
+                $StartTime = $Process.StartTime
                 
-                Write-Verbose "Process started successfully with PID: $($status.processId)"
+                Write-Verbose "Process started successfully with PID: $ProcessId"
                 
                 # Handle output redirection if specified
                 if ($RedirectStandardOutput -and -not $UseShellExecute) {
@@ -348,6 +324,9 @@ function RunProcess {
                     }
                 }
                 
+                $ExitCode = $null
+                $HasExited = $false
+                
                 # Wait for process if requested
                 if ($Wait) {
                     Write-Verbose "Waiting for process to exit..."
@@ -356,60 +335,59 @@ function RunProcess {
                         $Exited = $Process.WaitForExit($TimeoutSeconds * 1000)
                         
                         if (-not $Exited) {
-                            $status.msg = "Process did not exit within timeout period of $TimeoutSeconds seconds"
-                            $status.hasExited = $false
-                            return $status
+                            return OPSreturn -Code -1 -Message "Process did not exit within timeout period of $TimeoutSeconds seconds"
                         }
                     }
                     else {
                         $Process.WaitForExit()
                     }
                     
-                    $status.exitCode = $Process.ExitCode
-                    $status.hasExited = $true
+                    $ExitCode = $Process.ExitCode
+                    $HasExited = $true
                     
-                    Write-Verbose "Process exited with code: $($status.exitCode)"
+                    Write-Verbose "Process exited with code: $ExitCode"
                 }
                 else {
                     # Check if process has already exited
                     $Process.Refresh()
-                    $status.hasExited = $Process.HasExited
+                    $HasExited = $Process.HasExited
                     
-                    if ($status.hasExited) {
-                        $status.exitCode = $Process.ExitCode
-                        Write-Verbose "Process has already exited with code: $($status.exitCode)"
+                    if ($HasExited) {
+                        $ExitCode = $Process.ExitCode
+                        Write-Verbose "Process has already exited with code: $ExitCode"
                     }
                 }
+                
+                # Prepare return data object with comprehensive process start details
+                $ReturnData = [PSCustomObject]@{
+                    FilePath        = $FullFilePath
+                    ProcessId       = $ProcessId
+                    ProcessHandle   = $Process
+                    ExitCode        = $ExitCode
+                    StartTime       = $StartTime
+                    HasExited       = $HasExited
+                }
+                
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             else {
-                $status.msg = "Operation cancelled by user"
-                return $status
+                return OPSreturn -Code -1 -Message "Operation cancelled by user"
             }
         }
         catch [System.ComponentModel.Win32Exception] {
-            $status.msg = "Win32 error starting process: $($_.Exception.Message) (Error code: $($_.Exception.NativeErrorCode))"
-            return $status
+            return OPSreturn -Code -1 -Message "Win32 error starting process: $($_.Exception.Message) (Error code: $($_.Exception.NativeErrorCode))"
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied starting process. Check permissions or use -Verb 'runas' for elevation."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied starting process. Check permissions or use -Verb 'runas' for elevation."
         }
         catch [System.InvalidOperationException] {
-            $status.msg = "Invalid operation starting process: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Invalid operation starting process: $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to start process '$($status.filePath)': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to start process '$FullFilePath': $($_.Exception.Message)"
         }
-        
-        # Success
-        $status.code = 0
-        $status.msg = ""
-        return $status
     }
     catch {
-        $status.msg = "Unexpected error in RunProcess function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RunProcess function: $($_.Exception.Message)"
     }
 }
