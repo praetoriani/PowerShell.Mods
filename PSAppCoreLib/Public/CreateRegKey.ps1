@@ -29,7 +29,7 @@ function CreateRegKey {
     .EXAMPLE
     $result = CreateRegKey -Path "HKLM:\SOFTWARE\Test" -Key "NewKey"
     if ($result.code -eq 0) {
-        Write-Host "Registry key created successfully"
+        Write-Host "Registry key created successfully at: $($result.data)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -39,6 +39,7 @@ function CreateRegKey {
     - For HKLM operations, administrator privileges are typically required
     - The function will create parent paths if they don't exist
     - If the key already exists, the function will return an error
+    - Returns the full registry path in the data field on success
     #>
     
     [CmdletBinding()]
@@ -52,21 +53,13 @@ function CreateRegKey {
         [string]$Key
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     if ([string]::IsNullOrWhiteSpace($Key)) {
-        $status.msg = "Parameter 'Key' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Key' is required but was not provided or is empty"
     }
     
     try {
@@ -84,8 +77,7 @@ function CreateRegKey {
         }
         
         if (-not $PathStartsWithValidHive) {
-            $status.msg = "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
         }
         
         # Normalize path - ensure it uses PowerShell drive format
@@ -96,14 +88,13 @@ function CreateRegKey {
         $NormalizedPath = $NormalizedPath.Replace('HKEY_CURRENT_CONFIG:', 'HKCC:')
         
         # Remove trailing backslash if present
-        $NormalizedPath = $NormalizedPath.TrimEnd('\')
+        $NormalizedPath = $NormalizedPath.TrimEnd('\\')
         
         # Validate key name - check for invalid characters
-        $InvalidChars = @('\', '/', ':', '*', '?', '"', '<', '>', '|')
+        $InvalidChars = @('\\', '/', ':', '*', '?', '"', '<', '>', '|')
         foreach ($char in $InvalidChars) {
             if ($Key.Contains($char)) {
-                $status.msg = "Parameter 'Key' contains invalid character '$char'. Registry key names cannot contain: \ / : * ? `" < > |"
-                return $status
+                return OPSreturn -Code -1 -Message "Parameter 'Key' contains invalid character '$char'. Registry key names cannot contain: \\ / : * ? `" < > |"
             }
         }
         
@@ -112,14 +103,12 @@ function CreateRegKey {
         
         # Check if the parent path exists
         if (-not (Test-Path -Path $NormalizedPath)) {
-            $status.msg = "Parent registry path '$NormalizedPath' does not exist. Please create the parent path first."
-            return $status
+            return OPSreturn -Code -1 -Message "Parent registry path '$NormalizedPath' does not exist. Please create the parent path first."
         }
         
         # Check if the key already exists
         if (Test-Path -Path $FullKeyPath) {
-            $status.msg = "Registry key '$FullKeyPath' already exists"
-            return $status
+            return OPSreturn -Code -1 -Message "Registry key '$FullKeyPath' already exists"
         }
         
         # Attempt to create the registry key
@@ -128,38 +117,30 @@ function CreateRegKey {
             $NewKey = New-Item -Path $NormalizedPath -Name $Key -Force -ErrorAction Stop
             
             if ($null -eq $NewKey) {
-                $status.msg = "Failed to create registry key '$FullKeyPath'. New-Item returned null."
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to create registry key '$FullKeyPath'. New-Item returned null."
             }
             
             # Verify the key was created
             if (-not (Test-Path -Path $FullKeyPath)) {
-                $status.msg = "Registry key creation reported success, but verification failed for '$FullKeyPath'"
-                return $status
+                return OPSreturn -Code -1 -Message "Registry key creation reported success, but verification failed for '$FullKeyPath'"
             }
             
             Write-Verbose "Successfully created registry key: $FullKeyPath"
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when creating registry key '$FullKeyPath'. Administrator privileges may be required for this operation."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when creating registry key '$FullKeyPath'. Administrator privileges may be required for this operation."
         }
         catch [System.Security.SecurityException] {
-            $status.msg = "Security exception when creating registry key '$FullKeyPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Security exception when creating registry key '$FullKeyPath': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to create registry key '$FullKeyPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to create registry key '$FullKeyPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with full key path in data field
+        return OPSreturn -Code 0 -Message "" -Data $FullKeyPath
     }
     catch {
-        $status.msg = "Unexpected error in CreateRegKey function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in CreateRegKey function: $($_.Exception.Message)"
     }
 }
