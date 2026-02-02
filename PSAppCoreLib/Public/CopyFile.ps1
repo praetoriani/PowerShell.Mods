@@ -32,7 +32,7 @@ function CopyFile {
     Copies the PDF file to the backup location.
     
     .EXAMPLE
-    CopyFile -SourcePath "C:\Data\report.xlsx" -DestinationPath "D:\Archive\" -Force
+    CopyFile -SourcePath "C:\Data\report.xlsx" -DestinationPath "D:\Archive\\" -Force
     Copies the file to the Archive directory and overwrites if it exists.
     
     .EXAMPLE
@@ -40,12 +40,12 @@ function CopyFile {
     Copies a file from a network share to local disk.
     
     .EXAMPLE
-    $result = CopyFile -SourcePath "C:\Source\data.db" -DestinationPath "D:\Backup\"
+    $result = CopyFile -SourcePath "C:\Source\data.db" -DestinationPath "D:\Backup\\"
     if ($result.code -eq 0) {
         Write-Host "File copied successfully"
-        Write-Host "Source: $($result.sourcePath)"
-        Write-Host "Destination: $($result.destinationPath)"
-        Write-Host "Size: $($result.sizeBytes) bytes"
+        Write-Host "Source: $($result.data.SourcePath)"
+        Write-Host "Destination: $($result.data.DestinationPath)"
+        Write-Host "Size: $($result.data.SizeBytes) bytes"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -57,6 +57,7 @@ function CopyFile {
     - File attributes (hidden, readonly, system, archive) are preserved
     - Timestamps are preserved by default
     - If destination file exists, returns error unless -Force is specified
+    - Returns file paths and size in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
@@ -76,52 +77,38 @@ function CopyFile {
         [bool]$PreserveTimestamps = $true
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        sourcePath = $null
-        destinationPath = $null
-        sizeBytes = 0
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($SourcePath)) {
-        $status.msg = "Parameter 'SourcePath' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'SourcePath' is required but was not provided or is empty"
     }
     
     if ([string]::IsNullOrWhiteSpace($DestinationPath)) {
-        $status.msg = "Parameter 'DestinationPath' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'DestinationPath' is required but was not provided or is empty"
     }
     
     try {
         # Normalize paths
-        $NormalizedSource = $SourcePath.Replace('/', '\').TrimEnd('\')
-        $NormalizedDestination = $DestinationPath.Replace('/', '\').TrimEnd('\')
+        $NormalizedSource = $SourcePath.Replace('/', '\\').TrimEnd('\\')
+        $NormalizedDestination = $DestinationPath.Replace('/', '\\').TrimEnd('\\')
         
         # Check if source file exists
         if (-not (Test-Path -Path $NormalizedSource -PathType Leaf)) {
-            $status.msg = "Source file '$NormalizedSource' does not exist or is not a file"
-            return $status
+            return OPSreturn -Code -1 -Message "Source file '$NormalizedSource' does not exist or is not a file"
         }
         
         # Check if source is a directory instead of file
         if (Test-Path -Path $NormalizedSource -PathType Container) {
-            $status.msg = "Source path '$NormalizedSource' is a directory, not a file. Use CopyDir for directories."
-            return $status
+            return OPSreturn -Code -1 -Message "Source path '$NormalizedSource' is a directory, not a file. Use CopyDir for directories."
         }
         
         # Get source file information
         try {
             $SourceFile = Get-Item -Path $NormalizedSource -ErrorAction Stop
-            $status.sourcePath = $SourceFile.FullName
-            $status.sizeBytes = $SourceFile.Length
+            $SourceFullPath = $SourceFile.FullName
+            $FileSizeBytes = $SourceFile.Length
         }
         catch {
-            $status.msg = "Failed to access source file '$NormalizedSource': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to access source file '$NormalizedSource': $($_.Exception.Message)"
         }
         
         # Determine if destination is a directory or file path
@@ -133,7 +120,7 @@ function CopyFile {
             $DestinationIsDirectory = $true
             $FinalDestination = Join-Path -Path $NormalizedDestination -ChildPath $SourceFile.Name
         }
-        elseif ($NormalizedDestination.EndsWith('\')) {
+        elseif ($NormalizedDestination.EndsWith('\\')) {
             # Destination ends with backslash - treat as directory
             $DestinationIsDirectory = $true
             $FinalDestination = Join-Path -Path $NormalizedDestination -ChildPath $SourceFile.Name
@@ -155,15 +142,13 @@ function CopyFile {
         
         # Prevent copying file to itself
         if ($SourceFile.FullName -eq [System.IO.Path]::GetFullPath($FinalDestination)) {
-            $status.msg = "Cannot copy file '$($SourceFile.FullName)' to itself"
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot copy file '$($SourceFile.FullName)' to itself"
         }
         
         # Check if destination file already exists
         $DestinationExists = Test-Path -Path $FinalDestination -PathType Leaf
         if ($DestinationExists -and -not $Force) {
-            $status.msg = "Destination file '$FinalDestination' already exists. Use -Force to overwrite."
-            return $status
+            return OPSreturn -Code -1 -Message "Destination file '$FinalDestination' already exists. Use -Force to overwrite."
         }
         
         # Ensure destination parent directory exists
@@ -174,8 +159,7 @@ function CopyFile {
                 New-Item -Path $DestinationParent -ItemType Directory -Force -ErrorAction Stop | Out-Null
             }
             catch {
-                $status.msg = "Failed to create destination directory '$DestinationParent': $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to create destination directory '$DestinationParent': $($_.Exception.Message)"
             }
         }
         
@@ -194,8 +178,7 @@ function CopyFile {
                 
                 # Verify the file was copied
                 if (-not (Test-Path -Path $FinalDestination -PathType Leaf)) {
-                    $status.msg = "Copy operation reported success, but destination file '$FinalDestination' was not created"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Copy operation reported success, but destination file '$FinalDestination' was not created"
                 }
                 
                 # Get destination file info
@@ -216,39 +199,36 @@ function CopyFile {
                 
                 # Verify file size matches
                 if ($DestinationFile.Length -ne $SourceFile.Length) {
-                    $status.msg = "File copied but size mismatch detected. Source: $($SourceFile.Length) bytes, Destination: $($DestinationFile.Length) bytes"
-                    return $status
+                    return OPSreturn -Code -1 -Message "File copied but size mismatch detected. Source: $($SourceFile.Length) bytes, Destination: $($DestinationFile.Length) bytes"
                 }
                 
-                $status.destinationPath = $DestinationFile.FullName
+                Write-Verbose "Successfully copied file: $SourceFullPath -> $($DestinationFile.FullName) ($FileSizeBytes bytes)"
                 
-                Write-Verbose "Successfully copied file: $($status.sourcePath) -> $($status.destinationPath) ($($status.sizeBytes) bytes)"
+                # Prepare return data object with file information
+                $ReturnData = [PSCustomObject]@{
+                    SourcePath      = $SourceFullPath
+                    DestinationPath = $DestinationFile.FullName
+                    SizeBytes       = $FileSizeBytes
+                }
             }
             else {
-                $status.msg = "Operation cancelled by user"
-                return $status
+                return OPSreturn -Code -1 -Message "Operation cancelled by user"
             }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied during copy operation. Check permissions on source '$NormalizedSource' and destination '$FinalDestination'."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied during copy operation. Check permissions on source '$NormalizedSource' and destination '$FinalDestination'."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error during copy operation: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error during copy operation: $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to copy file from '$NormalizedSource' to '$FinalDestination': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to copy file from '$NormalizedSource' to '$FinalDestination': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with file information in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in CopyFile function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in CopyFile function: $($_.Exception.Message)"
     }
 }

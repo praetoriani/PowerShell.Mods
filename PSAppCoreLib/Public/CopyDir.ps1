@@ -49,8 +49,9 @@ function CopyDir {
     .EXAMPLE
     $result = CopyDir -SourcePath "C:\Source" -DestinationPath "D:\Backup"
     if ($result.code -eq 0) {
-        Write-Host "Copied $($result.filesCopied) files and $($result.directoriesCopied) directories"
-        Write-Host "Total size: $($result.totalSizeBytes) bytes"
+        Write-Host "Copied $($result.data.FilesCopied) files and $($result.data.DirectoriesCopied) directories"
+        Write-Host "Destination: $($result.data.DestinationPath)"
+        Write-Host "Total size: $($result.data.TotalSizeBytes) bytes"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -63,6 +64,7 @@ function CopyDir {
     - Network copies depend on network speed and reliability
     - Progress information is written to Verbose stream
     - If destination directory doesn't exist, it will be created
+    - Returns copy statistics in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -85,42 +87,28 @@ function CopyDir {
         [string[]]$ExcludeDirs = @()
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        filesCopied = 0
-        directoriesCopied = 0
-        totalSizeBytes = 0
-        destinationPath = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($SourcePath)) {
-        $status.msg = "Parameter 'SourcePath' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'SourcePath' is required but was not provided or is empty"
     }
     
     if ([string]::IsNullOrWhiteSpace($DestinationPath)) {
-        $status.msg = "Parameter 'DestinationPath' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'DestinationPath' is required but was not provided or is empty"
     }
     
     try {
         # Normalize paths
-        $NormalizedSource = $SourcePath.TrimEnd('\', '/')
-        $NormalizedDestination = $DestinationPath.TrimEnd('\', '/')
+        $NormalizedSource = $SourcePath.TrimEnd('\\', '/')
+        $NormalizedDestination = $DestinationPath.TrimEnd('\\', '/')
         
         # Check if source directory exists
         if (-not (Test-Path -Path $NormalizedSource -PathType Container)) {
-            $status.msg = "Source directory '$NormalizedSource' does not exist or is not a directory"
-            return $status
+            return OPSreturn -Code -1 -Message "Source directory '$NormalizedSource' does not exist or is not a directory"
         }
         
         # Check if source is a file instead of directory
         if (Test-Path -Path $NormalizedSource -PathType Leaf) {
-            $status.msg = "Source path '$NormalizedSource' is a file, not a directory. Use Copy-Item for files."
-            return $status
+            return OPSreturn -Code -1 -Message "Source path '$NormalizedSource' is a file, not a directory. Use Copy-Item for files."
         }
         
         # Get source directory info
@@ -129,14 +117,12 @@ function CopyDir {
             $SourceDirName = $SourceDir.Name
         }
         catch {
-            $status.msg = "Failed to access source directory '$NormalizedSource': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to access source directory '$NormalizedSource': $($_.Exception.Message)"
         }
         
         # Prevent copying directory into itself
-        if ($NormalizedDestination.StartsWith($NormalizedSource + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-            $status.msg = "Cannot copy directory '$NormalizedSource' into itself or its subdirectory '$NormalizedDestination'"
-            return $status
+        if ($NormalizedDestination.StartsWith($NormalizedSource + '\\', [System.StringComparison]::OrdinalIgnoreCase)) {
+            return OPSreturn -Code -1 -Message "Cannot copy directory '$NormalizedSource' into itself or its subdirectory '$NormalizedDestination'"
         }
         
         # Determine final destination path
@@ -151,8 +137,7 @@ function CopyDir {
         # Check if final destination already exists
         if (Test-Path -Path $FinalDestination -PathType Container) {
             if (-not $Force) {
-                $status.msg = "Destination directory '$FinalDestination' already exists. Use -Force to merge/overwrite."
-                return $status
+                return OPSreturn -Code -1 -Message "Destination directory '$FinalDestination' already exists. Use -Force to merge/overwrite."
             }
             Write-Verbose "Destination exists and will be merged (Force parameter specified)"
         }
@@ -179,7 +164,7 @@ function CopyDir {
                 
                 # Build exclude parameters for Copy-Item
                 $CopyParams = @{
-                    Path = "$NormalizedSource\*"
+                    Path = "$NormalizedSource\\*"
                     Destination = $FinalDestination
                     Recurse = $true
                     Force = $Force
@@ -216,43 +201,37 @@ function CopyDir {
                 
                 # Verify destination was created
                 if (-not (Test-Path -Path $FinalDestination -PathType Container)) {
-                    $status.msg = "Copy operation reported success, but destination directory '$FinalDestination' was not created"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Copy operation reported success, but destination directory '$FinalDestination' was not created"
                 }
                 
-                # Set return values
-                $status.filesCopied = $FileCount
-                $status.directoriesCopied = $DirCount
-                $status.totalSizeBytes = $TotalSize
-                $status.destinationPath = $FinalDestination
-                
                 Write-Verbose "Successfully copied $FileCount files and $DirCount directories ($TotalSize bytes)"
+                
+                # Prepare return data object with copy statistics
+                $ReturnData = [PSCustomObject]@{
+                    DestinationPath    = $FinalDestination
+                    FilesCopied        = $FileCount
+                    DirectoriesCopied  = $DirCount
+                    TotalSizeBytes     = $TotalSize
+                }
             }
             else {
-                $status.msg = "Operation cancelled by user"
-                return $status
+                return OPSreturn -Code -1 -Message "Operation cancelled by user"
             }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied during copy operation. Check permissions on source '$NormalizedSource' and destination '$FinalDestination'."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied during copy operation. Check permissions on source '$NormalizedSource' and destination '$FinalDestination'."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error during copy operation: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error during copy operation: $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to copy directory from '$NormalizedSource' to '$FinalDestination': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to copy directory from '$NormalizedSource' to '$FinalDestination': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with copy statistics in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in CopyDir function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in CopyDir function: $($_.Exception.Message)"
     }
 }
