@@ -24,7 +24,7 @@ function SetServiceState {
     
     .PARAMETER PassThru
     Optional switch parameter. When specified, returns the service object in the
-    serviceObject property. Default is $false.
+    data.ServiceObject property. Default is $false.
     
     .EXAMPLE
     SetServiceState -Name "wuauserv" -StartupType "Manual"
@@ -34,8 +34,8 @@ function SetServiceState {
     $result = SetServiceState -Name "Spooler" -StartupType "Automatic"
     if ($result.code -eq 0) {
         Write-Host "Print Spooler startup type changed"
-        Write-Host "Previous: $($result.previousStartType)"
-        Write-Host "Current: $($result.currentStartType)"
+        Write-Host "Previous: $($result.data.PreviousStartType)"
+        Write-Host "Current: $($result.data.CurrentStartType)"
     }
     
     .EXAMPLE
@@ -61,6 +61,7 @@ function SetServiceState {
     - AutomaticDelayedStart is supported on Windows Vista and later
     - Changing to Disabled will prevent the service from starting
     - Some system services should not be disabled
+    - Returns comprehensive configuration change details in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -77,22 +78,9 @@ function SetServiceState {
         [switch]$PassThru
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        serviceName = $null
-        displayName = $null
-        currentStatus = $null
-        previousStartType = $null
-        currentStartType = $null
-        serviceObject = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        $status.msg = "Parameter 'Name' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Name' is required but was not provided or is empty"
     }
     
     # Check for administrative privileges
@@ -100,13 +88,11 @@ function SetServiceState {
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     
     if (-not $isAdmin) {
-        $status.msg = "This function requires administrative privileges. Please run PowerShell as Administrator."
-        return $status
+        return OPSreturn -Code -1 -Message "This function requires administrative privileges. Please run PowerShell as Administrator."
     }
     
     try {
         $ServiceName = $Name.Trim()
-        $status.serviceName = $ServiceName
         
         Write-Verbose "Attempting to configure service: $ServiceName"
         Write-Verbose "Target startup type: $StartupType"
@@ -116,46 +102,47 @@ function SetServiceState {
             $Service = Get-Service -Name $ServiceName -ErrorAction Stop
             
             if ($null -eq $Service) {
-                $status.msg = "Service '$ServiceName' was not found"
-                return $status
+                return OPSreturn -Code -1 -Message "Service '$ServiceName' was not found"
             }
         }
         catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
-            $status.msg = "Service '$ServiceName' does not exist on this system"
-            return $status
+            return OPSreturn -Code -1 -Message "Service '$ServiceName' does not exist on this system"
         }
         catch {
-            $status.msg = "Error retrieving service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error retrieving service '$ServiceName': $($_.Exception.Message)"
         }
         
-        # Populate service information
-        $status.displayName = $Service.DisplayName
-        $status.currentStatus = $Service.Status.ToString()
-        $status.previousStartType = $Service.StartType.ToString()
+        $DisplayName = $Service.DisplayName
+        $CurrentStatus = $Service.Status.ToString()
+        $PreviousStartType = $Service.StartType.ToString()
         
         Write-Verbose "Service information:"
-        Write-Verbose "  Name: $($status.serviceName)"
-        Write-Verbose "  Display Name: $($status.displayName)"
-        Write-Verbose "  Current Status: $($status.currentStatus)"
-        Write-Verbose "  Current Startup Type: $($status.previousStartType)"
+        Write-Verbose "  Name: $ServiceName"
+        Write-Verbose "  Display Name: $DisplayName"
+        Write-Verbose "  Current Status: $CurrentStatus"
+        Write-Verbose "  Current Startup Type: $PreviousStartType"
         
         # Check if startup type is already set to the desired value
-        if ($status.previousStartType -eq $StartupType) {
-            $status.code = 0
-            $status.msg = ""
-            $status.currentStartType = $StartupType
-            if ($PassThru) { $status.serviceObject = $Service }
+        if ($PreviousStartType -eq $StartupType) {
+            $ReturnData = [PSCustomObject]@{
+                ServiceName        = $ServiceName
+                DisplayName        = $DisplayName
+                CurrentStatus      = $CurrentStatus
+                PreviousStartType  = $PreviousStartType
+                CurrentStartType   = $StartupType
+            }
+            
+            if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+            
             Write-Verbose "Service startup type is already set to '$StartupType'"
-            return $status
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         
         # Confirmation prompt
-        $ConfirmMessage = "Change startup type of service '$($status.displayName)' from '$($status.previousStartType)' to '$StartupType'"
+        $ConfirmMessage = "Change startup type of service '$DisplayName' from '$PreviousStartType' to '$StartupType'"
         
-        if (-not $PSCmdlet.ShouldProcess($status.displayName, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+        if (-not $PSCmdlet.ShouldProcess($DisplayName, $ConfirmMessage)) {
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         # Map startup type to Set-Service parameter
@@ -190,33 +177,35 @@ function SetServiceState {
             # Refresh service object
             Start-Sleep -Milliseconds 200
             $Service = Get-Service -Name $ServiceName -ErrorAction Stop
-            $status.currentStartType = $Service.StartType.ToString()
+            $NewStartType = $Service.StartType.ToString()
             
             Write-Verbose "Startup type changed successfully"
-            Write-Verbose "  Previous: $($status.previousStartType)"
-            Write-Verbose "  Current: $($status.currentStartType)"
+            Write-Verbose "  Previous: $PreviousStartType"
+            Write-Verbose "  Current: $NewStartType"
             
-            # Success
-            $status.code = 0
-            $status.msg = ""
-            if ($PassThru) { $status.serviceObject = $Service }
-            return $status
+            $ReturnData = [PSCustomObject]@{
+                ServiceName        = $ServiceName
+                DisplayName        = $DisplayName
+                CurrentStatus      = $CurrentStatus
+                PreviousStartType  = $PreviousStartType
+                CurrentStartType   = $NewStartType
+            }
+            
+            if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+            
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
-            $status.msg = "Service command error: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Service command error: $($_.Exception.Message)"
         }
         catch [System.InvalidOperationException] {
-            $status.msg = "Cannot change startup type: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot change startup type: $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to set startup type for service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to set startup type for service '$ServiceName': $($_.Exception.Message)"
         }
     }
     catch {
-        $status.msg = "Unexpected error in SetServiceState function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in SetServiceState function: $($_.Exception.Message)"
     }
 }

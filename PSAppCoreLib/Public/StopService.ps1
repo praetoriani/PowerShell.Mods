@@ -24,7 +24,7 @@ function StopService {
     
     .PARAMETER PassThru
     Optional switch parameter. When specified, returns the service object in the
-    serviceObject property. Default is $false.
+    data.ServiceObject property. Default is $false.
     
     .EXAMPLE
     StopService -Name "wuauserv"
@@ -34,7 +34,7 @@ function StopService {
     $result = StopService -Name "Spooler" -TimeoutSeconds 60
     if ($result.code -eq 0) {
         Write-Host "Print Spooler stopped successfully"
-        Write-Host "Stop duration: $($result.stopDurationSeconds) seconds"
+        Write-Host "Stop duration: $($result.data.StopDurationSeconds) seconds"
     }
     
     .EXAMPLE
@@ -48,6 +48,7 @@ function StopService {
     - By default, fails if dependent services are running (use -Force to stop them)
     - This is a graceful stop that allows the service to clean up
     - If graceful stop fails, use KillService for forced termination
+    - Returns comprehensive stop details including dependent services in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -67,24 +68,9 @@ function StopService {
         [switch]$PassThru
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        serviceName = $null
-        displayName = $null
-        status = $null
-        startType = $null
-        previousStatus = $null
-        stopDurationSeconds = 0
-        stoppedDependentServices = @()
-        serviceObject = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        $status.msg = "Parameter 'Name' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Name' is required but was not provided or is empty"
     }
     
     # Check for administrative privileges
@@ -92,13 +78,11 @@ function StopService {
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     
     if (-not $isAdmin) {
-        $status.msg = "This function requires administrative privileges. Please run PowerShell as Administrator."
-        return $status
+        return OPSreturn -Code -1 -Message "This function requires administrative privileges. Please run PowerShell as Administrator."
     }
     
     try {
         $ServiceName = $Name.Trim()
-        $status.serviceName = $ServiceName
         
         Write-Verbose "Attempting to stop service: $ServiceName"
         
@@ -107,38 +91,42 @@ function StopService {
             $Service = Get-Service -Name $ServiceName -ErrorAction Stop
             
             if ($null -eq $Service) {
-                $status.msg = "Service '$ServiceName' was not found"
-                return $status
+                return OPSreturn -Code -1 -Message "Service '$ServiceName' was not found"
             }
         }
         catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
-            $status.msg = "Service '$ServiceName' does not exist on this system"
-            return $status
+            return OPSreturn -Code -1 -Message "Service '$ServiceName' does not exist on this system"
         }
         catch {
-            $status.msg = "Error retrieving service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error retrieving service '$ServiceName': $($_.Exception.Message)"
         }
         
-        # Populate service information
-        $status.displayName = $Service.DisplayName
-        $status.previousStatus = $Service.Status.ToString()
-        $status.startType = $Service.StartType.ToString()
+        $DisplayName = $Service.DisplayName
+        $PreviousStatus = $Service.Status.ToString()
+        $StartType = $Service.StartType.ToString()
         
         Write-Verbose "Service information:"
-        Write-Verbose "  Name: $($status.serviceName)"
-        Write-Verbose "  Display Name: $($status.displayName)"
-        Write-Verbose "  Current Status: $($status.previousStatus)"
-        Write-Verbose "  Start Type: $($status.startType)"
+        Write-Verbose "  Name: $ServiceName"
+        Write-Verbose "  Display Name: $DisplayName"
+        Write-Verbose "  Current Status: $PreviousStatus"
+        Write-Verbose "  Start Type: $StartType"
         
         # Check if service is already stopped
         if ($Service.Status -eq 'Stopped') {
-            $status.code = 0
-            $status.msg = ""
-            $status.status = "Stopped"
-            if ($PassThru) { $status.serviceObject = $Service }
+            $ReturnData = [PSCustomObject]@{
+                ServiceName                = $ServiceName
+                DisplayName                = $DisplayName
+                Status                     = "Stopped"
+                StartType                  = $StartType
+                PreviousStatus             = $PreviousStatus
+                StopDurationSeconds        = 0
+                StoppedDependentServices   = @()
+            }
+            
+            if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+            
             Write-Verbose "Service is already stopped"
-            return $status
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         
         # Check for dependent services that are running
@@ -151,8 +139,7 @@ function StopService {
             
             if (-not $Force) {
                 $DepNames = ($DependentServices | ForEach-Object { $_.Name }) -join ', '
-                $status.msg = "Cannot stop service '$ServiceName' because the following dependent services are running: $DepNames. Use -Force to stop dependent services."
-                return $status
+                return OPSreturn -Code -1 -Message "Cannot stop service '$ServiceName' because the following dependent services are running: $DepNames. Use -Force to stop dependent services."
             }
             else {
                 Write-Verbose "Force mode enabled - will stop dependent services first"
@@ -160,17 +147,17 @@ function StopService {
         }
         
         # Confirmation prompt
-        $ConfirmMessage = "Stop service '$($status.displayName)' ($ServiceName)"
+        $ConfirmMessage = "Stop service '$DisplayName' ($ServiceName)"
         if ($DependentServices.Count -gt 0 -and $Force) {
             $ConfirmMessage += " and $($DependentServices.Count) dependent service(s)"
         }
         
-        if (-not $PSCmdlet.ShouldProcess($status.displayName, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+        if (-not $PSCmdlet.ShouldProcess($DisplayName, $ConfirmMessage)) {
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         $StopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $StoppedDependentServices = @()
         
         # Stop dependent services first if Force is specified
         if ($DependentServices.Count -gt 0 -and $Force) {
@@ -180,7 +167,7 @@ function StopService {
                     Write-Verbose "  Stopping: $($DepService.Name)"
                     $DepService.Stop()
                     $DepService.WaitForStatus('Stopped', (New-TimeSpan -Seconds $TimeoutSeconds))
-                    $status.stoppedDependentServices += $DepService.Name
+                    $StoppedDependentServices += $DepService.Name
                     Write-Verbose "  Stopped: $($DepService.Name)"
                 }
                 catch {
@@ -199,48 +186,50 @@ function StopService {
             $Service.WaitForStatus('Stopped', (New-TimeSpan -Seconds $TimeoutSeconds))
             
             $StopWatch.Stop()
-            $status.stopDurationSeconds = [Math]::Round($StopWatch.Elapsed.TotalSeconds, 2)
+            $StopDuration = [Math]::Round($StopWatch.Elapsed.TotalSeconds, 2)
             
             # Refresh service object
             $Service.Refresh()
-            $status.status = $Service.Status.ToString()
+            $CurrentStatus = $Service.Status.ToString()
             
             if ($Service.Status -eq 'Stopped') {
                 Write-Verbose "Service stopped successfully"
-                Write-Verbose "  Duration: $($status.stopDurationSeconds) seconds"
-                if ($status.stoppedDependentServices.Count -gt 0) {
-                    Write-Verbose "  Also stopped $($status.stoppedDependentServices.Count) dependent service(s)"
+                Write-Verbose "  Duration: $StopDuration seconds"
+                if ($StoppedDependentServices.Count -gt 0) {
+                    Write-Verbose "  Also stopped $($StoppedDependentServices.Count) dependent service(s)"
                 }
                 
-                # Success
-                $status.code = 0
-                $status.msg = ""
-                if ($PassThru) { $status.serviceObject = $Service }
-                return $status
+                $ReturnData = [PSCustomObject]@{
+                    ServiceName                = $ServiceName
+                    DisplayName                = $DisplayName
+                    Status                     = $CurrentStatus
+                    StartType                  = $StartType
+                    PreviousStatus             = $PreviousStatus
+                    StopDurationSeconds        = $StopDuration
+                    StoppedDependentServices   = $StoppedDependentServices
+                }
+                
+                if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+                
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             else {
-                $status.msg = "Service stop command was sent but service did not reach stopped state. Current status: $($Service.Status)"
-                return $status
+                return OPSreturn -Code -1 -Message "Service stop command was sent but service did not reach stopped state. Current status: $($Service.Status)"
             }
         }
         catch [System.ServiceProcess.TimeoutException] {
             $StopWatch.Stop()
             $Service.Refresh()
-            $status.status = $Service.Status.ToString()
-            $status.msg = "Service did not stop within timeout period of $TimeoutSeconds seconds. Current status: $($status.status). Use KillService for forced termination."
-            return $status
+            return OPSreturn -Code -1 -Message "Service did not stop within timeout period of $TimeoutSeconds seconds. Current status: $($Service.Status). Use KillService for forced termination."
         }
         catch [System.InvalidOperationException] {
-            $status.msg = "Cannot stop service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot stop service '$ServiceName': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to stop service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to stop service '$ServiceName': $($_.Exception.Message)"
         }
     }
     catch {
-        $status.msg = "Unexpected error in StopService function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in StopService function: $($_.Exception.Message)"
     }
 }

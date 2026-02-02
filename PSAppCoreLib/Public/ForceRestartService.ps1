@@ -24,7 +24,7 @@ function ForceRestartService {
     
     .PARAMETER PassThru
     Optional switch parameter. When specified, returns the service object in the
-    serviceObject property. Default is $false.
+    data.ServiceObject property. Default is $false.
     
     .EXAMPLE
     ForceRestartService -Name "Spooler"
@@ -34,8 +34,8 @@ function ForceRestartService {
     $result = ForceRestartService -Name "wuauserv" -TimeoutSeconds 15
     if ($result.code -eq 0) {
         Write-Host "Service forcefully restarted"
-        Write-Host "Was forced: $($result.wasForced)"
-        Write-Host "Killed processes: $($result.killedProcessCount)"
+        Write-Host "Was forced: $($result.data.WasForced)"
+        Write-Host "Killed processes: $($result.data.KilledProcessCount)"
     }
     
     .NOTES
@@ -45,6 +45,7 @@ function ForceRestartService {
     - May cause data loss or corruption if service is writing data
     - Kills the service process if graceful stop fails
     - Use with extreme caution on critical system services
+    - Returns comprehensive force restart details in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -64,27 +65,9 @@ function ForceRestartService {
         [switch]$PassThru
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        serviceName = $null
-        displayName = $null
-        status = $null
-        startType = $null
-        previousStatus = $null
-        wasForced = $false
-        killedProcessCount = 0
-        stopDurationSeconds = 0
-        startDurationSeconds = 0
-        totalDurationSeconds = 0
-        serviceObject = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        $status.msg = "Parameter 'Name' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Name' is required but was not provided or is empty"
     }
     
     # Check for administrative privileges
@@ -92,13 +75,11 @@ function ForceRestartService {
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     
     if (-not $isAdmin) {
-        $status.msg = "This function requires administrative privileges. Please run PowerShell as Administrator."
-        return $status
+        return OPSreturn -Code -1 -Message "This function requires administrative privileges. Please run PowerShell as Administrator."
     }
     
     try {
         $ServiceName = $Name.Trim()
-        $status.serviceName = $ServiceName
         
         Write-Verbose "Attempting to force restart service: $ServiceName"
         
@@ -107,42 +88,36 @@ function ForceRestartService {
             $Service = Get-Service -Name $ServiceName -ErrorAction Stop
             
             if ($null -eq $Service) {
-                $status.msg = "Service '$ServiceName' was not found"
-                return $status
+                return OPSreturn -Code -1 -Message "Service '$ServiceName' was not found"
             }
         }
         catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
-            $status.msg = "Service '$ServiceName' does not exist on this system"
-            return $status
+            return OPSreturn -Code -1 -Message "Service '$ServiceName' does not exist on this system"
         }
         catch {
-            $status.msg = "Error retrieving service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error retrieving service '$ServiceName': $($_.Exception.Message)"
         }
         
-        # Populate service information
-        $status.displayName = $Service.DisplayName
-        $status.previousStatus = $Service.Status.ToString()
-        $status.startType = $Service.StartType.ToString()
+        $DisplayName = $Service.DisplayName
+        $PreviousStatus = $Service.Status.ToString()
+        $StartType = $Service.StartType.ToString()
         
         Write-Verbose "Service information:"
-        Write-Verbose "  Name: $($status.serviceName)"
-        Write-Verbose "  Display Name: $($status.displayName)"
-        Write-Verbose "  Current Status: $($status.previousStatus)"
-        Write-Verbose "  Start Type: $($status.startType)"
+        Write-Verbose "  Name: $ServiceName"
+        Write-Verbose "  Display Name: $DisplayName"
+        Write-Verbose "  Current Status: $PreviousStatus"
+        Write-Verbose "  Start Type: $StartType"
         
         # Check if service is disabled
         if ($Service.StartType -eq 'Disabled') {
-            $status.msg = "Service '$ServiceName' is disabled. Use SetServiceState to enable it before restarting."
-            return $status
+            return OPSreturn -Code -1 -Message "Service '$ServiceName' is disabled. Use SetServiceState to enable it before restarting."
         }
         
         # Confirmation prompt
-        $ConfirmMessage = "FORCEFULLY restart service '$($status.displayName)' ($ServiceName) - This will kill the service process if necessary"
+        $ConfirmMessage = "FORCEFULLY restart service '$DisplayName' ($ServiceName) - This will kill the service process if necessary"
         
-        if (-not $PSCmdlet.ShouldProcess($status.displayName, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+        if (-not $PSCmdlet.ShouldProcess($DisplayName, $ConfirmMessage)) {
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         # Check for dependent services
@@ -159,6 +134,9 @@ function ForceRestartService {
         }
         
         $TotalStopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $WasForced = $false
+        $KilledProcessCount = 0
+        $StopDuration = 0
         
         # Attempt to stop service (gracefully first, then forcefully)
         if ($Service.Status -ne 'Stopped') {
@@ -170,17 +148,17 @@ function ForceRestartService {
                 $Service.WaitForStatus('Stopped', (New-TimeSpan -Seconds $TimeoutSeconds))
                 
                 $StopStopWatch.Stop()
-                $status.stopDurationSeconds = [Math]::Round($StopStopWatch.Elapsed.TotalSeconds, 2)
+                $StopDuration = [Math]::Round($StopStopWatch.Elapsed.TotalSeconds, 2)
                 
                 $Service.Refresh()
-                Write-Verbose "Service stopped gracefully in $($status.stopDurationSeconds) seconds"
+                Write-Verbose "Service stopped gracefully in $StopDuration seconds"
             }
             catch [System.ServiceProcess.TimeoutException] {
                 $StopStopWatch.Stop()
                 $Service.Refresh()
                 
                 Write-Verbose "Graceful stop failed, attempting forced termination..."
-                $status.wasForced = $true
+                $WasForced = $true
                 
                 # Get service process ID
                 try {
@@ -193,7 +171,7 @@ function ForceRestartService {
                         # Kill the service process
                         try {
                             Stop-Process -Id $ProcessId -Force -ErrorAction Stop
-                            $status.killedProcessCount++
+                            $KilledProcessCount++
                             Write-Verbose "Killed service process (PID: $ProcessId)"
                             
                             # Wait a moment for process to terminate
@@ -203,28 +181,24 @@ function ForceRestartService {
                             
                             # Wait for service to reach stopped state
                             $Service.WaitForStatus('Stopped', (New-TimeSpan -Seconds 5))
-                            $status.stopDurationSeconds = [Math]::Round($StopStopWatch.Elapsed.TotalSeconds, 2)
+                            $StopDuration = [Math]::Round($StopStopWatch.Elapsed.TotalSeconds, 2)
                             
                             Write-Verbose "Service forcefully stopped"
                         }
                         catch {
-                            $status.msg = "Failed to kill service process: $($_.Exception.Message)"
-                            return $status
+                            return OPSreturn -Code -1 -Message "Failed to kill service process: $($_.Exception.Message)"
                         }
                     }
                     else {
-                        $status.msg = "Could not determine service process ID for forced termination"
-                        return $status
+                        return OPSreturn -Code -1 -Message "Could not determine service process ID for forced termination"
                     }
                 }
                 catch {
-                    $status.msg = "Failed to retrieve service process information: $($_.Exception.Message)"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Failed to retrieve service process information: $($_.Exception.Message)"
                 }
             }
             catch {
-                $status.msg = "Failed to stop service: $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to stop service: $($_.Exception.Message)"
             }
         }
         else {
@@ -243,48 +217,54 @@ function ForceRestartService {
             $Service.WaitForStatus('Running', (New-TimeSpan -Seconds 30))
             
             $StartStopWatch.Stop()
-            $status.startDurationSeconds = [Math]::Round($StartStopWatch.Elapsed.TotalSeconds, 2)
+            $StartDuration = [Math]::Round($StartStopWatch.Elapsed.TotalSeconds, 2)
             
             $TotalStopWatch.Stop()
-            $status.totalDurationSeconds = [Math]::Round($TotalStopWatch.Elapsed.TotalSeconds, 2)
+            $TotalDuration = [Math]::Round($TotalStopWatch.Elapsed.TotalSeconds, 2)
             
             $Service.Refresh()
-            $status.status = $Service.Status.ToString()
+            $CurrentStatus = $Service.Status.ToString()
             
             if ($Service.Status -eq 'Running') {
                 Write-Verbose "Service restarted successfully"
-                Write-Verbose "  Stop duration: $($status.stopDurationSeconds) seconds"
-                Write-Verbose "  Start duration: $($status.startDurationSeconds) seconds"
-                Write-Verbose "  Total duration: $($status.totalDurationSeconds) seconds"
-                Write-Verbose "  Was forced: $($status.wasForced)"
-                Write-Verbose "  Killed processes: $($status.killedProcessCount)"
+                Write-Verbose "  Stop duration: $StopDuration seconds"
+                Write-Verbose "  Start duration: $StartDuration seconds"
+                Write-Verbose "  Total duration: $TotalDuration seconds"
+                Write-Verbose "  Was forced: $WasForced"
+                Write-Verbose "  Killed processes: $KilledProcessCount"
                 
-                # Success
-                $status.code = 0
-                $status.msg = ""
-                if ($PassThru) { $status.serviceObject = $Service }
-                return $status
+                $ReturnData = [PSCustomObject]@{
+                    ServiceName           = $ServiceName
+                    DisplayName           = $DisplayName
+                    Status                = $CurrentStatus
+                    StartType             = $StartType
+                    PreviousStatus        = $PreviousStatus
+                    WasForced             = $WasForced
+                    KilledProcessCount    = $KilledProcessCount
+                    StopDurationSeconds   = $StopDuration
+                    StartDurationSeconds  = $StartDuration
+                    TotalDurationSeconds  = $TotalDuration
+                }
+                
+                if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+                
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             else {
-                $status.msg = "Service start command was sent but service did not reach running state. Current status: $($Service.Status)"
-                return $status
+                return OPSreturn -Code -1 -Message "Service start command was sent but service did not reach running state. Current status: $($Service.Status)"
             }
         }
         catch [System.ServiceProcess.TimeoutException] {
             $StartStopWatch.Stop()
             $TotalStopWatch.Stop()
             $Service.Refresh()
-            $status.status = $Service.Status.ToString()
-            $status.msg = "Service did not start within timeout period. Current status: $($status.status)"
-            return $status
+            return OPSreturn -Code -1 -Message "Service did not start within timeout period. Current status: $($Service.Status)"
         }
         catch {
-            $status.msg = "Failed to start service after stopping: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to start service after stopping: $($_.Exception.Message)"
         }
     }
     catch {
-        $status.msg = "Unexpected error in ForceRestartService function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in ForceRestartService function: $($_.Exception.Message)"
     }
 }

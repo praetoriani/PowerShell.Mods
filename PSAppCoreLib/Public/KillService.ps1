@@ -20,7 +20,7 @@ function KillService {
     
     .PARAMETER PassThru
     Optional switch parameter. When specified, returns the service object in the
-    serviceObject property. Default is $false.
+    data.ServiceObject property. Default is $false.
     
     .EXAMPLE
     KillService -Name "Spooler"
@@ -30,8 +30,8 @@ function KillService {
     $result = KillService -Name "wuauserv"
     if ($result.code -eq 0) {
         Write-Host "Service killed successfully"
-        Write-Host "Killed processes: $($result.killedProcessCount)"
-        Write-Host "Termination time: $($result.terminationDurationMs) ms"
+        Write-Host "Killed processes: $($result.data.KilledProcessCount)"
+        Write-Host "Termination time: $($result.data.TerminationDurationMs) ms"
     }
     
     .NOTES
@@ -41,6 +41,7 @@ function KillService {
     - May cause data loss or corruption if service is writing data
     - Use with extreme caution on critical system services
     - The service can be restarted after killing
+    - Returns comprehensive kill details including dependent services in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -56,24 +57,9 @@ function KillService {
         [switch]$PassThru
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        serviceName = $null
-        displayName = $null
-        status = $null
-        previousStatus = $null
-        killedProcessCount = 0
-        terminationDurationMs = 0
-        killedDependentServices = @()
-        serviceObject = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        $status.msg = "Parameter 'Name' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Name' is required but was not provided or is empty"
     }
     
     # Check for administrative privileges
@@ -81,13 +67,11 @@ function KillService {
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     
     if (-not $isAdmin) {
-        $status.msg = "This function requires administrative privileges. Please run PowerShell as Administrator."
-        return $status
+        return OPSreturn -Code -1 -Message "This function requires administrative privileges. Please run PowerShell as Administrator."
     }
     
     try {
         $ServiceName = $Name.Trim()
-        $status.serviceName = $ServiceName
         
         Write-Verbose "Attempting to kill service: $ServiceName"
         
@@ -96,37 +80,41 @@ function KillService {
             $Service = Get-Service -Name $ServiceName -ErrorAction Stop
             
             if ($null -eq $Service) {
-                $status.msg = "Service '$ServiceName' was not found"
-                return $status
+                return OPSreturn -Code -1 -Message "Service '$ServiceName' was not found"
             }
         }
         catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
-            $status.msg = "Service '$ServiceName' does not exist on this system"
-            return $status
+            return OPSreturn -Code -1 -Message "Service '$ServiceName' does not exist on this system"
         }
         catch {
-            $status.msg = "Error retrieving service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error retrieving service '$ServiceName': $($_.Exception.Message)"
         }
         
-        # Populate service information
-        $status.displayName = $Service.DisplayName
-        $status.previousStatus = $Service.Status.ToString()
+        $DisplayName = $Service.DisplayName
+        $PreviousStatus = $Service.Status.ToString()
         
         Write-Verbose "Service information:"
-        Write-Verbose "  Name: $($status.serviceName)"
-        Write-Verbose "  Display Name: $($status.displayName)"
-        Write-Verbose "  Current Status: $($status.previousStatus)"
+        Write-Verbose "  Name: $ServiceName"
+        Write-Verbose "  Display Name: $DisplayName"
+        Write-Verbose "  Current Status: $PreviousStatus"
         
         # Check if service is already stopped
         $Service.Refresh()
         if ($Service.Status -eq 'Stopped') {
-            $status.code = 0
-            $status.msg = ""
-            $status.status = "Stopped"
-            if ($PassThru) { $status.serviceObject = $Service }
+            $ReturnData = [PSCustomObject]@{
+                ServiceName             = $ServiceName
+                DisplayName             = $DisplayName
+                Status                  = "Stopped"
+                PreviousStatus          = $PreviousStatus
+                KilledProcessCount      = 0
+                TerminationDurationMs   = 0
+                KilledDependentServices = @()
+            }
+            
+            if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+            
             Write-Verbose "Service is already stopped"
-            return $status
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         
         # Check for dependent services
@@ -143,17 +131,18 @@ function KillService {
         }
         
         # Confirmation prompt
-        $ConfirmMessage = "FORCEFULLY kill service '$($status.displayName)' ($ServiceName) - This will immediately terminate the service process"
+        $ConfirmMessage = "FORCEFULLY kill service '$DisplayName' ($ServiceName) - This will immediately terminate the service process"
         if ($DependentServices.Count -gt 0 -and $KillDependentServices) {
             $ConfirmMessage += " and $($DependentServices.Count) dependent service(s)"
         }
         
-        if (-not $PSCmdlet.ShouldProcess($status.displayName, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+        if (-not $PSCmdlet.ShouldProcess($DisplayName, $ConfirmMessage)) {
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         $StopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $KilledProcessCount = 0
+        $KilledDependentServices = @()
         
         # Kill dependent services first if requested
         if ($DependentServices.Count -gt 0 -and $KillDependentServices) {
@@ -166,8 +155,8 @@ function KillService {
                     $DepServiceWMI = Get-CimInstance -ClassName Win32_Service -Filter "Name='$($DepService.Name)'" -ErrorAction SilentlyContinue
                     if ($DepServiceWMI -and $DepServiceWMI.ProcessId -gt 0) {
                         Stop-Process -Id $DepServiceWMI.ProcessId -Force -ErrorAction Stop
-                        $status.killedProcessCount++
-                        $status.killedDependentServices += $DepService.Name
+                        $KilledProcessCount++
+                        $KilledDependentServices += $DepService.Name
                         Write-Verbose "  Killed: $($DepService.Name) (PID: $($DepServiceWMI.ProcessId))"
                     }
                 }
@@ -189,48 +178,52 @@ function KillService {
                 try {
                     Write-Verbose "Killing service process..."
                     Stop-Process -Id $ProcessId -Force -ErrorAction Stop
-                    $status.killedProcessCount++
+                    $KilledProcessCount++
                     
                     $StopWatch.Stop()
-                    $status.terminationDurationMs = $StopWatch.ElapsedMilliseconds
+                    $TerminationDuration = $StopWatch.ElapsedMilliseconds
                     
-                    Write-Verbose "Killed service process (PID: $ProcessId) in $($status.terminationDurationMs) ms"
+                    Write-Verbose "Killed service process (PID: $ProcessId) in $TerminationDuration ms"
                     
                     # Wait a moment and verify
                     Start-Sleep -Milliseconds 500
                     
                     $Service.Refresh()
-                    $status.status = $Service.Status.ToString()
+                    $CurrentStatus = $Service.Status.ToString()
                     
                     Write-Verbose "Service terminated successfully"
-                    Write-Verbose "  Killed processes: $($status.killedProcessCount)"
-                    if ($status.killedDependentServices.Count -gt 0) {
-                        Write-Verbose "  Also killed $($status.killedDependentServices.Count) dependent service(s)"
+                    Write-Verbose "  Killed processes: $KilledProcessCount"
+                    if ($KilledDependentServices.Count -gt 0) {
+                        Write-Verbose "  Also killed $($KilledDependentServices.Count) dependent service(s)"
                     }
                     
-                    # Success
-                    $status.code = 0
-                    $status.msg = ""
-                    if ($PassThru) { $status.serviceObject = $Service }
-                    return $status
+                    $ReturnData = [PSCustomObject]@{
+                        ServiceName             = $ServiceName
+                        DisplayName             = $DisplayName
+                        Status                  = $CurrentStatus
+                        PreviousStatus          = $PreviousStatus
+                        KilledProcessCount      = $KilledProcessCount
+                        TerminationDurationMs   = $TerminationDuration
+                        KilledDependentServices = $KilledDependentServices
+                    }
+                    
+                    if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+                    
+                    return OPSreturn -Code 0 -Message "" -Data $ReturnData
                 }
                 catch {
-                    $status.msg = "Failed to kill service process (PID: $ProcessId): $($_.Exception.Message)"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Failed to kill service process (PID: $ProcessId): $($_.Exception.Message)"
                 }
             }
             else {
-                $status.msg = "Service '$ServiceName' does not have an active process (ProcessId: $ProcessId)"
-                return $status
+                return OPSreturn -Code -1 -Message "Service '$ServiceName' does not have an active process (ProcessId: $ProcessId)"
             }
         }
         catch {
-            $status.msg = "Failed to retrieve service process information: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to retrieve service process information: $($_.Exception.Message)"
         }
     }
     catch {
-        $status.msg = "Unexpected error in KillService function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in KillService function: $($_.Exception.Message)"
     }
 }

@@ -20,7 +20,7 @@ function StartService {
     
     .PARAMETER PassThru
     Optional switch parameter. When specified, returns the service object in the
-    serviceObject property. Default is $false.
+    data.ServiceObject property. Default is $false.
     
     .EXAMPLE
     StartService -Name "wuauserv"
@@ -30,8 +30,8 @@ function StartService {
     $result = StartService -Name "Spooler" -TimeoutSeconds 60
     if ($result.code -eq 0) {
         Write-Host "Print Spooler started successfully"
-        Write-Host "Status: $($result.status)"
-        Write-Host "Start time: $($result.startDurationSeconds) seconds"
+        Write-Host "Status: $($result.data.Status)"
+        Write-Host "Start time: $($result.data.StartDurationSeconds) seconds"
     }
     
     .EXAMPLE
@@ -48,6 +48,7 @@ function StartService {
     - If service is already running, returns success immediately
     - Checks for dependent services that must be running first
     - Some services may have startup dependencies that must be satisfied
+    - Returns comprehensive service start details in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -64,23 +65,9 @@ function StartService {
         [switch]$PassThru
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        serviceName = $null
-        displayName = $null
-        status = $null
-        startType = $null
-        previousStatus = $null
-        startDurationSeconds = 0
-        serviceObject = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        $status.msg = "Parameter 'Name' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Name' is required but was not provided or is empty"
     }
     
     # Check for administrative privileges
@@ -88,13 +75,11 @@ function StartService {
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     
     if (-not $isAdmin) {
-        $status.msg = "This function requires administrative privileges. Please run PowerShell as Administrator."
-        return $status
+        return OPSreturn -Code -1 -Message "This function requires administrative privileges. Please run PowerShell as Administrator."
     }
     
     try {
         $ServiceName = $Name.Trim()
-        $status.serviceName = $ServiceName
         
         Write-Verbose "Attempting to start service: $ServiceName"
         
@@ -103,44 +88,46 @@ function StartService {
             $Service = Get-Service -Name $ServiceName -ErrorAction Stop
             
             if ($null -eq $Service) {
-                $status.msg = "Service '$ServiceName' was not found"
-                return $status
+                return OPSreturn -Code -1 -Message "Service '$ServiceName' was not found"
             }
         }
         catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
-            $status.msg = "Service '$ServiceName' does not exist on this system"
-            return $status
+            return OPSreturn -Code -1 -Message "Service '$ServiceName' does not exist on this system"
         }
         catch {
-            $status.msg = "Error retrieving service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error retrieving service '$ServiceName': $($_.Exception.Message)"
         }
         
-        # Populate service information
-        $status.displayName = $Service.DisplayName
-        $status.previousStatus = $Service.Status.ToString()
-        $status.startType = $Service.StartType.ToString()
+        $DisplayName = $Service.DisplayName
+        $PreviousStatus = $Service.Status.ToString()
+        $StartType = $Service.StartType.ToString()
         
         Write-Verbose "Service information:"
-        Write-Verbose "  Name: $($status.serviceName)"
-        Write-Verbose "  Display Name: $($status.displayName)"
-        Write-Verbose "  Current Status: $($status.previousStatus)"
-        Write-Verbose "  Start Type: $($status.startType)"
+        Write-Verbose "  Name: $ServiceName"
+        Write-Verbose "  Display Name: $DisplayName"
+        Write-Verbose "  Current Status: $PreviousStatus"
+        Write-Verbose "  Start Type: $StartType"
         
         # Check if service is disabled
         if ($Service.StartType -eq 'Disabled') {
-            $status.msg = "Service '$ServiceName' is disabled. Use SetServiceState to enable it before starting."
-            return $status
+            return OPSreturn -Code -1 -Message "Service '$ServiceName' is disabled. Use SetServiceState to enable it before starting."
         }
         
         # Check if service is already running
         if ($Service.Status -eq 'Running') {
-            $status.code = 0
-            $status.msg = ""
-            $status.status = "Running"
-            if ($PassThru) { $status.serviceObject = $Service }
+            $ReturnData = [PSCustomObject]@{
+                ServiceName          = $ServiceName
+                DisplayName          = $DisplayName
+                Status               = "Running"
+                StartType            = $StartType
+                PreviousStatus       = $PreviousStatus
+                StartDurationSeconds = 0
+            }
+            
+            if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+            
             Write-Verbose "Service is already running"
-            return $status
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         
         # Check for pending states
@@ -153,26 +140,31 @@ function StartService {
                 $Service.Refresh()
                 
                 if ($Service.Status -eq 'Running') {
-                    $status.code = 0
-                    $status.msg = ""
-                    $status.status = "Running"
-                    if ($PassThru) { $status.serviceObject = $Service }
+                    $ReturnData = [PSCustomObject]@{
+                        ServiceName          = $ServiceName
+                        DisplayName          = $DisplayName
+                        Status               = "Running"
+                        StartType            = $StartType
+                        PreviousStatus       = $PreviousStatus
+                        StartDurationSeconds = 0
+                    }
+                    
+                    if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+                    
                     Write-Verbose "Service reached running state after pending operation"
-                    return $status
+                    return OPSreturn -Code 0 -Message "" -Data $ReturnData
                 }
             }
             catch [System.ServiceProcess.TimeoutException] {
-                $status.msg = "Service is stuck in '$($Service.Status)' state. Timeout waiting for state change."
-                return $status
+                return OPSreturn -Code -1 -Message "Service is stuck in '$($Service.Status)' state. Timeout waiting for state change."
             }
         }
         
         # Confirmation prompt
-        $ConfirmMessage = "Start service '$($status.displayName)' ($ServiceName)"
+        $ConfirmMessage = "Start service '$DisplayName' ($ServiceName)"
         
-        if (-not $PSCmdlet.ShouldProcess($status.displayName, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+        if (-not $PSCmdlet.ShouldProcess($DisplayName, $ConfirmMessage)) {
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         # Check for dependent services that must be running
@@ -201,49 +193,49 @@ function StartService {
             $Service.WaitForStatus('Running', (New-TimeSpan -Seconds $TimeoutSeconds))
             
             $StopWatch.Stop()
-            $status.startDurationSeconds = [Math]::Round($StopWatch.Elapsed.TotalSeconds, 2)
+            $StartDuration = [Math]::Round($StopWatch.Elapsed.TotalSeconds, 2)
             
             # Refresh service object
             $Service.Refresh()
-            $status.status = $Service.Status.ToString()
+            $CurrentStatus = $Service.Status.ToString()
             
             if ($Service.Status -eq 'Running') {
                 Write-Verbose "Service started successfully"
-                Write-Verbose "  Duration: $($status.startDurationSeconds) seconds"
+                Write-Verbose "  Duration: $StartDuration seconds"
                 
-                # Success
-                $status.code = 0
-                $status.msg = ""
-                if ($PassThru) { $status.serviceObject = $Service }
-                return $status
+                $ReturnData = [PSCustomObject]@{
+                    ServiceName          = $ServiceName
+                    DisplayName          = $DisplayName
+                    Status               = $CurrentStatus
+                    StartType            = $StartType
+                    PreviousStatus       = $PreviousStatus
+                    StartDurationSeconds = $StartDuration
+                }
+                
+                if ($PassThru) { $ReturnData | Add-Member -NotePropertyName ServiceObject -NotePropertyValue $Service }
+                
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             else {
-                $status.msg = "Service start command was sent but service did not reach running state. Current status: $($Service.Status)"
-                return $status
+                return OPSreturn -Code -1 -Message "Service start command was sent but service did not reach running state. Current status: $($Service.Status)"
             }
         }
         catch [System.ServiceProcess.TimeoutException] {
             $StopWatch.Stop()
             $Service.Refresh()
-            $status.status = $Service.Status.ToString()
-            $status.msg = "Service did not start within timeout period of $TimeoutSeconds seconds. Current status: $($status.status)"
-            return $status
+            return OPSreturn -Code -1 -Message "Service did not start within timeout period of $TimeoutSeconds seconds. Current status: $($Service.Status)"
         }
         catch [System.InvalidOperationException] {
-            $status.msg = "Cannot start service '$ServiceName': $($_.Exception.Message). Check service configuration and dependencies."
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot start service '$ServiceName': $($_.Exception.Message). Check service configuration and dependencies."
         }
         catch [System.ComponentModel.Win32Exception] {
-            $status.msg = "Win32 error starting service: $($_.Exception.Message) (Error code: $($_.Exception.NativeErrorCode))"
-            return $status
+            return OPSreturn -Code -1 -Message "Win32 error starting service: $($_.Exception.Message) (Error code: $($_.Exception.NativeErrorCode))"
         }
         catch {
-            $status.msg = "Failed to start service '$ServiceName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to start service '$ServiceName': $($_.Exception.Message)"
         }
     }
     catch {
-        $status.msg = "Unexpected error in StartService function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in StartService function: $($_.Exception.Message)"
     }
 }
