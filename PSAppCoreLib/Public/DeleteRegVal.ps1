@@ -37,7 +37,7 @@ function DeleteRegVal {
     .EXAMPLE
     $result = DeleteRegVal -Path "HKCU:\Software\TestApp" -Name "TestValue"
     if ($result.code -eq 0) {
-        Write-Host "Registry value deleted successfully"
+        Write-Host "Registry value deleted: $($result.data.Name) from $($result.data.Path)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -48,6 +48,7 @@ function DeleteRegVal {
     - This operation is irreversible - deleted values cannot be recovered
     - The registry key itself is not deleted, only the specified value
     - Consider creating a registry backup before deleting important values
+    - Returns deleted value information in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -64,16 +65,9 @@ function DeleteRegVal {
         [switch]$Force
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     # Note: Name can be empty (for default value), so we don't validate it as null/empty
@@ -93,8 +87,7 @@ function DeleteRegVal {
         }
         
         if (-not $PathStartsWithValidHive) {
-            $status.msg = "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
         }
         
         # Normalize path - ensure it uses PowerShell drive format
@@ -105,12 +98,11 @@ function DeleteRegVal {
         $NormalizedPath = $NormalizedPath.Replace('HKEY_CURRENT_CONFIG:', 'HKCC:')
         
         # Remove trailing backslash if present
-        $NormalizedPath = $NormalizedPath.TrimEnd('\')
+        $NormalizedPath = $NormalizedPath.TrimEnd('\\')
         
         # Check if the registry key exists
         if (-not (Test-Path -Path $NormalizedPath)) {
-            $status.msg = "Registry key '$NormalizedPath' does not exist"
-            return $status
+            return OPSreturn -Code -1 -Message "Registry key '$NormalizedPath' does not exist"
         }
         
         # Handle default value case
@@ -142,8 +134,7 @@ function DeleteRegVal {
         }
         
         if (-not $ValueExists) {
-            $status.msg = "Registry value '$ValueName' does not exist at path '$NormalizedPath'"
-            return $status
+            return OPSreturn -Code -1 -Message "Registry value '$ValueName' does not exist at path '$NormalizedPath'"
         }
         
         # Prepare confirmation message
@@ -165,7 +156,7 @@ function DeleteRegVal {
             }
             else {
                 # With confirmation (ShouldProcess)
-                if ($PSCmdlet.ShouldProcess("$NormalizedPath\$ValueName", $ConfirmMessage)) {
+                if ($PSCmdlet.ShouldProcess("$NormalizedPath\\$ValueName", $ConfirmMessage)) {
                     if ($ValueName -eq "(Default)") {
                         # Remove default value by setting it to empty
                         Set-ItemProperty -Path $NormalizedPath -Name "(Default)" -Value "" -ErrorAction Stop
@@ -175,8 +166,7 @@ function DeleteRegVal {
                     }
                 }
                 else {
-                    $status.msg = "Operation cancelled by user"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Operation cancelled by user"
                 }
             }
             
@@ -201,32 +191,31 @@ function DeleteRegVal {
             }
             
             if ($StillExists) {
-                $status.msg = "Registry value deletion reported success, but verification failed. Value '$ValueName' still exists at '$NormalizedPath'."
-                return $status
+                return OPSreturn -Code -1 -Message "Registry value deletion reported success, but verification failed. Value '$ValueName' still exists at '$NormalizedPath'."
             }
             
             Write-Verbose "Successfully deleted registry value '$ValueName' from: $NormalizedPath"
+            
+            # Prepare return data object with deleted value information
+            $ReturnData = [PSCustomObject]@{
+                Path = $NormalizedPath
+                Name = $ValueName
+            }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when deleting registry value '$ValueName' at path '$NormalizedPath'. Administrator privileges may be required for this operation."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when deleting registry value '$ValueName' at path '$NormalizedPath'. Administrator privileges may be required for this operation."
         }
         catch [System.Security.SecurityException] {
-            $status.msg = "Security exception when deleting registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Security exception when deleting registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to delete registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to delete registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with deleted value information in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in DeleteRegVal function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in DeleteRegVal function: $($_.Exception.Message)"
     }
 }
