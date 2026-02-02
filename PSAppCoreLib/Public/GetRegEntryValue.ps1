@@ -36,8 +36,8 @@ function GetRegEntryValue {
     .EXAMPLE
     $result = GetRegEntryValue -Path "HKCU:\Software\TestApp" -Name "Timeout"
     if ($result.code -eq 0) {
-        Write-Host "Value: $($result.value)"
-        Write-Host "Type: $($result.valueType)"
+        Write-Host "Value: $($result.data.Value)"
+        Write-Host "Type: $($result.data.ValueType)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -47,7 +47,8 @@ function GetRegEntryValue {
     - Returns the raw value without expansion by default
     - For Binary values, returns a byte array
     - For MultiString values, returns a string array
-    - The valueType property contains the registry value type name
+    - The data.ValueType property contains the registry value type name
+    - The data.Value property contains the actual registry value
     #>
     
     [CmdletBinding()]
@@ -64,18 +65,9 @@ function GetRegEntryValue {
         [switch]$ExpandEnvironmentVariables
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        value = $null
-        valueType = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
@@ -93,8 +85,7 @@ function GetRegEntryValue {
         }
         
         if (-not $PathStartsWithValidHive) {
-            $status.msg = "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
         }
         
         # Normalize path - ensure it uses PowerShell drive format
@@ -105,12 +96,11 @@ function GetRegEntryValue {
         $NormalizedPath = $NormalizedPath.Replace('HKEY_CURRENT_CONFIG:', 'HKCC:')
         
         # Remove trailing backslash if present
-        $NormalizedPath = $NormalizedPath.TrimEnd('\')
+        $NormalizedPath = $NormalizedPath.TrimEnd('\\')
         
         # Check if the registry key exists
         if (-not (Test-Path -Path $NormalizedPath)) {
-            $status.msg = "Registry key '$NormalizedPath' does not exist"
-            return $status
+            return OPSreturn -Code -1 -Message "Registry key '$NormalizedPath' does not exist"
         }
         
         # Handle default value case
@@ -121,6 +111,7 @@ function GetRegEntryValue {
         }
         
         # Get the registry key object for direct access
+        $RegistryKey = $null
         try {
             # Convert PowerShell path to .NET registry path
             $HiveName = $NormalizedPath.Split(':')[0]
@@ -134,8 +125,7 @@ function GetRegEntryValue {
                 'HKU'  { [Microsoft.Win32.RegistryHive]::Users }
                 'HKCC' { [Microsoft.Win32.RegistryHive]::CurrentConfig }
                 default { 
-                    $status.msg = "Unsupported registry hive: $HiveName"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Unsupported registry hive: $HiveName"
                 }
             }
             
@@ -143,8 +133,7 @@ function GetRegEntryValue {
             $RegistryKey = [Microsoft.Win32.Registry]::$($HiveName.ToUpper()).OpenSubKey($SubKeyPath, $false)
             
             if ($null -eq $RegistryKey) {
-                $status.msg = "Failed to open registry key '$NormalizedPath'"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to open registry key '$NormalizedPath'"
             }
             
             # Check if the value exists
@@ -153,53 +142,53 @@ function GetRegEntryValue {
             
             if (-not $ValueExists) {
                 $DisplayName = if ($ValueName -eq "") { "(Default)" } else { $ValueName }
-                $status.msg = "Registry value '$DisplayName' does not exist at path '$NormalizedPath'"
                 $RegistryKey.Close()
-                return $status
+                return OPSreturn -Code -1 -Message "Registry value '$DisplayName' does not exist at path '$NormalizedPath'"
             }
             
             # Get the value type
             $ValueKind = $RegistryKey.GetValueKind($ValueName)
-            $status.valueType = $ValueKind.ToString()
             
             # Read the value based on its type
+            $ReadValue = $null
             if ($ValueKind -eq [Microsoft.Win32.RegistryValueKind]::ExpandString -and $ExpandEnvironmentVariables) {
                 # Get expanded value
-                $status.value = $RegistryKey.GetValue($ValueName, $null, [Microsoft.Win32.RegistryValueOptions]::None)
+                $ReadValue = $RegistryKey.GetValue($ValueName, $null, [Microsoft.Win32.RegistryValueOptions]::None)
             }
             else {
                 # Get raw value without expansion
-                $status.value = $RegistryKey.GetValue($ValueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                $ReadValue = $RegistryKey.GetValue($ValueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
             }
             
             # Close the registry key
             $RegistryKey.Close()
+            $RegistryKey = $null
             
-            Write-Verbose "Successfully read registry value '$ValueName' from: $NormalizedPath (Type: $($status.valueType))"
+            Write-Verbose "Successfully read registry value '$ValueName' from: $NormalizedPath (Type: $($ValueKind.ToString()))"
+            
+            # Prepare return data object with value and type information
+            $ReturnData = [PSCustomObject]@{
+                Value     = $ReadValue
+                ValueType = $ValueKind.ToString()
+            }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when reading registry value '$ValueName' at path '$NormalizedPath'"
             if ($RegistryKey) { $RegistryKey.Close() }
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when reading registry value '$ValueName' at path '$NormalizedPath'"
         }
         catch [System.Security.SecurityException] {
-            $status.msg = "Security exception when reading registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
             if ($RegistryKey) { $RegistryKey.Close() }
-            return $status
+            return OPSreturn -Code -1 -Message "Security exception when reading registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to read registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
             if ($RegistryKey) { $RegistryKey.Close() }
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to read registry value '$ValueName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with value and type in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in GetRegEntryValue function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in GetRegEntryValue function: $($_.Exception.Message)"
     }
 }

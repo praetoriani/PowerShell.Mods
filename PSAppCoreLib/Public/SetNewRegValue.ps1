@@ -49,8 +49,9 @@ function SetNewRegValue {
     .EXAMPLE
     $result = SetNewRegValue -Path "HKCU:\Software\TestApp" -Name "TestValue" -Value "NewValue"
     if ($result.code -eq 0) {
-        Write-Host "Registry value updated successfully"
-        Write-Host "Old value: $($result.oldValue)"
+        Write-Host "Registry value updated"
+        Write-Host "Old value: $($result.data.OldValue)"
+        Write-Host "New value: $($result.data.NewValue)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -60,7 +61,7 @@ function SetNewRegValue {
     - For HKLM operations, administrator privileges are typically required
     - The registry value must exist before it can be updated
     - The value type cannot be changed, only the value itself
-    - Returns the old value in the return object for reference
+    - Returns the old and new values in the data field for reference
     - Consider backing up the old value before making changes to critical settings
     #>
     
@@ -82,17 +83,9 @@ function SetNewRegValue {
         [switch]$Force
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        oldValue = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
@@ -110,8 +103,7 @@ function SetNewRegValue {
         }
         
         if (-not $PathStartsWithValidHive) {
-            $status.msg = "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
-            return $status
+            return OPSreturn -Code -1 -Message "Parameter 'Path' must start with a valid registry hive (HKLM:, HKCU:, HKCR:, HKU:, or HKCC:)"
         }
         
         # Normalize path - ensure it uses PowerShell drive format
@@ -122,12 +114,11 @@ function SetNewRegValue {
         $NormalizedPath = $NormalizedPath.Replace('HKEY_CURRENT_CONFIG:', 'HKCC:')
         
         # Remove trailing backslash if present
-        $NormalizedPath = $NormalizedPath.TrimEnd('\')
+        $NormalizedPath = $NormalizedPath.TrimEnd('\\')
         
         # Check if the registry key exists
         if (-not (Test-Path -Path $NormalizedPath)) {
-            $status.msg = "Registry key '$NormalizedPath' does not exist"
-            return $status
+            return OPSreturn -Code -1 -Message "Registry key '$NormalizedPath' does not exist"
         }
         
         # Handle default value case
@@ -141,6 +132,9 @@ function SetNewRegValue {
         
         # Get the registry key object for direct access
         $RegistryKey = $null
+        $OldValue = $null
+        $ValueKind = $null
+        
         try {
             # Convert PowerShell path to .NET registry path
             $HiveName = $NormalizedPath.Split(':')[0]
@@ -154,8 +148,7 @@ function SetNewRegValue {
                 'HKU'  { [Microsoft.Win32.RegistryHive]::Users }
                 'HKCC' { [Microsoft.Win32.RegistryHive]::CurrentConfig }
                 default { 
-                    $status.msg = "Unsupported registry hive: $HiveName"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Unsupported registry hive: $HiveName"
                 }
             }
             
@@ -163,8 +156,7 @@ function SetNewRegValue {
             $RegistryKey = [Microsoft.Win32.Registry]::$($HiveName.ToUpper()).OpenSubKey($SubKeyPath, $false)
             
             if ($null -eq $RegistryKey) {
-                $status.msg = "Failed to open registry key '$NormalizedPath'"
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to open registry key '$NormalizedPath'"
             }
             
             # Check if the value exists
@@ -172,14 +164,13 @@ function SetNewRegValue {
             $ValueExists = $ValueName -in $ValueNames -or ($ValueName -eq "" -and "" -in $ValueNames)
             
             if (-not $ValueExists) {
-                $status.msg = "Registry value '$DisplayName' does not exist at path '$NormalizedPath'. Use CreateRegVal to create new values."
                 $RegistryKey.Close()
-                return $status
+                return OPSreturn -Code -1 -Message "Registry value '$DisplayName' does not exist at path '$NormalizedPath'. Use CreateRegVal to create new values."
             }
             
             # Get the value type and old value
             $ValueKind = $RegistryKey.GetValueKind($ValueName)
-            $status.oldValue = $RegistryKey.GetValue($ValueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            $OldValue = $RegistryKey.GetValue($ValueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
             
             # Close the read-only key
             $RegistryKey.Close()
@@ -217,8 +208,7 @@ function SetNewRegValue {
                             $ValidatedValue = [byte[]]$Value
                         }
                         catch {
-                            $status.msg = "Parameter 'Value' for type 'Binary' must be a byte array. Conversion failed: $($_.Exception.Message)"
-                            return $status
+                            return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'Binary' must be a byte array. Conversion failed: $($_.Exception.Message)"
                         }
                     }
                 }
@@ -230,13 +220,11 @@ function SetNewRegValue {
                         try {
                             $ValidatedValue = [int]$Value
                             if ($ValidatedValue -lt 0 -or $ValidatedValue -gt [UInt32]::MaxValue) {
-                                $status.msg = "Parameter 'Value' for type 'DWord' must be between 0 and $([UInt32]::MaxValue)"
-                                return $status
+                                return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'DWord' must be between 0 and $([UInt32]::MaxValue)"
                             }
                         }
                         catch {
-                            $status.msg = "Parameter 'Value' for type 'DWord' must be a valid 32-bit integer: $($_.Exception.Message)"
-                            return $status
+                            return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'DWord' must be a valid 32-bit integer: $($_.Exception.Message)"
                         }
                     }
                 }
@@ -248,13 +236,11 @@ function SetNewRegValue {
                         try {
                             $ValidatedValue = [long]$Value
                             if ($ValidatedValue -lt 0 -or $ValidatedValue -gt [UInt64]::MaxValue) {
-                                $status.msg = "Parameter 'Value' for type 'QWord' must be between 0 and $([UInt64]::MaxValue)"
-                                return $status
+                                return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'QWord' must be between 0 and $([UInt64]::MaxValue)"
                             }
                         }
                         catch {
-                            $status.msg = "Parameter 'Value' for type 'QWord' must be a valid 64-bit integer: $($_.Exception.Message)"
-                            return $status
+                            return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'QWord' must be a valid 64-bit integer: $($_.Exception.Message)"
                         }
                     }
                 }
@@ -273,14 +259,12 @@ function SetNewRegValue {
                             $ValidatedValue = @([string]$Value)
                         }
                         catch {
-                            $status.msg = "Parameter 'Value' for type 'MultiString' must be a string array: $($_.Exception.Message)"
-                            return $status
+                            return OPSreturn -Code -1 -Message "Parameter 'Value' for type 'MultiString' must be a string array: $($_.Exception.Message)"
                         }
                     }
                 }
                 default {
-                    $status.msg = "Unsupported registry value type '$ValueKind' for value '$DisplayName'"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Unsupported registry value type '$ValueKind' for value '$DisplayName'"
                 }
             }
             
@@ -296,12 +280,11 @@ function SetNewRegValue {
             }
             else {
                 # With confirmation (ShouldProcess)
-                if ($PSCmdlet.ShouldProcess("$NormalizedPath\$DisplayName", $ConfirmMessage)) {
+                if ($PSCmdlet.ShouldProcess("$NormalizedPath\\$DisplayName", $ConfirmMessage)) {
                     Set-ItemProperty -Path $NormalizedPath -Name $Name -Value $ValidatedValue -ErrorAction Stop
                 }
                 else {
-                    $status.msg = "Operation cancelled by user"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Operation cancelled by user"
                 }
             }
             
@@ -325,40 +308,40 @@ function SetNewRegValue {
                 }
                 
                 if (-not $ValuesMatch) {
-                    $status.msg = "Registry value update reported success, but verification failed for '$DisplayName' at path '$NormalizedPath'"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Registry value update reported success, but verification failed for '$DisplayName' at path '$NormalizedPath'"
                 }
             }
             catch {
-                $status.msg = "Registry value update reported success, but verification failed: $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Registry value update reported success, but verification failed: $($_.Exception.Message)"
             }
             
             Write-Verbose "Successfully updated registry value '$DisplayName' at path '$NormalizedPath'"
+            
+            # Prepare return data object with old and new values
+            $ReturnData = [PSCustomObject]@{
+                Path     = $NormalizedPath
+                Name     = $DisplayName
+                OldValue = $OldValue
+                NewValue = $ValidatedValue
+            }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when updating registry value '$DisplayName' at path '$NormalizedPath'. Administrator privileges may be required for this operation."
             if ($RegistryKey) { $RegistryKey.Close() }
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when updating registry value '$DisplayName' at path '$NormalizedPath'. Administrator privileges may be required for this operation."
         }
         catch [System.Security.SecurityException] {
-            $status.msg = "Security exception when updating registry value '$DisplayName' at path '$NormalizedPath': $($_.Exception.Message)"
             if ($RegistryKey) { $RegistryKey.Close() }
-            return $status
+            return OPSreturn -Code -1 -Message "Security exception when updating registry value '$DisplayName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to update registry value '$DisplayName' at path '$NormalizedPath': $($_.Exception.Message)"
             if ($RegistryKey) { $RegistryKey.Close() }
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to update registry value '$DisplayName' at path '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with old/new value information in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in SetNewRegValue function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in SetNewRegValue function: $($_.Exception.Message)"
     }
 }
