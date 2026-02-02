@@ -2,1089 +2,1325 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Common Patterns](#common-patterns)
-  - [OPSreturn Pattern](#opsreturn-pattern)
-  - [Error Handling](#error-handling)
-  - [Data Access](#data-access)
-- [File Management](#file-management)
-  - [CopyFile](#copyfile)
-  - [CopyFiles](#copyfiles)
-  - [CreateNewFile](#createnewfile)
-  - [RemoveFile](#removefile)
-  - [RemoveFiles](#removefiles)
-  - [RemoveOnReboot](#removeonreboot)
-  - [RemoveAllOnReboot](#removeallonreboot)
-- [Directory Management](#directory-management)
-  - [CopyDir](#copydir)
-  - [CreateNewDir](#createnewdir)
-  - [RemoveDir](#removedir)
-  - [RemoveDirs](#removedirs)
-- [Process Management](#process-management)
-  - [GetProcessByName](#getprocessbyname)
-  - [GetProcessByID](#getprocessbyid)
-  - [RunProcess](#runprocess)
-  - [StopProcess](#stopprocess)
-  - [KillProcess](#killprocess)
-  - [RestartProcess](#restartprocess)
-- [Service Management](#service-management)
-  - [StartService](#startservice)
-  - [StopService](#stopservice)
-  - [RestartService](#restartservice)
-  - [ForceRestartService](#forcerestartservice)
-  - [KillService](#killservice)
-  - [SetServiceState](#setservicestate)
-- [Registry Operations](#registry-operations)
+- [Introduction](#introduction)
+- [Return Object Structure](#return-object-structure)
+- [Windows Registry Management](#windows-registry-management)
   - [CreateRegKey](#createregkey)
   - [CreateRegVal](#createregval)
-  - [SetNewRegValue](#setnewregvalue)
-  - [GetRegEntryType](#getregentrytype)
-  - [GetRegEntryValue](#getregentryvalue)
   - [DeleteRegKey](#deleteregkey)
   - [DeleteRegVal](#deleteregval)
-- [Text I/O Operations](#text-io-operations)
-  - [ReadTextFile](#readtextfile)
+  - [GetRegEntryValue](#getregentryvalue)
+  - [GetRegEntryType](#getregentrytype)
+  - [SetNewRegValue](#setnewregvalue)
+- [File and Directory Management](#file-and-directory-management)
+  - [CreateNewDir](#createnewdir)
+  - [CreateNewFile](#createnewfile)
+  - [CopyDir](#copydir)
+  - [RemoveDir](#removedir)
+  - [RemoveDirs](#removedirs)
+  - [CopyFile](#copyfile)
+  - [CopyFiles](#copyfiles)
+  - [RemoveFile](#removefile)
+  - [RemoveFiles](#removefiles)
   - [WriteTextToFile](#writetexttofile)
-- [Utility Functions](#utility-functions)
-  - [GetBitmapIconFromDLL](#getbitmapiconfigromdll)
+  - [ReadTextFile](#readtextfile)
+- [Special System Management](#special-system-management)
+  - [RemoveOnReboot](#removeonreboot)
+  - [RemoveAllOnReboot](#removeallonreboot)
+- [Process Management](#process-management)
+  - [RunProcess](#runprocess)
+  - [GetProcessByName](#getprocessbyname)
+  - [GetProcessByID](#getprocessbyid)
+  - [RestartProcess](#restartprocess)
+  - [StopProcess](#stopprocess)
+  - [KillProcess](#killprocess)
+- [Service Management](#service-management)
+  - [StartService](#startservice)
+  - [RestartService](#restartservice)
+  - [ForceRestartService](#forcerestartservice)
+  - [StopService](#stopservice)
+  - [KillService](#killservice)
+  - [SetServiceState](#setservicestate)
+- [Logging](#logging)
   - [WriteLogMessage](#writelogmessage)
+- [Miscellaneous](#miscellaneous)
+  - [GetBitmapIconFromDLL](#getbitmapic onfromdll)
 
 ---
 
-## Overview
+## Introduction
 
-PSAppCoreLib is a comprehensive PowerShell module providing robust file, directory, process, service, and registry management functions. All functions follow the **OPSreturn pattern** for consistent error handling and data return structures.
+PSAppCoreLib is a powerful collection of useful Windows System functions designed for PowerShell application development. This guide provides comprehensive documentation for all public functions available in the module.
 
-### Key Features
+### Prerequisites
 
-- ✅ **Consistent Return Pattern** - All functions use OPSreturn for uniform error handling
-- ✅ **Comprehensive Error Handling** - Detailed error messages and validation
-- ✅ **Rich Data Properties** - Structured data objects with operation metadata
-- ✅ **Production Ready** - Battle-tested in enterprise environments
-- ✅ **Well Documented** - Complete parameter and return value documentation
+- PowerShell 5.1 or higher
+- .NET Framework 4.7.2 or higher
+- Windows Operating System
+- Administrator privileges (for some functions)
 
----
-
-## Common Patterns
-
-### OPSreturn Pattern
-
-All PSAppCoreLib functions return a standardized object structure using the `OPSreturn` function:
+### Installation
 
 ```powershell
-$result = SomePSAppCoreLibFunction -Parameters
+# Import the module
+Import-Module PSAppCoreLib
 
-# Result structure:
-$result.code     # Integer: 0 = success, -1 = error
-$result.msg      # String: Error message (empty on success)
-$result.data     # PSCustomObject: Function-specific data (varies by function)
+# Verify module loaded
+Get-Module PSAppCoreLib
+
+# List all available functions
+Get-Command -Module PSAppCoreLib
 ```
 
-### Error Handling
+---
 
-**Best Practice Pattern:**
+## Return Object Structure
+
+All functions in PSAppCoreLib use a standardized return object structure provided by the internal `OPSreturn` function:
+
+```powershell
+[PSCustomObject]@{
+    code = [int]      # 0 = Success, -1 = Error
+    msg  = [string]   # Error message (empty on success)
+    data = [object]   # Additional return data (varies by function)
+}
+```
+
+### Usage Example
 
 ```powershell
 $result = SomeFunction -Parameter "Value"
 
 if ($result.code -eq 0) {
-    # Success - access data
-    Write-Host "Operation successful"
-    $data = $result.data
-    # Use $data properties
-}
-else {
-    # Error - handle failure
-    Write-Error "Operation failed: $($result.msg)"
-    # Optionally check if $result.data contains additional error context
-}
-```
-
-### Data Access
-
-Each function returns specific data properties in `$result.data`. Refer to individual function documentation for available properties.
-
-**Example:**
-
-```powershell
-$result = CopyFile -SourcePath "C:\Source\file.txt" -DestinationPath "C:\Dest\file.txt"
-
-if ($result.code -eq 0) {
-    Write-Host "Source: $($result.data.SourcePath)"
-    Write-Host "Destination: $($result.data.DestinationPath)"
-    Write-Host "Size: $($result.data.FileSizeBytes) bytes"
-    Write-Host "Duration: $($result.data.CopyDurationMs) ms"
+    Write-Host "Success!"
+    # Access additional data
+    Write-Host "Data: $($result.data)"
+} else {
+    Write-Host "Error: $($result.msg)"
 }
 ```
 
 ---
 
-## File Management
+## Windows Registry Management
 
-### CopyFile
+### CreateRegKey
 
-Copies a single file from source to destination with optional overwrite control.
-
-**Synopsis:**
-Copies a file with validation, progress tracking, and comprehensive error handling.
+**Description:** Creates a new Windows Registry key with comprehensive validation and error handling.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `SourcePath` | String | Yes | - | Full path to source file |
-| `DestinationPath` | String | Yes | - | Full path to destination file |
-| `Force` | Switch | No | `$false` | Overwrite existing file without confirmation |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `RegistryPath` | string | Yes | Full registry path (e.g., "HKLM:\Software\MyApp") |
+| `Force` | switch | No | Create parent keys if they don't exist |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.SourcePath          # String: Absolute source path
-$result.data.DestinationPath     # String: Absolute destination path
-$result.data.FileSizeBytes       # Long: File size in bytes
-$result.data.CopyDurationMs      # Long: Copy operation duration in milliseconds
-$result.data.FileHash            # String: SHA256 hash of copied file (if verification performed)
-```
+- `RegistryPath`: Full path to the created key
+- `KeyName`: Name of the created key
+- `ParentPath`: Path to parent key
 
 **Example:**
 
 ```powershell
-# Simple file copy
-$result = CopyFile -SourcePath "C:\Source\document.pdf" `
-                   -DestinationPath "D:\Backup\document.pdf"
+# Create a registry key
+$result = CreateRegKey -RegistryPath "HKLM:\Software\MyApplication\Settings"
 
 if ($result.code -eq 0) {
-    Write-Host "File copied successfully"
-    Write-Host "Size: $($result.data.FileSizeBytes) bytes"
-    Write-Host "Duration: $($result.data.CopyDurationMs) ms"
-}
-else {
-    Write-Error "Copy failed: $($result.msg)"
+    Write-Host "Registry key created: $($result.data.RegistryPath)"
+} else {
+    Write-Host "Error: $($result.msg)"
 }
 
-# Force overwrite existing file
-$result = CopyFile -SourcePath "C:\App\config.xml" `
-                   -DestinationPath "C:\Backup\config.xml" `
-                   -Force
+# Create with Force to create parent keys
+$result = CreateRegKey -RegistryPath "HKCU:\Software\MyApp\Config\Advanced" -Force
 ```
 
 **Notes:**
-- Creates destination directory automatically if it doesn't exist
-- Validates source file exists before copying
-- Preserves file attributes and timestamps
-- Use `-Force` to overwrite readonly files
+
+- Supports both local and remote registry operations
+- Validates registry hive names (HKLM, HKCU, HKCR, HKU, HKCC)
+- Prevents creation of system-critical registry paths
+- Requires appropriate permissions
 
 ---
 
-### CopyFiles
+### CreateRegVal
 
-Copies multiple files from source directory to destination with pattern matching and progress tracking.
-
-**Synopsis:**
-Bulk file copy operation with wildcard support, filtering, and detailed progress reporting.
+**Description:** Creates a new registry value with support for all registry data types.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `SourcePath` | String | Yes | - | Source directory path |
-| `DestinationPath` | String | Yes | - | Destination directory path |
-| `Filter` | String | No | `"*"` | File pattern filter (e.g., "*.txt") |
-| `Recurse` | Switch | No | `$false` | Include subdirectories |
-| `Force` | Switch | No | `$false` | Overwrite existing files |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `RegistryPath` | string | Yes | Full registry key path |
+| `ValueName` | string | Yes | Name of the registry value |
+| `ValueData` | object | Yes | Data to store in the value |
+| `ValueType` | string | Yes | Type: String, ExpandString, Binary, DWord, QWord, MultiString |
+| `Force` | switch | No | Overwrite existing value |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.SourcePath          # String: Source directory
-$result.data.DestinationPath     # String: Destination directory
-$result.data.FilesProcessed      # Int: Total files processed
-$result.data.FilesSuccessful     # Int: Successfully copied files
-$result.data.FilesFailed         # Int: Failed copy operations
-$result.data.TotalBytes          # Long: Total bytes copied
-$result.data.TotalDurationMs     # Long: Total operation duration
-$result.data.CopiedFiles         # Array: List of successfully copied files
-$result.data.FailedFiles         # Array: List of failed file operations with reasons
-```
+- `RegistryPath`: Full path to the key
+- `ValueName`: Name of created value
+- `ValueData`: Data stored
+- `ValueType`: Type of the value
 
 **Example:**
 
 ```powershell
-# Copy all text files
-$result = CopyFiles -SourcePath "C:\Logs" `
-                    -DestinationPath "D:\Archive\Logs" `
-                    -Filter "*.txt"
+# Create a string value
+$result = CreateRegVal -RegistryPath "HKLM:\Software\MyApp" `
+                       -ValueName "ApplicationPath" `
+                       -ValueData "C:\Program Files\MyApp" `
+                       -ValueType "String"
+
+# Create a DWORD value
+$result = CreateRegVal -RegistryPath "HKCU:\Software\MyApp\Settings" `
+                       -ValueName "MaxConnections" `
+                       -ValueData 100 `
+                       -ValueType "DWord"
+
+# Create a binary value
+$binaryData = [byte[]](0x01, 0x02, 0x03, 0x04)
+$result = CreateRegVal -RegistryPath "HKLM:\Software\MyApp" `
+                       -ValueName "BinaryConfig" `
+                       -ValueData $binaryData `
+                       -ValueType "Binary"
+
+# Create a multi-string value
+$paths = @("C:\Path1", "C:\Path2", "C:\Path3")
+$result = CreateRegVal -RegistryPath "HKCU:\Software\MyApp" `
+                       -ValueName "SearchPaths" `
+                       -ValueData $paths `
+                       -ValueType "MultiString"
+```
+
+**Supported Value Types:**
+
+- `String`: Regular string value (REG_SZ)
+- `ExpandString`: Expandable string with environment variables (REG_EXPAND_SZ)
+- `Binary`: Binary data (REG_BINARY)
+- `DWord`: 32-bit integer (REG_DWORD)
+- `QWord`: 64-bit integer (REG_QWORD)
+- `MultiString`: Array of strings (REG_MULTI_SZ)
+
+---
+
+### DeleteRegKey
+
+**Description:** Deletes a Windows Registry key with optional recursive deletion.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `RegistryPath` | string | Yes | Full registry key path to delete |
+| `Recurse` | switch | No | Delete key and all subkeys |
+
+**Return Data:**
+
+- `DeletedKeyPath`: Path to the deleted key
+- `RecursiveDelete`: Boolean indicating if recursive delete was used
+
+**Example:**
+
+```powershell
+# Delete a single registry key
+$result = DeleteRegKey -RegistryPath "HKCU:\Software\MyApp\TempSettings"
 
 if ($result.code -eq 0) {
-    Write-Host "Copied $($result.data.FilesSuccessful) of $($result.data.FilesProcessed) files"
-    Write-Host "Total size: $([Math]::Round($result.data.TotalBytes/1MB, 2)) MB"
+    Write-Host "Key deleted: $($result.data.DeletedKeyPath)"
+}
+
+# Delete key and all subkeys recursively
+$result = DeleteRegKey -RegistryPath "HKLM:\Software\OldApplication" -Recurse
+```
+
+**Notes:**
+
+- Protected system-critical paths are prevented from deletion
+- Requires confirmation for recursive deletions
+- Supports `-WhatIf` and `-Confirm` parameters
+
+---
+
+### DeleteRegVal
+
+**Description:** Deletes a specific registry value from a key.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `RegistryPath` | string | Yes | Full registry key path |
+| `ValueName` | string | Yes | Name of the value to delete |
+
+**Return Data:**
+
+- `RegistryPath`: Path to the key
+- `DeletedValueName`: Name of deleted value
+
+**Example:**
+
+```powershell
+# Delete a specific registry value
+$result = DeleteRegVal -RegistryPath "HKCU:\Software\MyApp\Settings" `
+                       -ValueName "ObsoleteOption"
+
+if ($result.code -eq 0) {
+    Write-Host "Value deleted: $($result.data.DeletedValueName)"
+}
+```
+
+---
+
+### GetRegEntryValue
+
+**Description:** Reads a registry value with type-aware handling and conversion.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `RegistryPath` | string | Yes | Full registry key path |
+| `ValueName` | string | Yes | Name of the value to read |
+
+**Return Data:**
+
+- `RegistryPath`: Path to the key
+- `ValueName`: Name of the value
+- `ValueData`: The actual data
+- `ValueType`: Registry type
+
+**Example:**
+
+```powershell
+# Read a registry value
+$result = GetRegEntryValue -RegistryPath "HKLM:\Software\Microsoft\Windows\CurrentVersion" `
+                           -ValueName "ProgramFilesDir"
+
+if ($result.code -eq 0) {
+    Write-Host "Value: $($result.data.ValueData)"
+    Write-Host "Type: $($result.data.ValueType)"
+}
+
+# Read and use binary data
+$result = GetRegEntryValue -RegistryPath "HKCU:\Software\MyApp" `
+                           -ValueName "BinaryConfig"
+if ($result.code -eq 0) {
+    $binaryData = $result.data.ValueData
+    # Process binary data...
+}
+```
+
+---
+
+### GetRegEntryType
+
+**Description:** Determines the data type of a registry value.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `RegistryPath` | string | Yes | Full registry key path |
+| `ValueName` | string | Yes | Name of the value |
+
+**Return Data:**
+
+- `RegistryPath`: Path to the key
+- `ValueName`: Name of the value
+- `ValueType`: Registry type (String, DWord, Binary, etc.)
+
+**Example:**
+
+```powershell
+# Check registry value type
+$result = GetRegEntryType -RegistryPath "HKLM:\Software\MyApp" `
+                          -ValueName "Version"
+
+if ($result.code -eq 0) {
+    Write-Host "Value type: $($result.data.ValueType)"
     
-    if ($result.data.FilesFailed -gt 0) {
-        Write-Warning "$($result.data.FilesFailed) files failed to copy"
-        foreach ($failedFile in $result.data.FailedFiles) {
-            Write-Warning "  $($failedFile.Path): $($failedFile.Reason)"
-        }
+    switch ($result.data.ValueType) {
+        "String" { # Handle string }
+        "DWord" { # Handle integer }
+        "Binary" { # Handle binary data }
     }
 }
-
-# Recursive copy with force overwrite
-$result = CopyFiles -SourcePath "C:\Data" `
-                    -DestinationPath "E:\Backup\Data" `
-                    -Recurse -Force
 ```
 
-**Notes:**
-- Supports wildcard patterns (*, ?, [])
-- Creates destination directory structure automatically
-- Progress tracking for long operations
-- Failed files don't stop the overall operation
+---
+
+### SetNewRegValue
+
+**Description:** Updates an existing registry value with validation and type conversion.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `RegistryPath` | string | Yes | Full registry key path |
+| `ValueName` | string | Yes | Name of the value to update |
+| `NewValueData` | object | Yes | New data to set |
+| `ValueType` | string | No | New type (if changing type) |
+
+**Return Data:**
+
+- `RegistryPath`: Path to the key
+- `ValueName`: Name of updated value
+- `OldValueData`: Previous data
+- `NewValueData`: New data
+- `ValueType`: Current type
+
+**Example:**
+
+```powershell
+# Update an existing string value
+$result = SetNewRegValue -RegistryPath "HKCU:\Software\MyApp" `
+                         -ValueName "InstallPath" `
+                         -NewValueData "D:\MyApp"
+
+# Update a DWORD value
+$result = SetNewRegValue -RegistryPath "HKLM:\Software\MyApp\Settings" `
+                         -ValueName "Timeout" `
+                         -NewValueData 300
+
+# Change value type while updating
+$result = SetNewRegValue -RegistryPath "HKCU:\Software\MyApp" `
+                         -ValueName "Port" `
+                         -NewValueData 8080 `
+                         -ValueType "DWord"
+
+if ($result.code -eq 0) {
+    Write-Host "Updated from: $($result.data.OldValueData)"
+    Write-Host "Updated to: $($result.data.NewValueData)"
+}
+```
+
+---
+
+## File and Directory Management
+
+### CreateNewDir
+
+**Description:** Creates a new directory with comprehensive validation and parent directory creation.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `DirectoryPath` | string | Yes | Full path for the new directory |
+| `Force` | switch | No | Create parent directories if needed |
+
+**Return Data:**
+
+- `DirectoryPath`: Full path to created directory
+- `CreationTime`: When the directory was created
+- `ParentCreated`: Boolean indicating if parent was created
+
+**Example:**
+
+```powershell
+# Create a simple directory
+$result = CreateNewDir -DirectoryPath "C:\MyData\Archives"
+
+if ($result.code -eq 0) {
+    Write-Host "Directory created: $($result.data.DirectoryPath)"
+}
+
+# Create with nested parents
+$result = CreateNewDir -DirectoryPath "D:\Projects\WebApp\Assets\Images" -Force
+
+# Create on network share
+$result = CreateNewDir -DirectoryPath "\\Server\Share\Backup\2026\January"
+```
 
 ---
 
 ### CreateNewFile
 
-Creates a new empty file or file with optional initial content.
-
-**Synopsis:**
-Creates files with validation, directory creation, and optional content initialization.
+**Description:** Creates a new file with optional content and encoding support.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Full path of file to create |
-| `Content` | String | No | `""` | Optional initial file content |
-| `Force` | Switch | No | `$false` | Overwrite if file exists |
-| `Encoding` | String | No | `"UTF8"` | Text encoding (UTF8, ASCII, Unicode) |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `FilePath` | string | Yes | Full path for the new file |
+| `Content` | string | No | Initial file content |
+| `Encoding` | string | No | UTF8, ASCII, or Unicode (default: UTF8) |
+| `Force` | switch | No | Overwrite if file exists |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.Path                # String: Absolute file path
-$result.data.FileSizeBytes       # Long: File size in bytes
-$result.data.Created             # DateTime: File creation timestamp
-$result.data.Encoding            # String: File encoding used
-```
+- `FilePath`: Full path to created file
+- `SizeBytes`: File size in bytes
+- `Encoding`: Encoding used
+- `CreationTime`: When file was created
 
 **Example:**
 
 ```powershell
 # Create empty file
-$result = CreateNewFile -Path "C:\Temp\newfile.txt"
-
-if ($result.code -eq 0) {
-    Write-Host "File created: $($result.data.Path)"
-}
+$result = CreateNewFile -FilePath "C:\Logs\application.log"
 
 # Create file with content
-$content = "Initial content`nLine 2`nLine 3"
-$result = CreateNewFile -Path "C:\Config\settings.txt" `
-                        -Content $content `
-                        -Encoding "UTF8"
+$content = "Application Log - Started at $(Get-Date)"
+$result = CreateNewFile -FilePath "C:\Logs\app.log" -Content $content
 
-if ($result.code -eq 0) {
-    Write-Host "Created file with $($result.data.FileSizeBytes) bytes"
-}
+# Create with specific encoding
+$result = CreateNewFile -FilePath "C:\Data\unicode.txt" `
+                        -Content "Üñíçødé téxt" `
+                        -Encoding "Unicode"
 
-# Force overwrite existing file
-$result = CreateNewFile -Path "C:\Data\output.log" `
-                        -Content "New log started" `
+# Overwrite existing file
+$result = CreateNewFile -FilePath "C:\Temp\data.txt" `
+                        -Content "New content" `
                         -Force
-```
 
-**Notes:**
-- Creates parent directories automatically
-- Validates path is not an existing directory
-- Supports multiple text encodings
-- Use `-Force` to overwrite existing files
+if ($result.code -eq 0) {
+    Write-Host "File created: $($result.data.FilePath)"
+    Write-Host "Size: $($result.data.SizeBytes) bytes"
+}
+```
 
 ---
-
-### RemoveFile
-
-Deletes a single file with optional force deletion of readonly files.
-
-**Synopsis:**
-Safe file deletion with validation and confirmation support.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Full path to file to delete |
-| `Force` | Switch | No | `$false` | Delete readonly/system files |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Deleted file path
-$result.data.FileSizeBytes       # Long: Size of deleted file
-$result.data.WasReadonly         # Boolean: Whether file was readonly
-$result.data.DeletedAt           # DateTime: Deletion timestamp
-```
-
-**Example:**
-
-```powershell
-# Simple file deletion
-$result = RemoveFile -Path "C:\Temp\oldfile.txt"
-
-if ($result.code -eq 0) {
-    Write-Host "Deleted file: $($result.data.Path)"
-    Write-Host "Freed: $($result.data.FileSizeBytes) bytes"
-}
-
-# Force delete readonly file
-$result = RemoveFile -Path "C:\System\readonly.log" -Force
-
-if ($result.code -eq 0) {
-    if ($result.data.WasReadonly) {
-        Write-Host "Forced deletion of readonly file"
-    }
-}
-```
-
-**Notes:**
-- Validates file exists before deletion
-- Fails on readonly files unless `-Force` is used
-- Supports `ShouldProcess` for `-WhatIf` and `-Confirm`
-- Cannot delete files in use by other processes
-
----
-
-### RemoveFiles
-
-Deletes multiple files matching a pattern with progress tracking.
-
-**Synopsis:**
-Bulk file deletion with wildcard support and detailed reporting.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Directory path or file pattern |
-| `Filter` | String | No | `"*"` | File pattern filter |
-| `Recurse` | Switch | No | `$false` | Include subdirectories |
-| `Force` | Switch | No | `$false` | Delete readonly files |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Search path
-$result.data.FilesProcessed      # Int: Total files processed
-$result.data.FilesDeleted        # Int: Successfully deleted files
-$result.data.FilesFailed         # Int: Failed deletions
-$result.data.TotalBytesFreed     # Long: Total space freed
-$result.data.DeletedFiles        # Array: List of deleted files
-$result.data.FailedFiles         # Array: Failed deletions with reasons
-```
-
-**Example:**
-
-```powershell
-# Delete all log files
-$result = RemoveFiles -Path "C:\Logs" -Filter "*.log"
-
-if ($result.code -eq 0) {
-    Write-Host "Deleted $($result.data.FilesDeleted) log files"
-    Write-Host "Freed: $([Math]::Round($result.data.TotalBytesFreed/1MB, 2)) MB"
-    
-    if ($result.data.FilesFailed -gt 0) {
-        Write-Warning "Failed to delete $($result.data.FilesFailed) files"
-    }
-}
-
-# Recursive deletion with force
-$result = RemoveFiles -Path "C:\Temp" `
-                      -Filter "*.tmp" `
-                      -Recurse -Force
-```
-
-**Notes:**
-- Supports wildcard patterns
-- Failed deletions don't stop the operation
-- Use with caution - deleted files are not recoverable
-- Progress tracking for large operations
-
----
-
-### RemoveOnReboot
-
-Schedules a file or directory for deletion on next system reboot.
-
-**Synopsis:**
-Registers file/directory for deletion on reboot using PendingFileRenameOperations registry key.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Full path to file or directory |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Scheduled path
-$result.data.IsDirectory         # Boolean: Whether path is directory
-$result.data.RegistryKey         # String: Registry key used
-$result.data.RequiresReboot      # Boolean: Always true
-```
-
-**Example:**
-
-```powershell
-# Schedule file for deletion on reboot
-$result = RemoveOnReboot -Path "C:\Windows\System32\olddriver.sys"
-
-if ($result.code -eq 0) {
-    Write-Host "File scheduled for deletion on reboot"
-    Write-Warning "System restart required"
-}
-
-# Schedule directory for deletion
-$result = RemoveOnReboot -Path "C:\Program Files\OldApp"
-
-if ($result.code -eq 0) {
-    Write-Host "Directory will be removed on reboot"
-}
-```
-
-**Notes:**
-- Requires administrative privileges
-- Useful for locked files/directories
-- Changes take effect only after reboot
-- Multiple paths can be scheduled
-
----
-
-### RemoveAllOnReboot
-
-Clears all pending file operations scheduled for reboot.
-
-**Synopsis:**
-Removes all entries from PendingFileRenameOperations registry key.
-
-**Parameters:**
-
-None
-
-**Return Data Properties:**
-
-```powershell
-$result.data.ClearedEntries      # Int: Number of entries cleared
-$result.data.RegistryKey         # String: Registry key cleared
-```
-
-**Example:**
-
-```powershell
-$result = RemoveAllOnReboot
-
-if ($result.code -eq 0) {
-    Write-Host "Cleared $($result.data.ClearedEntries) pending operations"
-}
-else {
-    Write-Error "Failed to clear pending operations: $($result.msg)"
-}
-```
-
-**Notes:**
-- Requires administrative privileges
-- Cancels all scheduled deletions/renames
-- Use with caution - may affect system updates
-
----
-
-## Directory Management
 
 ### CopyDir
 
-Copies an entire directory structure with all files and subdirectories.
-
-**Synopsis:**
-Recursive directory copy with progress tracking and error reporting.
+**Description:** Copies a complete directory with all its contents recursively.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `SourcePath` | String | Yes | - | Source directory path |
-| `DestinationPath` | String | Yes | - | Destination directory path |
-| `Force` | Switch | No | `$false` | Overwrite existing files |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `SourcePath` | string | Yes | Source directory path |
+| `DestinationPath` | string | Yes | Destination directory path |
+| `Force` | switch | No | Overwrite existing files |
+| `ExcludeFiles` | string[] | No | File patterns to exclude |
+| `ExcludeDirs` | string[] | No | Directory patterns to exclude |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.SourcePath          # String: Source directory
-$result.data.DestinationPath     # String: Destination directory
-$result.data.DirectoriesCopied   # Int: Number of directories copied
-$result.data.FilesCopied         # Int: Number of files copied
-$result.data.TotalBytes          # Long: Total bytes copied
-$result.data.CopyDurationMs      # Long: Operation duration
-```
+- `DestinationPath`: Full destination path
+- `FilesCopied`: Number of files copied
+- `DirectoriesCopied`: Number of directories copied
+- `TotalSizeBytes`: Total size copied
 
 **Example:**
 
 ```powershell
-# Copy directory structure
+# Simple directory copy
 $result = CopyDir -SourcePath "C:\Projects\MyApp" `
                   -DestinationPath "D:\Backup\MyApp"
 
 if ($result.code -eq 0) {
-    Write-Host "Copied $($result.data.DirectoriesCopied) directories"
     Write-Host "Copied $($result.data.FilesCopied) files"
-    Write-Host "Total: $([Math]::Round($result.data.TotalBytes/1MB, 2)) MB"
+    Write-Host "Copied $($result.data.DirectoriesCopied) directories"
+    Write-Host "Total size: $($result.data.TotalSizeBytes) bytes"
 }
 
-# Force overwrite
-$result = CopyDir -SourcePath "C:\Data" `
-                  -DestinationPath "E:\Archive\Data" `
+# Copy with file exclusions
+$result = CopyDir -SourcePath "C:\WebApp" `
+                  -DestinationPath "D:\Backup" `
+                  -ExcludeFiles @("*.tmp", "*.log", "*.cache")
+
+# Copy with directory exclusions
+$result = CopyDir -SourcePath "C:\Source" `
+                  -DestinationPath "D:\Destination" `
+                  -ExcludeDirs @(".git", ".svn", "node_modules", "bin", "obj") `
+                  -Force
+
+# Complex copy scenario
+$result = CopyDir -SourcePath "C:\DevProject" `
+                  -DestinationPath "\\Server\Backup" `
+                  -ExcludeFiles @("*.tmp", "*.log", "debug.txt") `
+                  -ExcludeDirs @(".vs", ".vscode", "packages") `
                   -Force
 ```
-
-**Notes:**
-- Preserves directory structure
-- Maintains file attributes
-- Creates destination directory if needed
-- Reports partial success if some files fail
-
----
-
-### CreateNewDir
-
-Creates a new directory with optional parent directory creation.
-
-**Synopsis:**
-Safe directory creation with validation and recursive parent creation.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Directory path to create |
-| `Force` | Switch | No | `$false` | Create parent directories |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Created directory path
-$result.data.Created             # DateTime: Creation timestamp
-$result.data.ParentsCreated      # Int: Number of parent dirs created
-```
-
-**Example:**
-
-```powershell
-# Simple directory creation
-$result = CreateNewDir -Path "C:\Temp\NewFolder"
-
-if ($result.code -eq 0) {
-    Write-Host "Created directory: $($result.data.Path)"
-}
-
-# Create with parents
-$result = CreateNewDir -Path "C:\Deep\Nested\Folder\Structure" -Force
-
-if ($result.code -eq 0) {
-    Write-Host "Created directory with $($result.data.ParentsCreated) parent folders"
-}
-```
-
-**Notes:**
-- Validates path is not an existing file
-- Use `-Force` to create parent directories
-- Returns success if directory already exists
 
 ---
 
 ### RemoveDir
 
-Deletes a directory and optionally all its contents.
-
-**Synopsis:**
-Safe directory deletion with recursive content removal.
+**Description:** Deletes a directory with safety checks and validation.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Directory path to delete |
-| `Recurse` | Switch | No | `$false` | Delete contents recursively |
-| `Force` | Switch | No | `$false` | Delete readonly items |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `DirectoryPath` | string | Yes | Directory path to delete |
+| `Recurse` | switch | No | Delete directory and all contents |
+| `Force` | switch | No | Delete read-only and hidden items |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.Path                # String: Deleted directory path
-$result.data.FilesDeleted        # Int: Files deleted
-$result.data.SubdirsDeleted      # Int: Subdirectories deleted
-$result.data.TotalBytesFreed     # Long: Space freed
-```
+- `DeletedPath`: Path that was deleted
+- `DeletedRecursively`: Boolean indicating recursive delete
 
 **Example:**
 
 ```powershell
 # Delete empty directory
-$result = RemoveDir -Path "C:\Temp\EmptyFolder"
+$result = RemoveDir -DirectoryPath "C:\Temp\OldData"
+
+# Delete directory and all contents
+$result = RemoveDir -DirectoryPath "C:\Temp\ProjectBackup" -Recurse
 
 if ($result.code -eq 0) {
-    Write-Host "Directory deleted"
+    Write-Host "Deleted: $($result.data.DeletedPath)"
 }
 
-# Delete directory with all contents
-$result = RemoveDir -Path "C:\Temp\OldData" -Recurse -Force
-
-if ($result.code -eq 0) {
-    Write-Host "Deleted directory with:"
-    Write-Host "  Files: $($result.data.FilesDeleted)"
-    Write-Host "  Subdirs: $($result.data.SubdirsDeleted)"
-    Write-Host "  Freed: $([Math]::Round($result.data.TotalBytesFreed/1MB, 2)) MB"
-}
+# Force delete including read-only files
+$result = RemoveDir -DirectoryPath "C:\OldFiles" -Recurse -Force
 ```
 
 **Notes:**
-- Directory must be empty unless `-Recurse` is used
-- Use with caution - no recovery possible
-- Supports `ShouldProcess` for safety
+
+- Protected system paths (Windows, Program Files, System32) are prevented from deletion
+- Requires confirmation for recursive deletions
+- Supports `-WhatIf` and `-Confirm` parameters
 
 ---
 
 ### RemoveDirs
 
-Deletes multiple directories matching a pattern.
-
-**Synopsis:**
-Bulk directory deletion with wildcard support and detailed reporting.
+**Description:** Deletes multiple directories with detailed reporting.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Base path or pattern |
-| `Filter` | String | No | `"*"` | Directory name filter |
-| `Recurse` | Switch | No | `$false` | Delete contents |
-| `Force` | Switch | No | `$false` | Delete readonly items |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `DirectoryPaths` | string[] | Yes | Array of directory paths to delete |
+| `Recurse` | switch | No | Delete directories and all contents |
+| `Force` | switch | No | Delete read-only and hidden items |
+| `StopOnError` | switch | No | Stop if any deletion fails |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.Path                # String: Search path
-$result.data.DirsProcessed       # Int: Directories processed
-$result.data.DirsDeleted         # Int: Successfully deleted
-$result.data.DirsFailed          # Int: Failed deletions
-$result.data.TotalBytesFreed     # Long: Total space freed
-$result.data.DeletedDirs         # Array: List of deleted directories
-$result.data.FailedDirs          # Array: Failed deletions with reasons
-```
+- `SuccessCount`: Number of successfully deleted directories
+- `FailureCount`: Number of failed deletions
+- `DeletedDirectories`: Array of deleted paths
+- `FailedDirectories`: Array with paths and error messages
 
 **Example:**
 
 ```powershell
-# Delete all cache directories
-$result = RemoveDirs -Path "C:\Users\*\AppData\Local" `
-                     -Filter "Cache" `
-                     -Recurse -Force
+# Delete multiple directories
+$dirs = @(
+    "C:\Temp\Dir1",
+    "C:\Temp\Dir2",
+    "D:\OldBackup"
+)
+$result = RemoveDirs -DirectoryPaths $dirs -Recurse
+
+Write-Host "Deleted: $($result.data.SuccessCount) directories"
+Write-Host "Failed: $($result.data.FailureCount) directories"
+
+# Check failed deletions
+if ($result.data.FailedDirectories.Count -gt 0) {
+    foreach ($failed in $result.data.FailedDirectories) {
+        Write-Host "Failed to delete $($failed.Path): $($failed.Error)"
+    }
+}
+
+# Stop on first error
+$result = RemoveDirs -DirectoryPaths $dirs -Recurse -StopOnError
+```
+
+---
+
+### CopyFile
+
+**Description:** Copies a single file to a new location with timestamp preservation.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `SourcePath` | string | Yes | Source file path |
+| `DestinationPath` | string | Yes | Destination file path or directory |
+| `Force` | switch | No | Overwrite existing file |
+| `PreserveTimestamps` | bool | No | Preserve file timestamps (default: true) |
+
+**Return Data:**
+
+- `SourcePath`: Full source path
+- `DestinationPath`: Full destination path
+- `SizeBytes`: File size in bytes
+
+**Example:**
+
+```powershell
+# Simple file copy
+$result = CopyFile -SourcePath "C:\Data\report.pdf" `
+                   -DestinationPath "D:\Backup\report.pdf"
 
 if ($result.code -eq 0) {
-    Write-Host "Deleted $($result.data.DirsDeleted) cache directories"
-    Write-Host "Freed: $([Math]::Round($result.data.TotalBytesFreed/1GB, 2)) GB"
+    Write-Host "File copied: $($result.data.SourcePath)"
+    Write-Host "To: $($result.data.DestinationPath)"
+    Write-Host "Size: $($result.data.SizeBytes) bytes"
+}
+
+# Copy to directory (filename preserved)
+$result = CopyFile -SourcePath "C:\Source\data.xlsx" `
+                   -DestinationPath "D:\Archive\"
+
+# Copy with overwrite
+$result = CopyFile -SourcePath "C:\Logs\current.log" `
+                   -DestinationPath "C:\Logs\archive.log" `
+                   -Force
+
+# Copy from network share
+$result = CopyFile -SourcePath "\\Server\Share\file.zip" `
+                   -DestinationPath "C:\Local\file.zip"
+```
+
+---
+
+### CopyFiles
+
+**Description:** Copies multiple files from various locations to a single destination directory.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `SourcePaths` | string[] | Yes | Array of source file paths |
+| `DestinationDirectory` | string | Yes | Destination directory |
+| `Force` | switch | No | Overwrite existing files |
+| `PreserveTimestamps` | bool | No | Preserve timestamps (default: true) |
+| `StopOnError` | switch | No | Stop if any copy fails |
+
+**Return Data:**
+
+- `DestinationDirectory`: Destination directory path
+- `SuccessCount`: Number of successfully copied files
+- `FailureCount`: Number of failed copies
+- `TotalSizeBytes`: Total size copied
+- `CopiedFiles`: Array of successfully copied files
+- `FailedFiles`: Array of failed files with errors
+
+**Example:**
+
+```powershell
+# Copy multiple files
+$files = @(
+    "C:\Data\file1.txt",
+    "C:\Reports\file2.pdf",
+    "D:\Images\photo.jpg"
+)
+$result = CopyFiles -SourcePaths $files -DestinationDirectory "E:\Backup"
+
+Write-Host "Successfully copied: $($result.data.SuccessCount) files"
+Write-Host "Failed: $($result.data.FailureCount) files"
+Write-Host "Total size: $($result.data.TotalSizeBytes) bytes"
+
+# Display copied files
+foreach ($file in $result.data.CopiedFiles) {
+    Write-Host "$($file.SourcePath) -> $($file.DestinationPath)"
+}
+
+# Copy log files with overwrite
+$logs = Get-ChildItem "C:\Logs\*.log" | Select-Object -ExpandProperty FullName
+$result = CopyFiles -SourcePaths $logs `
+                    -DestinationDirectory "D:\LogArchive" `
+                    -Force
+
+# Stop on first error
+$result = CopyFiles -SourcePaths $files `
+                    -DestinationDirectory "E:\Backup" `
+                    -StopOnError
+```
+
+---
+
+### RemoveFile
+
+**Description:** Deletes a single file with safety checks.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `FilePath` | string | Yes | File path to delete |
+| `Force` | switch | No | Delete read-only and hidden files |
+
+**Return Data:**
+
+- `DeletedFilePath`: Path of deleted file
+- `FileSizeBytes`: Size of deleted file
+
+**Example:**
+
+```powershell
+# Delete a file
+$result = RemoveFile -FilePath "C:\Temp\oldfile.txt"
+
+if ($result.code -eq 0) {
+    Write-Host "Deleted: $($result.data.DeletedFilePath)"
+    Write-Host "Size: $($result.data.FileSizeBytes) bytes"
+}
+
+# Force delete read-only file
+$result = RemoveFile -FilePath "C:\Data\readonly.dat" -Force
+```
+
+---
+
+### RemoveFiles
+
+**Description:** Deletes multiple files with detailed reporting.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `FilePaths` | string[] | Yes | Array of file paths to delete |
+| `Force` | switch | No | Delete read-only and hidden files |
+| `StopOnError` | switch | No | Stop if any deletion fails |
+
+**Return Data:**
+
+- `SuccessCount`: Number of successfully deleted files
+- `FailureCount`: Number of failed deletions
+- `TotalSizeBytes`: Total size of deleted files
+- `DeletedFiles`: Array of deleted file details
+- `FailedFiles`: Array with paths and error messages
+
+**Example:**
+
+```powershell
+# Delete multiple files
+$files = @(
+    "C:\Temp\file1.tmp",
+    "C:\Temp\file2.tmp",
+    "D:\Cache\data.cache"
+)
+$result = RemoveFiles -FilePaths $files
+
+Write-Host "Deleted: $($result.data.SuccessCount) files"
+Write-Host "Failed: $($result.data.FailureCount) files"
+Write-Host "Total size deleted: $($result.data.TotalSizeBytes) bytes"
+
+# Delete all .tmp files
+$tempFiles = Get-ChildItem "C:\Windows\Temp\*.tmp" | Select-Object -ExpandProperty FullName
+$result = RemoveFiles -FilePaths $tempFiles -Force
+
+# Display failed deletions
+if ($result.data.FailedFiles.Count -gt 0) {
+    foreach ($failed in $result.data.FailedFiles) {
+        Write-Host "Failed: $($failed.FilePath) - $($failed.Error)"
+    }
 }
 ```
 
+---
+
+### WriteTextToFile
+
+**Description:** Writes text content to a file with encoding support.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `FilePath` | string | Yes | File path to write to |
+| `Content` | string | Yes | Text content to write |
+| `Encoding` | string | No | UTF8, ASCII, or Unicode (default: UTF8) |
+| `Append` | switch | No | Append to existing file |
+| `Force` | switch | No | Overwrite existing file |
+
+**Return Data:**
+
+- `FilePath`: Full file path
+- `SizeBytes`: File size after write
+- `Encoding`: Encoding used
+- `Appended`: Boolean indicating append mode
+
+**Example:**
+
+```powershell
+# Write text to new file
+$content = "This is my log entry for $(Get-Date)"
+$result = WriteTextToFile -FilePath "C:\Logs\app.log" -Content $content
+
+# Append to existing file
+$newEntry = "`n[$(Get-Date)] Application event occurred"
+$result = WriteTextToFile -FilePath "C:\Logs\app.log" `
+                          -Content $newEntry `
+                          -Append
+
+# Write with specific encoding
+$unicodeText = "Spëçîål çhåråçtërs: ÄÖÜ äöü ßéè"
+$result = WriteTextToFile -FilePath "C:\Data\unicode.txt" `
+                          -Content $unicodeText `
+                          -Encoding "Unicode"
+
+# Overwrite existing file
+$result = WriteTextToFile -FilePath "C:\Config\settings.txt" `
+                          -Content "New configuration" `
+                          -Force
+
+if ($result.code -eq 0) {
+    Write-Host "Written to: $($result.data.FilePath)"
+    Write-Host "Size: $($result.data.SizeBytes) bytes"
+}
+```
+
+---
+
+### ReadTextFile
+
+**Description:** Reads the complete content from a text file with encoding support.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `FilePath` | string | Yes | File path to read from |
+| `Encoding` | string | No | UTF8, ASCII, or Unicode (default: UTF8) |
+
+**Return Data:**
+
+- `FilePath`: Full file path
+- `Content`: File content as string
+- `SizeBytes`: File size
+- `Encoding`: Encoding used
+- `LineCount`: Number of lines
+
+**Example:**
+
+```powershell
+# Read text file
+$result = ReadTextFile -FilePath "C:\Logs\application.log"
+
+if ($result.code -eq 0) {
+    Write-Host "File content:"
+    Write-Host $result.data.Content
+    Write-Host "`nLines: $($result.data.LineCount)"
+    Write-Host "Size: $($result.data.SizeBytes) bytes"
+}
+
+# Read with specific encoding
+$result = ReadTextFile -FilePath "C:\Data\unicode.txt" -Encoding "Unicode"
+
+# Process file content
+$result = ReadTextFile -FilePath "C:\Config\settings.txt"
+if ($result.code -eq 0) {
+    $lines = $result.data.Content -split "`n"
+    foreach ($line in $lines) {
+        # Process each line
+        Write-Host $line
+    }
+}
+
+# Read and parse log file
+$result = ReadTextFile -FilePath "C:\Logs\errors.log"
+if ($result.code -eq 0) {
+    $errors = $result.data.Content | Select-String -Pattern "ERROR"
+    Write-Host "Found $($errors.Count) error entries"
+}
+```
+
+---
+
+## Special System Management
+
+### RemoveOnReboot
+
+**Description:** Schedules a file or directory for deletion on the next system reboot using the Windows PendingFileRenameOperations mechanism.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Path` | string | Yes | File or directory path to delete on reboot |
+
+**Return Data:**
+
+- `ScheduledPath`: Path scheduled for deletion
+- `IsDirectory`: Boolean indicating if path is directory
+- `CurrentPendingOperations`: Number of total pending operations
+
+**Example:**
+
+```powershell
+# Schedule file for deletion on reboot
+$result = RemoveOnReboot -Path "C:\Windows\Temp\locked-file.dll"
+
+if ($result.code -eq 0) {
+    Write-Host "Scheduled for deletion: $($result.data.ScheduledPath)"
+    Write-Host "Total pending operations: $($result.data.CurrentPendingOperations)"
+    Write-Host "Restart required to complete deletion"
+}
+
+# Schedule directory for deletion
+$result = RemoveOnReboot -Path "C:\ProgramData\OldApp"
+
+# Schedule locked system file
+$result = RemoveOnReboot -Path "C:\Windows\System32\old-driver.sys"
+```
+
 **Notes:**
-- Supports wildcard patterns
-- Use with extreme caution
-- Failed deletions reported in detail
+
+- Requires Administrator privileges
+- Changes take effect after system restart
+- Useful for removing locked or in-use files
+- Uses registry: `HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations`
+
+---
+
+### RemoveAllOnReboot
+
+**Description:** Schedules complete removal of a directory and all its contents on the next system reboot.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `DirectoryPath` | string | Yes | Directory path to delete on reboot |
+
+**Return Data:**
+
+- `ScheduledPath`: Directory path scheduled for deletion
+- `TotalItemsScheduled`: Number of items scheduled
+- `FilesScheduled`: Number of files scheduled
+- `DirectoriesScheduled`: Number of directories scheduled
+- `CurrentPendingOperations`: Total pending operations
+
+**Example:**
+
+```powershell
+# Schedule entire directory tree for deletion
+$result = RemoveAllOnReboot -DirectoryPath "C:\Program Files\OldApplication"
+
+if ($result.code -eq 0) {
+    Write-Host "Scheduled for deletion: $($result.data.ScheduledPath)"
+    Write-Host "Files to delete: $($result.data.FilesScheduled)"
+    Write-Host "Directories to delete: $($result.data.DirectoriesScheduled)"
+    Write-Host "Total items: $($result.data.TotalItemsScheduled)"
+    Write-Host "System restart required"
+}
+
+# Schedule locked application directory
+$result = RemoveAllOnReboot -DirectoryPath "C:\ProgramData\LockedApp"
+```
+
+**Notes:**
+
+- Requires Administrator privileges
+- Schedules all files and subdirectories recursively
+- Changes take effect after system restart
+- Use with caution - operation cannot be easily undone
 
 ---
 
 ## Process Management
 
-### GetProcessByName
+### RunProcess
 
-Retrieves process information by exact process name.
-
-**Synopsis:**
-Searches for processes by name with flexible selection options.
+**Description:** Starts a new process with comprehensive options and returns the process ID.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Name` | String | Yes | - | Process name (without .exe) |
-| `IncludeExtension` | Switch | No | `$false` | Expect .exe extension |
-| `SelectFirst` | Switch | No | `$false` | Return first if multiple found |
-| `SelectAll` | Switch | No | `$false` | Return all matching processes |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `FilePath` | string | Yes | Path to executable |
+| `Arguments` | string | No | Command line arguments |
+| `WorkingDirectory` | string | No | Working directory for process |
+| `WindowStyle` | string | No | Normal, Hidden, Minimized, Maximized |
+| `Wait` | switch | No | Wait for process to complete |
+| `PassThru` | switch | No | Return process object |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.ProcessName         # String: Process name
-$result.data.ProcessId           # Int: Process ID (primary)
-$result.data.ProcessHandle       # Process: Process object
-$result.data.ProcessCount        # Int: Number of matching processes
-$result.data.Processes           # Array: All matching process objects
-$result.data.PIDs                # String: Comma-separated PIDs
-$result.data.StartTime           # DateTime: Process start time
-$result.data.WorkingSetMB        # Double: Memory usage in MB
-$result.data.Path                # String: Process executable path
-```
+- `ProcessId`: ID of started process
+- `ProcessName`: Name of the process
+- `FilePath`: Executable path
+- `ExitCode`: Exit code (if Wait was used)
+- `StartTime`: When process started
 
 **Example:**
 
 ```powershell
-# Find single process
-$result = GetProcessByName -Name "notepad"
+# Start a simple process
+$result = RunProcess -FilePath "C:\Windows\System32\notepad.exe"
 
 if ($result.code -eq 0) {
-    Write-Host "Found Notepad with PID: $($result.data.ProcessId)"
-    Write-Host "Memory: $($result.data.WorkingSetMB) MB"
-    Write-Host "Path: $($result.data.Path)"
+    Write-Host "Process started with ID: $($result.data.ProcessId)"
 }
 
-# Handle multiple instances
-$result = GetProcessByName -Name "chrome" -SelectFirst
+# Start with arguments
+$result = RunProcess -FilePath "C:\Windows\System32\cmd.exe" `
+                     -Arguments "/c dir C:\ > C:\output.txt"
+
+# Start and wait for completion
+$result = RunProcess -FilePath "C:\Tools\backup.exe" `
+                     -Arguments "-full -path D:\Data" `
+                     -Wait
 
 if ($result.code -eq 0) {
-    Write-Host "First Chrome instance: PID $($result.data.ProcessId)"
+    Write-Host "Process completed with exit code: $($result.data.ExitCode)"
 }
 
-# Get all instances
-$result = GetProcessByName -Name "svchost" -SelectAll
+# Start hidden process
+$result = RunProcess -FilePath "C:\Scripts\maintenance.exe" `
+                     -WindowStyle "Hidden" `
+                     -WorkingDirectory "C:\Scripts"
+
+# Start process and get object
+$result = RunProcess -FilePath "powershell.exe" `
+                     -Arguments "-File C:\Scripts\task.ps1" `
+                     -PassThru
 
 if ($result.code -eq 0) {
-    Write-Host "Found $($result.data.ProcessCount) svchost processes"
-    foreach ($proc in $result.data.Processes) {
-        Write-Host "  PID: $($proc.Id), Memory: $([Math]::Round($proc.WorkingSet64/1MB,2)) MB"
-    }
+    $processId = $result.data.ProcessId
+    # Monitor or manipulate process...
 }
 ```
 
-**Notes:**
-- Process name is case-insensitive
-- Requires exact match (no wildcards)
-- Returns error if multiple found without selection flag
-- Process handle can be used for further operations
+---
+
+### GetProcessByName
+
+**Description:** Gets a process by exact name match and returns the process ID.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ProcessName` | string | Yes | Exact name of the process (without .exe) |
+
+**Return Data:**
+
+- `ProcessId`: ID of the process
+- `ProcessName`: Name of the process
+- `StartTime`: When process started
+- `Path`: Executable path
+- `WorkingSet`: Memory usage in bytes
+
+**Example:**
+
+```powershell
+# Get process by name
+$result = GetProcessByName -ProcessName "notepad"
+
+if ($result.code -eq 0) {
+    Write-Host "Process ID: $($result.data.ProcessId)"
+    Write-Host "Started: $($result.data.StartTime)"
+    Write-Host "Memory: $($result.data.WorkingSet / 1MB) MB"
+}
+
+# Find and monitor specific process
+$result = GetProcessByName -ProcessName "chrome"
+if ($result.code -eq 0) {
+    $pid = $result.data.ProcessId
+    # Monitor or manage this process
+}
+
+# Check if application is running
+$result = GetProcessByName -ProcessName "myapp"
+if ($result.code -eq 0) {
+    Write-Host "Application is running with PID: $($result.data.ProcessId)"
+} else {
+    Write-Host "Application is not running"
+}
+```
 
 ---
 
 ### GetProcessByID
 
-Retrieves detailed process information by process ID.
-
-**Synopsis:**
-Gets comprehensive process information including memory, threads, and optional module details.
+**Description:** Gets a process by process ID and returns detailed process information.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ProcessId` | Int | Yes | - | Process ID (PID) |
-| `IncludeModules` | Switch | No | `$false` | Include loaded modules (DLLs) |
-| `IncludeThreads` | Switch | No | `$false` | Include thread information |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ProcessId` | int | Yes | Process ID |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.ProcessId           # Int: Process ID
-$result.data.ProcessName         # String: Process name
-$result.data.ProcessHandle       # Process: Process object
-$result.data.Path                # String: Executable path
-$result.data.CommandLine         # String: Command line arguments
-$result.data.WorkingSetMB        # Double: Physical memory (MB)
-$result.data.PrivateMemoryMB     # Double: Private memory (MB)
-$result.data.VirtualMemoryMB     # Double: Virtual memory (MB)
-$result.data.ThreadCount         # Int: Number of threads
-$result.data.HandleCount         # Int: Number of handles
-$result.data.StartTime           # DateTime: Process start time
-$result.data.TotalProcessorTime  # TimeSpan: CPU time used
-$result.data.HasExited           # Boolean: Process exit status
-$result.data.ExitCode            # Int: Exit code (if exited)
-$result.data.ModuleCount         # Int: Number of loaded modules
-$result.data.Modules             # Array: Loaded modules (if requested)
-$result.data.Threads             # Array: Thread info (if requested)
-```
+- `ProcessId`: ID of the process
+- `ProcessName`: Name of the process
+- `StartTime`: When process started
+- `Path`: Executable path
+- `WorkingSet`: Memory usage in bytes
+- `Responding`: Boolean indicating if process is responding
 
 **Example:**
 
 ```powershell
-# Get basic process info
+# Get process by ID
 $result = GetProcessByID -ProcessId 1234
 
 if ($result.code -eq 0) {
     Write-Host "Process: $($result.data.ProcessName)"
     Write-Host "Path: $($result.data.Path)"
-    Write-Host "Memory: $($result.data.WorkingSetMB) MB"
-    Write-Host "Threads: $($result.data.ThreadCount)"
-    Write-Host "Started: $($result.data.StartTime)"
+    Write-Host "Memory: $([math]::Round($result.data.WorkingSet / 1MB, 2)) MB"
+    Write-Host "Responding: $($result.data.Responding)"
 }
 
-# Include module information
-$result = GetProcessByID -ProcessId $PID -IncludeModules
-
+# Check if process is still running
+$pid = 5678
+$result = GetProcessByID -ProcessId $pid
 if ($result.code -eq 0) {
-    Write-Host "Loaded $($result.data.ModuleCount) modules:"
-    foreach ($module in $result.data.Modules) {
-        Write-Host "  $($module.ModuleName)"
-    }
-}
-
-# Check if process still running
-$result = GetProcessByID -ProcessId 9999
-
-if ($result.code -eq 0) {
-    if ($result.data.HasExited) {
-        Write-Host "Process exited with code: $($result.data.ExitCode)"
+    if ($result.data.Responding) {
+        Write-Host "Process is running and responding"
     } else {
-        Write-Host "Process is running"
+        Write-Host "Process is running but not responding"
     }
+} else {
+    Write-Host "Process not found or terminated"
 }
 ```
-
-**Notes:**
-- Some details may require elevated privileges
-- Module enumeration can be slow for processes with many DLLs
-- System processes may have limited accessible information
-
----
-
-### RunProcess
-
-Executes a process with optional arguments, working directory, and output capture.
-
-**Synopsis:**
-Comprehensive process execution with output redirection, exit code capture, and timeout control.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `FilePath` | String | Yes | - | Executable path |
-| `Arguments` | String | No | `""` | Command line arguments |
-| `WorkingDirectory` | String | No | Current | Working directory |
-| `Wait` | Switch | No | `$false` | Wait for process to exit |
-| `CaptureOutput` | Switch | No | `$false` | Capture stdout/stderr |
-| `TimeoutSeconds` | Int | No | 0 | Timeout (0 = infinite) |
-| `WindowStyle` | String | No | `"Normal"` | Window style (Normal, Hidden, Minimized, Maximized) |
-| `NoNewWindow` | Switch | No | `$false` | Don't create new window |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.ProcessId           # Int: Started process ID
-$result.data.ProcessName         # String: Process name
-$result.data.FilePath            # String: Executable path
-$result.data.Arguments           # String: Arguments used
-$result.data.WorkingDirectory    # String: Working directory
-$result.data.StartTime           # DateTime: Process start time
-$result.data.ExitCode            # Int: Exit code (if waited)
-$result.data.ExitTime            # DateTime: Exit time (if waited)
-$result.data.ExecutionTimeMs     # Long: Execution duration (if waited)
-$result.data.StandardOutput      # String: Stdout (if captured)
-$result.data.StandardError       # String: Stderr (if captured)
-$result.data.TimedOut            # Boolean: Whether timeout occurred
-```
-
-**Example:**
-
-```powershell
-# Simple process execution
-$result = RunProcess -FilePath "notepad.exe"
-
-if ($result.code -eq 0) {
-    Write-Host "Started Notepad with PID: $($result.data.ProcessId)"
-}
-
-# Execute with arguments and wait
-$result = RunProcess -FilePath "ipconfig.exe" `
-                     -Arguments "/all" `
-                     -Wait `
-                     -CaptureOutput
-
-if ($result.code -eq 0) {
-    Write-Host "Exit Code: $($result.data.ExitCode)"
-    Write-Host "Duration: $($result.data.ExecutionTimeMs) ms"
-    Write-Host "Output:`n$($result.data.StandardOutput)"
-}
-
-# Execute with timeout
-$result = RunProcess -FilePath "long-running.exe" `
-                     -Wait `
-                     -TimeoutSeconds 30
-
-if ($result.code -eq 0) {
-    if ($result.data.TimedOut) {
-        Write-Warning "Process timed out and was terminated"
-    }
-}
-
-# Hidden execution
-$result = RunProcess -FilePath "backup.bat" `
-                     -WorkingDirectory "C:\Scripts" `
-                     -WindowStyle "Hidden" `
-                     -Wait
-```
-
-**Notes:**
-- Use `-Wait` to get exit code and output
-- Output capture requires `-Wait`
-- Timeout kills process if exceeded
-- Administrator rights may be needed for some executables
-
----
-
-### StopProcess
-
-Gracefully stops a process by process ID.
-
-**Synopsis:**
-Attempts graceful process termination allowing cleanup and save operations.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ProcessId` | Int | Yes | - | Process ID to stop |
-| `WaitForExit` | Int | No | 5 | Timeout in seconds |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.ProcessId           # Int: Process ID
-$result.data.ProcessName         # String: Process name
-$result.data.StopDurationMs      # Long: Stop operation duration
-$result.data.ExitedGracefully    # Boolean: Whether process exited cleanly
-```
-
-**Example:**
-
-```powershell
-# Gracefully stop process
-$result = StopProcess -ProcessId 1234
-
-if ($result.code -eq 0) {
-    Write-Host "Process stopped gracefully"
-    Write-Host "Duration: $($result.data.StopDurationMs) ms"
-}
-
-# Stop with custom timeout
-$result = StopProcess -ProcessId 5678 -WaitForExit 10
-
-if ($result.code -eq 0) {
-    if ($result.data.ExitedGracefully) {
-        Write-Host "Process exited cleanly"
-    }
-}
-else {
-    Write-Warning "Graceful stop failed, consider using KillProcess"
-}
-```
-
-**Notes:**
-- Allows process to clean up resources
-- May fail if process is unresponsive
-- Use `KillProcess` if graceful stop fails
-
----
-
-### KillProcess
-
-Forcefully terminates a process by process ID.
-
-**Synopsis:**
-Immediate process termination without cleanup opportunity.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ProcessId` | Int | Yes | - | Process ID to kill |
-| `Force` | Switch | No | `$false` | Kill process tree (children) |
-| `WaitForExit` | Int | No | 5 | Verification timeout |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.ProcessId           # Int: Process ID
-$result.data.ProcessName         # String: Process name
-$result.data.KilledProcessCount  # Int: Processes killed (including children)
-$result.data.ChildProcessCount   # Int: Child processes killed
-$result.data.TerminationDurationMs # Long: Kill operation duration
-```
-
-**Example:**
-
-```powershell
-# Kill single process
-$result = KillProcess -ProcessId 1234
-
-if ($result.code -eq 0) {
-    Write-Host "Process killed"
-    Write-Host "Termination time: $($result.data.TerminationDurationMs) ms"
-}
-
-# Kill process tree
-$result = KillProcess -ProcessId 5678 -Force
-
-if ($result.code -eq 0) {
-    Write-Host "Killed $($result.data.KilledProcessCount) processes"
-    Write-Host "  Main process: 1"
-    Write-Host "  Child processes: $($result.data.ChildProcessCount)"
-}
-```
-
-**Notes:**
-- Immediate termination - no cleanup possible
-- Unsaved work will be lost
-- Use only when `StopProcess` fails
-- Supports confirmation prompts
 
 ---
 
 ### RestartProcess
 
-Restarts a process by stopping and starting it again.
-
-**Synopsis:**
-Graceful process restart preserving executable path and arguments.
+**Description:** Restarts a process by process ID (stops and restarts it).
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ProcessId` | Int | Yes | - | Process ID to restart |
-| `WaitForExit` | Int | No | 5 | Stop timeout |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ProcessId` | int | Yes | Process ID to restart |
+| `Arguments` | string | No | Arguments for restarted process |
+| `WorkingDirectory` | string | No | Working directory |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.OldProcessId        # Int: Original process ID
-$result.data.NewProcessId        # Int: New process ID
-$result.data.ProcessName         # String: Process name
-$result.data.StopDurationMs      # Long: Stop phase duration
-$result.data.StartDurationMs     # Long: Start phase duration
-$result.data.TotalDurationMs     # Long: Total restart duration
-```
+- `OldProcessId`: ID of stopped process
+- `NewProcessId`: ID of restarted process
+- `ProcessName`: Name of the process
+- `ExecutablePath`: Path to executable
 
 **Example:**
 
 ```powershell
-# Restart application
+# Restart a process
 $result = RestartProcess -ProcessId 1234
 
 if ($result.code -eq 0) {
     Write-Host "Process restarted"
     Write-Host "Old PID: $($result.data.OldProcessId)"
     Write-Host "New PID: $($result.data.NewProcessId)"
-    Write-Host "Total time: $($result.data.TotalDurationMs) ms"
+}
+
+# Restart with different arguments
+$result = RestartProcess -ProcessId 5678 `
+                         -Arguments "-config new-config.xml"
+
+# Restart service executable
+$result = GetProcessByName -ProcessName "myservice"
+if ($result.code -eq 0) {
+    $restartResult = RestartProcess -ProcessId $result.data.ProcessId
+    Write-Host "Service restarted with new PID: $($restartResult.data.NewProcessId)"
+}
+```
+
+---
+
+### StopProcess
+
+**Description:** Gracefully stops a process by process ID (sends close message).
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ProcessId` | int | Yes | Process ID to stop |
+| `Timeout` | int | No | Timeout in seconds (default: 30) |
+
+**Return Data:**
+
+- `ProcessId`: ID of stopped process
+- `ProcessName`: Name of the process
+- `StoppedGracefully`: Boolean indicating graceful shutdown
+- `TimeoutReached`: Boolean indicating if timeout was reached
+
+**Example:**
+
+```powershell
+# Gracefully stop a process
+$result = StopProcess -ProcessId 1234
+
+if ($result.code -eq 0) {
+    if ($result.data.StoppedGracefully) {
+        Write-Host "Process stopped gracefully"
+    } else {
+        Write-Host "Process was forcefully terminated"
+    }
+}
+
+# Stop with custom timeout
+$result = StopProcess -ProcessId 5678 -Timeout 60
+
+# Stop application process
+$result = GetProcessByName -ProcessName "myapp"
+if ($result.code -eq 0) {
+    $stopResult = StopProcess -ProcessId $result.data.ProcessId
+    Write-Host "Application stopped"
+}
+```
+
+---
+
+### KillProcess
+
+**Description:** Forcefully terminates a process by process ID.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ProcessId` | int | Yes | Process ID to kill |
+| `Force` | switch | No | Force termination even if process is critical |
+
+**Return Data:**
+
+- `ProcessId`: ID of killed process
+- `ProcessName`: Name of the process
+- `ForcefullyTerminated`: Always true
+
+**Example:**
+
+```powershell
+# Kill a process
+$result = KillProcess -ProcessId 1234
+
+if ($result.code -eq 0) {
+    Write-Host "Process terminated: $($result.data.ProcessName)"
+}
+
+# Force kill protected process
+$result = KillProcess -ProcessId 5678 -Force
+
+# Kill hung process
+$result = GetProcessByName -ProcessName "hung-app"
+if ($result.code -eq 0) {
+    $killResult = KillProcess -ProcessId $result.data.ProcessId
+    Write-Host "Hung application terminated"
+}
+
+# Try graceful stop first, then kill
+$pid = 9876
+$result = StopProcess -ProcessId $pid -Timeout 10
+if ($result.code -ne 0) {
+    Write-Host "Graceful stop failed, force killing..."
+    $result = KillProcess -ProcessId $pid -Force
 }
 ```
 
 **Notes:**
-- Preserves original command line arguments
-- May fail if executable path not accessible
-- Uses graceful stop - may fail for unresponsive processes
+
+- Use StopProcess first for graceful shutdown
+- KillProcess should be last resort
+- May cause data loss in target application
 
 ---
 
@@ -1092,940 +1328,422 @@ if ($result.code -eq 0) {
 
 ### StartService
 
-Starts a Windows service by name.
-
-**Synopsis:**
-Starts service with validation, dependency handling, and progress tracking.
+**Description:** Starts a Windows service by name.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ServiceName` | String | Yes | - | Service name |
-| `TimeoutSeconds` | Int | No | 30 | Start timeout |
-| `PassThru` | Switch | No | `$false` | Include service object in data |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ServiceName` | string | Yes | Name of the service |
+| `Timeout` | int | No | Timeout in seconds (default: 30) |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.ServiceName         # String: Service name
-$result.data.DisplayName         # String: Service display name
-$result.data.Status              # String: Current status
-$result.data.StartType           # String: Startup type
-$result.data.PreviousStatus      # String: Status before start
-$result.data.StartDurationSeconds # Double: Time to start
-$result.data.ServiceObject       # ServiceController: Service object (if PassThru)
-```
+- `ServiceName`: Name of the service
+- `DisplayName`: Display name
+- `Status`: Current status
+- `StartType`: Startup type
 
 **Example:**
 
 ```powershell
-# Start service
+# Start a service
 $result = StartService -ServiceName "Spooler"
 
 if ($result.code -eq 0) {
     Write-Host "Service started: $($result.data.DisplayName)"
     Write-Host "Status: $($result.data.Status)"
-    Write-Host "Duration: $($result.data.StartDurationSeconds) seconds"
 }
 
-# Start with timeout
-$result = StartService -ServiceName "wuauserv" -TimeoutSeconds 60
+# Start with custom timeout
+$result = StartService -ServiceName "wuauserv" -Timeout 60
 
+# Start custom application service
+$result = StartService -ServiceName "MyAppService"
 if ($result.code -eq 0) {
-    Write-Host "Windows Update service started"
+    Write-Host "Application service is now running"
 }
 ```
-
-**Notes:**
-- Requires administrative privileges
-- Automatically starts dependent services
-- Returns success if service already running
-- Validates service exists before starting
-
----
-
-### StopService
-
-Stops a Windows service by name.
-
-**Synopsis:**
-Gracefully stops service with dependent service handling.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ServiceName` | String | Yes | - | Service name |
-| `TimeoutSeconds` | Int | No | 30 | Stop timeout |
-| `Force` | Switch | No | `$false` | Stop dependent services |
-| `PassThru` | Switch | No | `$false` | Include service object |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.ServiceName         # String: Service name
-$result.data.DisplayName         # String: Display name
-$result.data.Status              # String: Current status
-$result.data.PreviousStatus      # String: Status before stop
-$result.data.StopDurationSeconds # Double: Time to stop
-$result.data.StoppedDependentServices # Array: Dependent services stopped
-$result.data.ServiceObject       # ServiceController: Service object (if PassThru)
-```
-
-**Example:**
-
-```powershell
-# Stop service
-$result = StopService -ServiceName "Spooler"
-
-if ($result.code -eq 0) {
-    Write-Host "Service stopped"
-    Write-Host "Duration: $($result.data.StopDurationSeconds) seconds"
-}
-
-# Stop with dependent services
-$result = StopService -ServiceName "LanmanServer" -Force
-
-if ($result.code -eq 0) {
-    Write-Host "Stopped service and dependencies:"
-    foreach ($dep in $result.data.StoppedDependentServices) {
-        Write-Host "  - $dep"
-    }
-}
-```
-
-**Notes:**
-- Requires administrative privileges
-- Fails if dependent services running (unless `-Force`)
-- Returns success if service already stopped
 
 ---
 
 ### RestartService
 
-Restarts a Windows service.
-
-**Synopsis:**
-Graceful service restart with timing tracking for both phases.
+**Description:** Restarts a Windows service by name (stop then start).
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ServiceName` | String | Yes | - | Service name |
-| `TimeoutSeconds` | Int | No | 30 | Stop timeout |
-| `PassThru` | Switch | No | `$false` | Include service object |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ServiceName` | string | Yes | Name of the service |
+| `StopTimeout` | int | No | Stop timeout in seconds (default: 30) |
+| `StartTimeout` | int | No | Start timeout in seconds (default: 30) |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.ServiceName         # String: Service name
-$result.data.DisplayName         # String: Display name
-$result.data.Status              # String: Current status
-$result.data.StopDurationSeconds # Double: Stop phase duration
-$result.data.StartDurationSeconds # Double: Start phase duration
-$result.data.TotalDurationSeconds # Double: Total restart duration
-$result.data.ServiceObject       # ServiceController: Service object (if PassThru)
-```
+- `ServiceName`: Name of the service
+- `DisplayName`: Display name
+- `Status`: Current status after restart
+- `RestartedSuccessfully`: Boolean
 
 **Example:**
 
 ```powershell
-# Restart service
-$result = RestartService -ServiceName "Spooler"
+# Restart a service
+$result = RestartService -ServiceName "wuauserv"
 
 if ($result.code -eq 0) {
     Write-Host "Service restarted: $($result.data.DisplayName)"
-    Write-Host "Stop phase: $($result.data.StopDurationSeconds)s"
-    Write-Host "Start phase: $($result.data.StartDurationSeconds)s"
-    Write-Host "Total: $($result.data.TotalDurationSeconds)s"
+    Write-Host "New status: $($result.data.Status)"
 }
-```
 
-**Notes:**
-- Requires administrative privileges
-- More reliable than manual stop/start sequence
-- Handles dependencies automatically
+# Restart with custom timeouts
+$result = RestartService -ServiceName "MyService" `
+                         -StopTimeout 60 `
+                         -StartTimeout 90
+
+# Restart network service
+$result = RestartService -ServiceName "LanmanServer"
+```
 
 ---
 
 ### ForceRestartService
 
-Forcefully restarts a service by killing its processes if needed.
-
-**Synopsis:**
-Aggressive service restart when graceful restart fails.
+**Description:** Forcefully restarts a Windows service by name (kills process if needed).
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ServiceName` | String | Yes | - | Service name |
-| `TimeoutSeconds` | Int | No | 30 | Timeout |
-| `PassThru` | Switch | No | `$false` | Include service object |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ServiceName` | string | Yes | Name of the service |
+| `Timeout` | int | No | Timeout in seconds (default: 30) |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.ServiceName         # String: Service name
-$result.data.DisplayName         # String: Display name
-$result.data.Status              # String: Current status
-$result.data.WasForced           # Boolean: Whether force was needed
-$result.data.KilledProcessCount  # Int: Processes killed
-$result.data.StopDurationSeconds # Double: Stop phase duration
-$result.data.StartDurationSeconds # Double: Start phase duration
-$result.data.TotalDurationSeconds # Double: Total duration
-$result.data.ServiceObject       # ServiceController: Service object (if PassThru)
-```
+- `ServiceName`: Name of the service
+- `DisplayName`: Display name
+- `Status`: Current status
+- `ForcefullyRestarted`: Boolean indicating if force was needed
 
 **Example:**
 
 ```powershell
-# Force restart hung service
-$result = ForceRestartService -ServiceName "W3SVC"
+# Force restart a service
+$result = ForceRestartService -ServiceName "MyService"
 
 if ($result.code -eq 0) {
-    if ($result.data.WasForced) {
-        Write-Warning "Service was forcefully restarted"
-        Write-Host "Killed $($result.data.KilledProcessCount) processes"
-    } else {
-        Write-Host "Service restarted gracefully"
+    Write-Host "Service force restarted: $($result.data.DisplayName)"
+    if ($result.data.ForcefullyRestarted) {
+        Write-Host "Force was required"
     }
 }
+
+# Force restart hung service
+$result = ForceRestartService -ServiceName "HungService" -Timeout 10
 ```
 
-**Notes:**
-- Use only when `RestartService` fails
-- Kills service processes forcefully
-- May cause data loss
-- Requires administrative privileges
+---
+
+### StopService
+
+**Description:** Stops a Windows service by name.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ServiceName` | string | Yes | Name of the service |
+| `Timeout` | int | No | Timeout in seconds (default: 30) |
+| `Force` | switch | No | Force stop even if service has dependents |
+
+**Return Data:**
+
+- `ServiceName`: Name of the service
+- `DisplayName`: Display name
+- `Status`: Current status
+- `PreviousStatus`: Status before stop
+
+**Example:**
+
+```powershell
+# Stop a service
+$result = StopService -ServiceName "Spooler"
+
+if ($result.code -eq 0) {
+    Write-Host "Service stopped: $($result.data.DisplayName)"
+    Write-Host "Previous status: $($result.data.PreviousStatus)"
+    Write-Host "Current status: $($result.data.Status)"
+}
+
+# Force stop service with dependents
+$result = StopService -ServiceName "MyService" -Force
+
+# Stop with custom timeout
+$result = StopService -ServiceName "wuauserv" -Timeout 60
+```
 
 ---
 
 ### KillService
 
-Terminates all processes associated with a service.
-
-**Synopsis:**
-Immediate service termination by killing all related processes.
+**Description:** Forcefully terminates a Windows service by killing its process.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ServiceName` | String | Yes | - | Service name |
-| `Force` | Switch | No | `$false` | Kill dependent services |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ServiceName` | string | Yes | Name of the service |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.ServiceName         # String: Service name
-$result.data.DisplayName         # String: Display name
-$result.data.Status              # String: Current status
-$result.data.KilledProcessCount  # Int: Processes killed
-$result.data.TerminationDurationMs # Long: Kill operation duration
-$result.data.KilledDependentServices # Array: Dependent services killed
-```
+- `ServiceName`: Name of the service
+- `DisplayName`: Display name
+- `ProcessId`: ID of killed process
+- `Status`: Current status
 
 **Example:**
 
 ```powershell
-# Kill service processes
-$result = KillService -ServiceName "stuck-service"
+# Kill a service
+$result = KillService -ServiceName "HungService"
 
 if ($result.code -eq 0) {
-    Write-Host "Killed $($result.data.KilledProcessCount) processes"
-    Write-Host "Duration: $($result.data.TerminationDurationMs) ms"
+    Write-Host "Service killed: $($result.data.DisplayName)"
+    Write-Host "Process ID: $($result.data.ProcessId)"
 }
 
-# Kill with dependencies
-$result = KillService -ServiceName "main-service" -Force
-
-if ($result.code -eq 0) {
-    Write-Host "Killed service and dependencies:"
-    foreach ($dep in $result.data.KilledDependentServices) {
-        Write-Host "  - $dep"
-    }
+# Try graceful stop first, then kill
+$serviceName = "MyService"
+$result = StopService -ServiceName $serviceName -Timeout 10
+if ($result.code -ne 0) {
+    Write-Host "Graceful stop failed, killing service..."
+    $result = KillService -ServiceName $serviceName
 }
 ```
 
 **Notes:**
-- Last resort when all other methods fail
-- Service cleanup won't occur
-- May corrupt service state
-- Requires administrative privileges
+
+- Use StopService first for graceful shutdown
+- KillService should be last resort
+- Requires Administrator privileges
 
 ---
 
 ### SetServiceState
 
-Configures a service's startup type.
-
-**Synopsis:**
-Changes service startup configuration (Automatic, Manual, Disabled).
+**Description:** Changes the startup type of a Windows service.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `ServiceName` | String | Yes | - | Service name |
-| `StartupType` | String | Yes | - | Automatic, AutomaticDelayed, Manual, Disabled |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ServiceName` | string | Yes | Name of the service |
+| `StartType` | string | Yes | Automatic, Manual, Disabled, AutomaticDelayedStart |
 
-**Return Data Properties:**
+**Return Data:**
 
-```powershell
-$result.data.ServiceName         # String: Service name
-$result.data.DisplayName         # String: Display name
-$result.data.PreviousStartType   # String: Original startup type
-$result.data.CurrentStartType    # String: New startup type
-$result.data.CurrentStatus       # String: Service status
-```
+- `ServiceName`: Name of the service
+- `DisplayName`: Display name
+- `PreviousStartType`: Startup type before change
+- `NewStartType`: New startup type
+- `CurrentStatus`: Current running status
 
 **Example:**
 
 ```powershell
-# Set service to automatic
-$result = SetServiceState -ServiceName "Spooler" `
-                          -StartupType "Automatic"
+# Set service to automatic start
+$result = SetServiceState -ServiceName "MyService" -StartType "Automatic"
 
 if ($result.code -eq 0) {
-    Write-Host "Changed startup type:"
-    Write-Host "  From: $($result.data.PreviousStartType)"
-    Write-Host "  To: $($result.data.CurrentStartType)"
+    Write-Host "Service: $($result.data.DisplayName)"
+    Write-Host "Previous: $($result.data.PreviousStartType)"
+    Write-Host "New: $($result.data.NewStartType)"
 }
 
-# Disable service
-$result = SetServiceState -ServiceName "unnecessary-service" `
-                          -StartupType "Disabled"
+# Disable a service
+$result = SetServiceState -ServiceName "DiagTrack" -StartType "Disabled"
+
+# Set to manual start
+$result = SetServiceState -ServiceName "wuauserv" -StartType "Manual"
+
+# Set to automatic with delayed start
+$result = SetServiceState -ServiceName "MyAppService" `
+                          -StartType "AutomaticDelayedStart"
+
+if ($result.code -eq 0) {
+    Write-Host "Service will start automatically (delayed)"
+}
 ```
 
-**Notes:**
-- Requires administrative privileges
-- Does not affect current running state
-- AutomaticDelayed starts after boot completes
-- Disabled services cannot be started manually
+**Startup Types:**
+
+- `Automatic`: Start automatically at boot
+- `AutomaticDelayedStart`: Start automatically after boot (delayed)
+- `Manual`: Start only when requested
+- `Disabled`: Cannot be started
 
 ---
 
-## Registry Operations
-
-### CreateRegKey
-
-Creates a new registry key.
-
-**Synopsis:**
-Creates registry key with validation and recursive parent creation.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Registry path (e.g., "HKLM:\Software\MyApp") |
-| `Force` | Switch | No | `$false` | Create parent keys |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Created key path
-$result.data.Exists              # Boolean: Whether key already existed
-$result.data.Created             # DateTime: Creation timestamp
-```
-
-**Example:**
-
-```powershell
-# Create registry key
-$result = CreateRegKey -Path "HKLM:\Software\MyCompany\MyApp"
-
-if ($result.code -eq 0) {
-    Write-Host "Key created: $($result.data.Path)"
-}
-
-# Create with parents
-$result = CreateRegKey -Path "HKCU:\Software\Deep\Nested\Key" -Force
-
-if ($result.code -eq 0) {
-    if ($result.data.Exists) {
-        Write-Host "Key already existed"
-    } else {
-        Write-Host "Key created with parent structure"
-    }
-}
-```
-
-**Notes:**
-- HKLM keys require administrative privileges
-- Use `-Force` to create parent keys
-- Returns success if key already exists
-
----
-
-### CreateRegVal
-
-Creates a new registry value.
-
-**Synopsis:**
-Creates registry value with type validation and optional key creation.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Registry key path |
-| `Name` | String | Yes | - | Value name |
-| `Value` | Object | Yes | - | Value data |
-| `Type` | String | No | `"String"` | Value type (String, DWord, QWord, Binary, MultiString, ExpandString) |
-| `Force` | Switch | No | `$false` | Create key if missing |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Registry key path
-$result.data.Name                # String: Value name
-$result.data.Value               # Object: Value data
-$result.data.Type                # String: Value type
-$result.data.KeyCreated          # Boolean: Whether key was created
-```
-
-**Example:**
-
-```powershell
-# Create string value
-$result = CreateRegVal -Path "HKCU:\Software\MyApp" `
-                       -Name "InstallPath" `
-                       -Value "C:\Program Files\MyApp" `
-                       -Type "String"
-
-if ($result.code -eq 0) {
-    Write-Host "Value created: $($result.data.Name)"
-}
-
-# Create DWORD value
-$result = CreateRegVal -Path "HKLM:\Software\MyApp" `
-                       -Name "Version" `
-                       -Value 10 `
-                       -Type "DWord" `
-                       -Force
-
-if ($result.code -eq 0) {
-    if ($result.data.KeyCreated) {
-        Write-Host "Key and value created"
-    }
-}
-```
-
-**Notes:**
-- Validates value type matches data
-- Creates parent key with `-Force`
-- Overwrites existing values
-
----
-
-### SetNewRegValue
-
-Updates an existing registry value or creates it if missing.
-
-**Synopsis:**
-Safe registry value update with validation and backup capability.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Registry key path |
-| `Name` | String | Yes | - | Value name |
-| `Value` | Object | Yes | - | New value data |
-| `Type` | String | No | `"String"` | Value type |
-| `Force` | Switch | No | `$false` | Create if missing |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Registry key path
-$result.data.Name                # String: Value name
-$result.data.OldValue            # Object: Previous value (if existed)
-$result.data.NewValue            # Object: New value
-$result.data.Type                # String: Value type
-$result.data.WasCreated          # Boolean: Whether value was created
-```
-
-**Example:**
-
-```powershell
-# Update existing value
-$result = SetNewRegValue -Path "HKCU:\Software\MyApp" `
-                         -Name "Theme" `
-                         -Value "Dark"
-
-if ($result.code -eq 0) {
-    Write-Host "Updated value:"
-    Write-Host "  Old: $($result.data.OldValue)"
-    Write-Host "  New: $($result.data.NewValue)"
-}
-
-# Create or update
-$result = SetNewRegValue -Path "HKLM:\Software\MyApp" `
-                         -Name "MaxUsers" `
-                         -Value 100 `
-                         -Type "DWord" `
-                         -Force
-```
-
-**Notes:**
-- Returns previous value for rollback capability
-- Creates value with `-Force` if missing
-- Type must match existing value
-
----
-
-### GetRegEntryType
-
-Retrieves the type of a registry value.
-
-**Synopsis:**
-Determines registry value type without reading its data.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Registry key path |
-| `Name` | String | Yes | - | Value name |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Registry key path
-$result.data.Name                # String: Value name
-$result.data.Type                # String: Value type
-$result.data.TypeCode            # Int: .NET RegistryValueKind enum
-```
-
-**Example:**
-
-```powershell
-$result = GetRegEntryType -Path "HKCU:\Software\MyApp" `
-                          -Name "InstallDate"
-
-if ($result.code -eq 0) {
-    Write-Host "Value type: $($result.data.Type)"
-    
-    # Use type for conditional processing
-    switch ($result.data.Type) {
-        "String" { Write-Host "This is a string value" }
-        "DWord"  { Write-Host "This is a DWORD value" }
-    }
-}
-```
-
-**Notes:**
-- Fast operation - doesn't read value data
-- Useful for type validation before operations
-
----
-
-### GetRegEntryValue
-
-Retrieves the value of a registry entry.
-
-**Synopsis:**
-Reads registry value with type information.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Registry key path |
-| `Name` | String | Yes | - | Value name |
-| `DefaultValue` | Object | No | `$null` | Return this if value doesn't exist |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Registry key path
-$result.data.Name                # String: Value name
-$result.data.Value               # Object: Value data
-$result.data.Type                # String: Value type
-$result.data.Exists              # Boolean: Whether value exists
-```
-
-**Example:**
-
-```powershell
-# Read value
-$result = GetRegEntryValue -Path "HKCU:\Software\MyApp" `
-                            -Name "InstallPath"
-
-if ($result.code -eq 0) {
-    Write-Host "Install Path: $($result.data.Value)"
-    Write-Host "Type: $($result.data.Type)"
-}
-
-# Read with default
-$result = GetRegEntryValue -Path "HKLM:\Software\MyApp" `
-                            -Name "MaxConnections" `
-                            -DefaultValue 10
-
-if ($result.code -eq 0) {
-    $maxConn = $result.data.Value
-    Write-Host "Max Connections: $maxConn"
-}
-```
-
-**Notes:**
-- Returns default value if entry doesn't exist
-- Handles all registry value types
-- Type information included in result
-
----
-
-### DeleteRegKey
-
-Deletes a registry key and optionally all subkeys.
-
-**Synopsis:**
-Safe registry key deletion with recursive option.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Registry key path |
-| `Recurse` | Switch | No | `$false` | Delete subkeys |
-| `Force` | Switch | No | `$false` | No confirmation |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Deleted key path
-$result.data.SubkeysDeleted      # Int: Number of subkeys deleted
-$result.data.ValuesDeleted       # Int: Number of values deleted
-```
-
-**Example:**
-
-```powershell
-# Delete empty key
-$result = DeleteRegKey -Path "HKCU:\Software\OldApp"
-
-if ($result.code -eq 0) {
-    Write-Host "Key deleted"
-}
-
-# Delete with subkeys
-$result = DeleteRegKey -Path "HKLM:\Software\OldApp" `
-                       -Recurse -Force
-
-if ($result.code -eq 0) {
-    Write-Host "Deleted key with:"
-    Write-Host "  Subkeys: $($result.data.SubkeysDeleted)"
-    Write-Host "  Values: $($result.data.ValuesDeleted)"
-}
-```
-
-**Notes:**
-- Key must be empty unless `-Recurse` used
-- HKLM operations require admin rights
-- Use with caution - no undo
-
----
-
-### DeleteRegVal
-
-Deletes a registry value.
-
-**Synopsis:**
-Safe registry value deletion with validation.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | Registry key path |
-| `Name` | String | Yes | - | Value name to delete |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Registry key path
-$result.data.Name                # String: Deleted value name
-$result.data.OldValue            # Object: Previous value (for rollback)
-$result.data.OldType             # String: Previous value type
-```
-
-**Example:**
-
-```powershell
-# Delete value
-$result = DeleteRegVal -Path "HKCU:\Software\MyApp" `
-                       -Name "TempSetting"
-
-if ($result.code -eq 0) {
-    Write-Host "Deleted value: $($result.data.Name)"
-    Write-Host "Previous value was: $($result.data.OldValue)"
-}
-```
-
-**Notes:**
-- Returns previous value for potential rollback
-- Fails gracefully if value doesn't exist
-- HKLM operations require admin rights
-
----
-
-## Text I/O Operations
-
-### ReadTextFile
-
-Reads text content from a file with encoding support.
-
-**Synopsis:**
-Comprehensive text file reading with encoding detection and validation.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | File path to read |
-| `Encoding` | String | No | `"Auto"` | Text encoding (UTF8, ASCII, Unicode, Auto) |
-| `Raw` | Switch | No | `$false` | Return as single string |
-| `MaxSizeBytes` | Long | No | 104857600 | Maximum file size (100MB) |
-| `ValidateText` | Bool | No | `$true` | Check for binary content |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: File path
-$result.data.Content             # String/Array: File content
-$result.data.LineCount           # Int: Number of lines
-$result.data.SizeBytes           # Long: File size
-$result.data.Encoding            # String: Used encoding
-$result.data.DetectedEncoding    # String: Auto-detected encoding
-```
-
-**Example:**
-
-```powershell
-# Read text file (returns array of lines)
-$result = ReadTextFile -Path "C:\Logs\app.log"
-
-if ($result.code -eq 0) {
-    Write-Host "Read $($result.data.LineCount) lines"
-    Write-Host "Encoding: $($result.data.DetectedEncoding)"
-    
-    foreach ($line in $result.data.Content) {
-        Write-Host $line
-    }
-}
-
-# Read as single string
-$result = ReadTextFile -Path "C:\Config\settings.ini" -Raw
-
-if ($result.code -eq 0) {
-    $fullText = $result.data.Content
-    Write-Host "File content:`n$fullText"
-}
-
-# Read with specific encoding
-$result = ReadTextFile -Path "C:\Data\utf8.txt" `
-                       -Encoding "UTF8NoBOM"
-
-# Read large file with size limit
-$result = ReadTextFile -Path "C:\Data\large.log" `
-                       -MaxSizeBytes 10MB
-
-if ($result.code -ne 0) {
-    Write-Warning "File too large: $($result.msg)"
-}
-```
-
-**Notes:**
-- Auto-detects encoding from BOM
-- Validates text content (no null bytes)
-- Returns lines by default, string with `-Raw`
-- Size limit prevents memory issues
-
----
-
-### WriteTextToFile
-
-Writes text content to a file with encoding support.
-
-**Synopsis:**
-Comprehensive text file writing with encoding control and append mode.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Path` | String | Yes | - | File path to write |
-| `Content` | String/Array | Yes | - | Text content to write |
-| `Encoding` | String | No | `"UTF8"` | Text encoding |
-| `Append` | Switch | No | `$false` | Append to existing file |
-| `Force` | Switch | No | `$false` | Overwrite readonly files |
-| `NoNewline` | Switch | No | `$false` | Don't add final newline |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.Path                # String: Written file path
-$result.data.BytesWritten        # Long: Bytes written
-$result.data.LineCount           # Int: Number of lines
-$result.data.Encoding            # String: Encoding used
-$result.data.WasAppended         # Boolean: Whether appended
-```
-
-**Example:**
-
-```powershell
-# Write single line
-$result = WriteTextToFile -Path "C:\Logs\app.log" `
-                          -Content "Application started"
-
-if ($result.code -eq 0) {
-    Write-Host "Wrote $($result.data.BytesWritten) bytes"
-}
-
-# Append to file
-$result = WriteTextToFile -Path "C:\Logs\events.log" `
-                          -Content "Error occurred" `
-                          -Append
-
-# Write multiple lines
-$lines = @(
-    "Line 1",
-    "Line 2",
-    "Line 3"
-)
-
-$result = WriteTextToFile -Path "C:\Data\output.txt" `
-                          -Content $lines `
-                          -Encoding "UTF8NoBOM"
-
-if ($result.code -eq 0) {
-    Write-Host "Wrote $($result.data.LineCount) lines"
-}
-
-# Force overwrite readonly file
-$result = WriteTextToFile -Path "C:\Config\readonly.cfg" `
-                          -Content $config `
-                          -Force
-```
-
-**Notes:**
-- Creates parent directories automatically
-- Validates content is text (no binary)
-- BOM handling depends on PS version
-- Use `-Force` for readonly files
-
----
-
-## Utility Functions
-
-### GetBitmapIconFromDLL
-
-Extracts an icon from a DLL file as a bitmap.
-
-**Synopsis:**
-Extracts Windows icons from DLL/EXE files using Win32 API.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `DLLfile` | String | Yes | - | DLL/EXE file path |
-| `IconIndex` | Int | Yes | - | Icon index (zero-based) |
-
-**Return Data Properties:**
-
-```powershell
-$result.data.DLLPath             # String: Source DLL path
-$result.data.IconIndex           # Int: Extracted icon index
-$result.data.TotalIconCount      # Int: Total icons in DLL
-$result.data.Bitmap              # Bitmap: Extracted bitmap object
-$result.data.Width               # Int: Bitmap width
-$result.data.Height              # Int: Bitmap height
-$result.data.PixelFormat         # String: Pixel format
-```
-
-**Example:**
-
-```powershell
-# Extract icon from shell32.dll
-$result = GetBitmapIconFromDLL -DLLfile "C:\Windows\System32\shell32.dll" `
-                               -IconIndex 0
-
-if ($result.code -eq 0) {
-    $bitmap = $result.data.Bitmap
-    Write-Host "Extracted $($result.data.Width)x$($result.data.Height) icon"
-    Write-Host "DLL contains $($result.data.TotalIconCount) total icons"
-    
-    # Use bitmap in WPF/WinForms
-    $pictureBox.Image = $bitmap
-    
-    # Save to file
-    $bitmap.Save("C:\Temp\icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
-}
-
-# Extract from custom application
-$result = GetBitmapIconFromDLL -DLLfile "C:\Program Files\MyApp\app.exe" `
-                               -IconIndex 1
-```
-
-**Notes:**
-- Requires System.Drawing assembly
-- Returns large version of icon (32x32+)
-- Index validation before extraction
-- Dispose bitmap when done to free memory
-
----
+## Logging
 
 ### WriteLogMessage
 
-Writes formatted log messages to console and/or file.
-
-**Synopsis:**
-Simple logging with severity levels and timestamp formatting.
+**Description:** Writes messages to a log file with timestamps and severity flags.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Message` | String | Yes | - | Log message |
-| `Level` | String | No | `"Info"` | Severity (Info, Warning, Error, Debug) |
-| `LogFile` | String | No | `""` | Optional log file path |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | string | Yes | Full path to log file |
+| `Message` | string | Yes | Log message text |
+| `Flag` | string | No | INFO, DEBUG, WARN, ERROR (default: DEBUG) |
+| `Override` | int | No | 1 to overwrite, 0 to append (default: 0) |
 
-**Return Data:** None (this is a utility function)
+**Return Data:**
+
+- Returns the formatted log entry string
 
 **Example:**
 
 ```powershell
-# Console logging
-WriteLogMessage -Message "Application started" -Level "Info"
-WriteLogMessage -Message "Deprecated function called" -Level "Warning"
-WriteLogMessage -Message "Connection failed" -Level "Error"
+# Write a debug message
+$result = WriteLogMessage -Logfile "C:\Logs\app.log" `
+                          -Message "Application started successfully"
 
-# File logging
-WriteLogMessage -Message "Database connected" `
-                -Level "Info" `
-                -LogFile "C:\Logs\app.log"
+# Write an info message
+$result = WriteLogMessage -Logfile "C:\Logs\app.log" `
+                          -Message "Configuration loaded" `
+                          -Flag "INFO"
 
-# Usage in script
-try {
-    # ... code ...
-    WriteLogMessage "Operation successful" -Level "Info"
+# Write a warning
+$result = WriteLogMessage -Logfile "C:\Logs\app.log" `
+                          -Message "Low disk space detected" `
+                          -Flag "WARN"
+
+# Write an error
+$result = WriteLogMessage -Logfile "C:\Logs\app.log" `
+                          -Message "Failed to connect to database" `
+                          -Flag "ERROR"
+
+# Start new log file (overwrite)
+$result = WriteLogMessage -Logfile "C:\Logs\daily.log" `
+                          -Message "=== Log started at $(Get-Date) ===" `
+                          -Flag "INFO" `
+                          -Override 1
+
+if ($result.code -eq 0) {
+    Write-Host "Log entry: $($result.data)"
 }
-catch {
-    WriteLogMessage "Operation failed: $_" -Level "Error" -LogFile $logPath
+
+# Advanced logging example
+function Write-AppLog {
+    param(
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
+    $logPath = "C:\Logs\MyApp_$(Get-Date -Format 'yyyyMMdd').log"
+    WriteLogMessage -Logfile $logPath -Message $Message -Flag $Level
+}
+
+Write-AppLog "Application initialized" "INFO"
+Write-AppLog "Processing data..." "DEBUG"
+Write-AppLog "Operation completed" "INFO"
+```
+
+**Log Format:**
+
+```
+[2026.02.02 ; 16:45:23] [INFO]  Configuration loaded
+[2026.02.02 ; 16:45:24] [DEBUG] Processing request
+[2026.02.02 ; 16:45:25] [WARN]  High memory usage
+[2026.02.02 ; 16:45:26] [ERROR] Connection failed
+```
+
+---
+
+## Miscellaneous
+
+### GetBitmapIconFromDLL
+
+**Description:** Extracts a bitmap icon from a DLL or EXE file and returns it as a System.Drawing.Bitmap object.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `DllPath` | string | Yes | Path to DLL or EXE file |
+| `IconIndex` | int | No | Index of icon to extract (default: 0) |
+| `IconSize` | int | No | Size in pixels (16, 32, 48, 256, default: 32) |
+
+**Return Data:**
+
+- Returns a `System.Drawing.Bitmap` object
+
+**Example:**
+
+```powershell
+# Extract default icon from system DLL
+$result = GetBitmapIconFromDLL -DllPath "C:\Windows\System32\shell32.dll"
+
+if ($result.code -eq 0) {
+    $bitmap = $result.data
+    # Save to file
+    $bitmap.Save("C:\Icons\icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
+    Write-Host "Icon extracted and saved"
+}
+
+# Extract specific icon with index
+$result = GetBitmapIconFromDLL -DllPath "C:\Windows\System32\imageres.dll" `
+                               -IconIndex 15 `
+                               -IconSize 48
+
+if ($result.code -eq 0) {
+    $icon = $result.data
+    $icon.Save("C:\Icons\folder.png", [System.Drawing.Imaging.ImageFormat]::Png)
+}
+
+# Extract large icon
+$result = GetBitmapIconFromDLL -DllPath "C:\Windows\System32\shell32.dll" `
+                               -IconIndex 2 `
+                               -IconSize 256
+
+# Extract from application
+$result = GetBitmapIconFromDLL -DllPath "C:\Program Files\MyApp\MyApp.exe" `
+                               -IconIndex 0 `
+                               -IconSize 32
+
+if ($result.code -eq 0) {
+    $appIcon = $result.data
+    # Use bitmap in WPF/WinForms application
+    # $pictureBox.Image = $appIcon
+}
+
+# Extract multiple icons
+for ($i = 0; $i -lt 10; $i++) {
+    $result = GetBitmapIconFromDLL -DllPath "C:\Windows\System32\shell32.dll" `
+                                   -IconIndex $i `
+                                   -IconSize 32
+    if ($result.code -eq 0) {
+        $result.data.Save("C:\Icons\icon_$i.png", [System.Drawing.Imaging.ImageFormat]::Png)
+    }
 }
 ```
 
 **Notes:**
-- Automatically adds timestamp
-- Color-coded console output
-- Thread-safe file writing
-- Creates log file if missing
+
+- Requires System.Drawing assembly
+- Supports ICO, DLL, and EXE files
+- Common icon sources:
+  - `shell32.dll`: Windows shell icons
+  - `imageres.dll`: Windows image resources
+  - `DDORes.dll`: Windows system icons
+- Icon index starts at 0
+- Returns System.Drawing.Bitmap which can be:
+  - Saved as PNG, BMP, JPEG, GIF
+  - Used in WinForms PictureBox
+  - Converted for WPF ImageSource
+  - Manipulated with GDI+ methods
 
 ---
 
@@ -2034,83 +1752,185 @@ catch {
 ### Error Handling
 
 ```powershell
-# Always check return code
-$result = SomeFunction -Parameters
-
-if ($result.code -eq 0) {
-    # Success path
-    ProcessData -Data $result.data
-}
-else {
-    # Error path
-    Write-Error $result.msg
-    # Handle error appropriately
-}
-```
-
-### Data Access
-
-```powershell
-# Access data properties directly
-$result = GetProcessByName -Name "notepad"
-
-if ($result.code -eq 0) {
-    $pid = $result.data.ProcessId
-    $memory = $result.data.WorkingSetMB
-    # Use data...
-}
-```
-
-### Resource Cleanup
-
-```powershell
-# Dispose resources when done
-$result = GetBitmapIconFromDLL -DLLfile $dll -IconIndex 0
-
-if ($result.code -eq 0) {
-    $bitmap = $result.data.Bitmap
-    # Use bitmap...
-    $bitmap.Dispose()  # Free memory
-}
-```
-
-### Privilege Requirements
-
-```powershell
-# Check for admin rights when needed
-function RequiresAdmin {
-    $isAdmin = ([Security.Principal.WindowsPrincipal] `
-                [Security.Principal.WindowsIdentity]::GetCurrent() `
-               ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+function Invoke-SafeOperation {
+    param([string]$Path)
     
-    if (-not $isAdmin) {
-        Write-Error "This operation requires administrative privileges"
-        return
+    $result = SomeFunction -Parameter $Path
+    
+    if ($result.code -eq 0) {
+        # Success - process data
+        Write-Host "Operation successful"
+        return $result.data
+    } else {
+        # Error - log and handle
+        WriteLogMessage -Logfile "C:\Logs\errors.log" `
+                       -Message $result.msg `
+                       -Flag "ERROR"
+        throw $result.msg
+    }
+}
+```
+
+### Batch Operations
+
+```powershell
+# Process multiple items with reporting
+$files = Get-ChildItem "C:\Source\*.txt"
+$result = CopyFiles -SourcePaths ($files | Select-Object -ExpandProperty FullName) `
+                    -DestinationDirectory "D:\Backup"
+
+if ($result.data.FailureCount -gt 0) {
+    # Handle failures
+    foreach ($failed in $result.data.FailedFiles) {
+        WriteLogMessage -Logfile "C:\Logs\copy-errors.log" `
+                       -Message "Failed: $($failed.SourcePath) - $($failed.Error)" `
+                       -Flag "ERROR"
+    }
+}
+```
+
+### Registry Safety
+
+```powershell
+# Always read before write
+$readResult = GetRegEntryValue -RegistryPath "HKLM:\Software\MyApp" `
+                               -ValueName "Setting"
+
+if ($readResult.code -eq 0) {
+    $oldValue = $readResult.data.ValueData
+    
+    # Make change
+    $writeResult = SetNewRegValue -RegistryPath "HKLM:\Software\MyApp" `
+                                  -ValueName "Setting" `
+                                  -NewValueData "NewValue"
+    
+    if ($writeResult.code -eq 0) {
+        WriteLogMessage -Logfile "C:\Logs\registry.log" `
+                       -Message "Changed Setting from '$oldValue' to 'NewValue'" `
+                       -Flag "INFO"
+    }
+}
+```
+
+### Service Management
+
+```powershell
+# Graceful service restart with fallback
+function Restart-ServiceSafely {
+    param([string]$ServiceName)
+    
+    # Try normal restart
+    $result = RestartService -ServiceName $ServiceName -StopTimeout 30 -StartTimeout 30
+    
+    if ($result.code -ne 0) {
+        WriteLogMessage -Logfile "C:\Logs\services.log" `
+                       -Message "Normal restart failed, trying force restart" `
+                       -Flag "WARN"
+        
+        # Try force restart
+        $result = ForceRestartService -ServiceName $ServiceName
+        
+        if ($result.code -ne 0) {
+            WriteLogMessage -Logfile "C:\Logs\services.log" `
+                           -Message "Force restart failed: $($result.msg)" `
+                           -Flag "ERROR"
+            return $false
+        }
     }
     
-    # Perform admin operation
-    $result = StartService -ServiceName "W3SVC"
+    return $true
 }
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Access Denied Errors:**
+- Run PowerShell as Administrator
+- Check file/registry permissions
+- Verify user has required rights
+
+**Path Not Found:**
+- Use full paths (avoid relative paths)
+- Check for typos in paths
+- Verify paths exist before operations
+
+**Service Operations Failing:**
+- Ensure service name is correct (use `Get-Service`)
+- Check if service exists
+- Verify sufficient permissions
+- Some services require special privileges
+
+**Registry Operations Failing:**
+- Verify registry path format
+- Check hive name is correct (HKLM, HKCU, etc.)
+- Ensure key exists before value operations
+- Some registry keys are protected
+
+### Debug Mode
+
+```powershell
+# Enable verbose output
+$VerbosePreference = 'Continue'
+
+$result = CopyDir -SourcePath "C:\Source" `
+                  -DestinationPath "D:\Backup" `
+                  -Verbose
+
+# Check what would happen without making changes
+$result = RemoveDir -DirectoryPath "C:\Test" `
+                    -Recurse `
+                    -WhatIf
 ```
 
 ---
 
 ## Version History
 
-- **v2.0** - Complete migration to OPSreturn pattern
-- **v1.5** - Added process and service management
-- **v1.0** - Initial release
+**Version 1.06.00** - Windows Service Management
+- Added StartService, RestartService, ForceRestartService
+- Added StopService, KillService, SetServiceState
+
+**Version 1.05.00** - Process Management
+- Added RunProcess, GetProcessByName, GetProcessByID
+- Added RestartProcess, StopProcess, KillProcess
+
+**Version 1.04.00** - Extended File Operations & Reboot Scheduling
+- Added CopyFile, CopyFiles, RemoveFile, RemoveFiles
+- Added WriteTextToFile, ReadTextFile
+- Added RemoveOnReboot, RemoveAllOnReboot
+
+**Version 1.03.00** - File System Management
+- Added CreateNewDir, CreateNewFile
+- Added CopyDir, RemoveDir, RemoveDirs
+
+**Version 1.02.00** - Extended Registry Management
+- Added DeleteRegKey, DeleteRegVal
+- Added GetRegEntryValue, GetRegEntryType, SetNewRegValue
+
+**Version 1.01.00** - Registry Functions
+- Added CreateRegKey, CreateRegVal
+
+**Version 1.00.00** - Initial Release
+- WriteLogMessage, GetBitmapIconFromDLL
 
 ---
 
-## Support
+## Support and Contributing
 
-For issues, questions, or contributions:
-- GitHub: [PowerShell.Mods Repository](https://github.com/praetoriani/PowerShell.Mods)
-- Report bugs via GitHub Issues
+**Repository:** https://github.com/praetoriani/PowerShell.Mods
+
+**Author:** Praetoriani (M.Sczepanski)
+
+**License:** © 2025 Praetoriani. All rights reserved.
 
 ---
 
-## License
+## Conclusion
 
-This module is provided as-is for use in PowerShell automation projects.
+PSAppCoreLib provides a comprehensive set of functions for Windows system management, file operations, process control, service management, and more. All functions follow consistent patterns with standardized return objects, making integration into your PowerShell applications straightforward and reliable.
+
+For the latest updates, examples, and community contributions, visit the GitHub repository.
