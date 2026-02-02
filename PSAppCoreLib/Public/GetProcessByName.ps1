@@ -36,14 +36,14 @@ function GetProcessByName {
     .EXAMPLE
     $result = GetProcessByName -Name "chrome" -SelectFirst
     if ($result.code -eq 0) {
-        Write-Host "Found Chrome with PID: $($result.processId)"
-        Write-Host "Memory: $([Math]::Round($result.workingSetMB, 2)) MB"
+        Write-Host "Found Chrome with PID: $($result.data.ProcessId)"
+        Write-Host "Memory: $($result.data.WorkingSetMB) MB"
     }
     
     .EXAMPLE
     $result = GetProcessByName -Name "svchost.exe" -IncludeExtension -SelectAll
-    Write-Host "Found $($result.processCount) svchost processes"
-    foreach ($proc in $result.processes) {
+    Write-Host "Found $($result.data.ProcessCount) svchost processes"
+    foreach ($proc in $result.data.Processes) {
         Write-Host "PID: $($proc.Id), Memory: $($proc.WorkingSet64)"
     }
     
@@ -51,7 +51,7 @@ function GetProcessByName {
     # Check if process exists
     $result = GetProcessByName -Name "myapp"
     if ($result.code -eq 0) {
-        Write-Host "Process is running with PID: $($result.processId)"
+        Write-Host "Process is running with PID: $($result.data.ProcessId)"
     } else {
         Write-Host "Process not found"
     }
@@ -62,6 +62,7 @@ function GetProcessByName {
     - Returns error if multiple processes exist (unless -SelectFirst or -SelectAll)
     - Does not require .exe extension by default
     - Returns detailed process information including memory usage and start time
+    - Returns comprehensive process information in the data field
     #>
     
     [CmdletBinding()]
@@ -80,30 +81,14 @@ function GetProcessByName {
         [switch]$SelectAll
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        processName = $null
-        processId = 0
-        processHandle = $null
-        processCount = 0
-        processes = @()
-        startTime = $null
-        workingSetMB = 0
-        path = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        $status.msg = "Parameter 'Name' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Name' is required but was not provided or is empty"
     }
     
     # Validate parameter combinations
     if ($SelectFirst -and $SelectAll) {
-        $status.msg = "Cannot specify both -SelectFirst and -SelectAll"
-        return $status
+        return OPSreturn -Code -1 -Message "Cannot specify both -SelectFirst and -SelectAll"
     }
     
     try {
@@ -111,12 +96,10 @@ function GetProcessByName {
         $SearchName = $Name.Trim()
         
         # Remove .exe extension if not expected
-        if (-not $IncludeExtension -and $SearchName -match '\.exe$') {
-            $SearchName = $SearchName -replace '\.exe$', ''
+        if (-not $IncludeExtension -and $SearchName -match '\\.exe$') {
+            $SearchName = $SearchName -replace '\\.exe$', ''
             Write-Verbose "Removed .exe extension from search name: $SearchName"
         }
-        
-        $status.processName = $SearchName
         
         Write-Verbose "Searching for process: $SearchName (Exact match required)"
         
@@ -125,95 +108,113 @@ function GetProcessByName {
             $MatchingProcesses = @(Get-Process -Name $SearchName -ErrorAction SilentlyContinue)
             
             if ($MatchingProcesses.Count -eq 0) {
-                $status.msg = "No process found with name '$SearchName'"
-                return $status
+                return OPSreturn -Code -1 -Message "No process found with name '$SearchName'"
             }
             
-            $status.processCount = $MatchingProcesses.Count
-            Write-Verbose "Found $($status.processCount) matching process(es)"
+            $ProcessCount = $MatchingProcesses.Count
+            Write-Verbose "Found $ProcessCount matching process(es)"
         }
         catch {
-            $status.msg = "Error searching for process '$SearchName': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error searching for process '$SearchName': $($_.Exception.Message)"
         }
+        
+        # Initialize data variables
+        $ProcessId = 0
+        $ProcessHandle = $null
+        $StartTime = $null
+        $WorkingSetMB = 0
+        $ProcessPath = $null
+        $ProcessesList = @()
         
         # Handle multiple processes
         if ($MatchingProcesses.Count -gt 1) {
             if ($SelectAll) {
                 # Return all matching processes
-                $status.processes = $MatchingProcesses
+                $ProcessesList = $MatchingProcesses
                 
                 # Set first process as primary for backward compatibility
                 $PrimaryProcess = $MatchingProcesses[0]
-                $status.processId = $PrimaryProcess.Id
-                $status.processHandle = $PrimaryProcess
+                $ProcessId = $PrimaryProcess.Id
+                $ProcessHandle = $PrimaryProcess
                 
                 try {
-                    $status.startTime = $PrimaryProcess.StartTime
-                    $status.workingSetMB = [Math]::Round($PrimaryProcess.WorkingSet64 / 1MB, 2)
-                    $status.path = $PrimaryProcess.Path
+                    $StartTime = $PrimaryProcess.StartTime
+                    $WorkingSetMB = [Math]::Round($PrimaryProcess.WorkingSet64 / 1MB, 2)
+                    $ProcessPath = $PrimaryProcess.Path
                 }
                 catch {
                     Write-Verbose "Warning: Could not retrieve all process details: $($_.Exception.Message)"
                 }
                 
-                Write-Verbose "Returning all $($status.processCount) processes (primary PID: $($status.processId))"
+                Write-Verbose "Returning all $ProcessCount processes (primary PID: $ProcessId)"
             }
             elseif ($SelectFirst) {
                 # Return only the first process
                 $SelectedProcess = $MatchingProcesses[0]
-                $status.processId = $SelectedProcess.Id
-                $status.processHandle = $SelectedProcess
-                $status.processes = @($SelectedProcess)
+                $ProcessId = $SelectedProcess.Id
+                $ProcessHandle = $SelectedProcess
+                $ProcessesList = @($SelectedProcess)
                 
                 try {
-                    $status.startTime = $SelectedProcess.StartTime
-                    $status.workingSetMB = [Math]::Round($SelectedProcess.WorkingSet64 / 1MB, 2)
-                    $status.path = $SelectedProcess.Path
+                    $StartTime = $SelectedProcess.StartTime
+                    $WorkingSetMB = [Math]::Round($SelectedProcess.WorkingSet64 / 1MB, 2)
+                    $ProcessPath = $SelectedProcess.Path
                 }
                 catch {
                     Write-Verbose "Warning: Could not retrieve all process details: $($_.Exception.Message)"
                 }
                 
-                Write-Verbose "Selected first process: PID $($status.processId) (out of $($status.processCount) total)"
+                Write-Verbose "Selected first process: PID $ProcessId (out of $ProcessCount total)"
             }
             else {
                 # Multiple processes found but no selection mode specified
                 $PIDs = ($MatchingProcesses | ForEach-Object { $_.Id }) -join ', '
-                $status.msg = "Multiple processes found with name '$SearchName' (PIDs: $PIDs). Use -SelectFirst to get the first one or -SelectAll to get all."
-                $status.processes = $MatchingProcesses
-                return $status
+                
+                $ReturnData = [PSCustomObject]@{
+                    ProcessName  = $SearchName
+                    ProcessCount = $ProcessCount
+                    Processes    = $MatchingProcesses
+                }
+                
+                return OPSreturn -Code -1 -Message "Multiple processes found with name '$SearchName' (PIDs: $PIDs). Use -SelectFirst to get the first one or -SelectAll to get all." -Data $ReturnData
             }
         }
         else {
             # Single process found
             $SingleProcess = $MatchingProcesses[0]
-            $status.processId = $SingleProcess.Id
-            $status.processHandle = $SingleProcess
-            $status.processes = @($SingleProcess)
+            $ProcessId = $SingleProcess.Id
+            $ProcessHandle = $SingleProcess
+            $ProcessesList = @($SingleProcess)
             
             try {
-                $status.startTime = $SingleProcess.StartTime
-                $status.workingSetMB = [Math]::Round($SingleProcess.WorkingSet64 / 1MB, 2)
-                $status.path = $SingleProcess.Path
+                $StartTime = $SingleProcess.StartTime
+                $WorkingSetMB = [Math]::Round($SingleProcess.WorkingSet64 / 1MB, 2)
+                $ProcessPath = $SingleProcess.Path
             }
             catch {
                 Write-Verbose "Warning: Could not retrieve all process details: $($_.Exception.Message)"
             }
             
-            Write-Verbose "Found single process: PID $($status.processId)"
+            Write-Verbose "Found single process: PID $ProcessId"
         }
         
-        # Success
-        $status.code = 0
-        $status.msg = ""
+        Write-Verbose "Process details: Name=$SearchName, PID=$ProcessId, Memory=$WorkingSetMB MB"
         
-        Write-Verbose "Process details: Name=$($status.processName), PID=$($status.processId), Memory=$($status.workingSetMB) MB"
+        # Prepare return data object with comprehensive process details
+        $ReturnData = [PSCustomObject]@{
+            ProcessName    = $SearchName
+            ProcessId      = $ProcessId
+            ProcessHandle  = $ProcessHandle
+            ProcessCount   = $ProcessCount
+            Processes      = $ProcessesList
+            StartTime      = $StartTime
+            WorkingSetMB   = $WorkingSetMB
+            Path           = $ProcessPath
+        }
         
-        return $status
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in GetProcessByName function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in GetProcessByName function: $($_.Exception.Message)"
     }
 }

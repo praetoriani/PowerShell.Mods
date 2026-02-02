@@ -34,7 +34,8 @@ function KillProcess {
     $result = KillProcess -ProcessId $pid
     if ($result.code -eq 0) {
         Write-Host "Process killed successfully"
-        Write-Host "Termination time: $($result.terminationDurationMs) ms"
+        Write-Host "Termination time: $($result.data.TerminationDurationMs) ms"
+        Write-Host "Killed processes: $($result.data.KilledProcessCount)"
     } else {
         Write-Host "Failed to kill process: $($result.msg)"
     }
@@ -46,6 +47,7 @@ function KillProcess {
     - System processes may require administrative privileges
     - Use StopProcess for graceful shutdown whenever possible
     - This function should be a last resort when graceful methods fail
+    - Returns termination statistics in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -62,25 +64,12 @@ function KillProcess {
         [int]$WaitForExit = 5
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        processId = 0
-        processName = $null
-        killedProcessCount = 0
-        terminationDurationMs = 0
-    }
-    
     # Validate mandatory parameters
     if ($ProcessId -le 0) {
-        $status.msg = "Parameter 'ProcessId' must be a positive integer"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'ProcessId' must be a positive integer"
     }
     
     try {
-        $status.processId = $ProcessId
-        
         Write-Verbose "Attempting to kill process with PID: $ProcessId"
         if ($Force) {
             Write-Verbose "Force mode enabled - will kill process tree"
@@ -90,24 +79,26 @@ function KillProcess {
         $GetResult = GetProcessByID -ProcessId $ProcessId
         
         if ($GetResult.code -ne 0) {
-            $status.msg = "Failed to retrieve process: $($GetResult.msg)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to retrieve process: $($GetResult.msg)"
         }
         
-        $Process = $GetResult.processHandle
-        $status.processName = $GetResult.processName
+        $Process = $GetResult.data.ProcessHandle
+        $ProcessName = $GetResult.data.ProcessName
         
         # Check if process has already exited
         $Process.Refresh()
         if ($Process.HasExited) {
-            $status.code = 0
-            $status.msg = ""
-            Write-Verbose "Process has already exited"
-            return $status
+            $ReturnData = [PSCustomObject]@{
+                ProcessId             = $ProcessId
+                ProcessName           = $ProcessName
+                KilledProcessCount    = 0
+                TerminationDurationMs = 0
+            }
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         
         Write-Verbose "Process information:"
-        Write-Verbose "  Name: $($status.processName)"
+        Write-Verbose "  Name: $ProcessName"
         Write-Verbose "  PID: $ProcessId"
         
         # Get child processes if Force is specified
@@ -129,17 +120,17 @@ function KillProcess {
         
         # Confirmation prompt
         $ProcessCount = 1 + $ChildProcesses.Count
-        $ConfirmMessage = "Forcefully kill process '$($status.processName)' (PID: $ProcessId)"
+        $ConfirmMessage = "Forcefully kill process '$ProcessName' (PID: $ProcessId)"
         if ($ChildProcesses.Count -gt 0) {
             $ConfirmMessage += " and $($ChildProcesses.Count) child process(es)"
         }
         
         if (-not $PSCmdlet.ShouldProcess("$ProcessCount process(es)", $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         $StopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $KilledCount = 0
         
         # Kill child processes first
         if ($ChildProcesses.Count -gt 0) {
@@ -149,7 +140,7 @@ function KillProcess {
                     $ChildPID = $ChildProc.ProcessId
                     Write-Verbose "  Killing child process: PID $ChildPID"
                     Stop-Process -Id $ChildPID -Force -ErrorAction Stop
-                    $status.killedProcessCount++
+                    $KilledCount++
                 }
                 catch {
                     Write-Verbose "  Warning: Could not kill child process $ChildPID`: $($_.Exception.Message)"
@@ -161,24 +152,27 @@ function KillProcess {
         try {
             Write-Verbose "Killing main process: PID $ProcessId"
             Stop-Process -Id $ProcessId -Force -ErrorAction Stop
-            $status.killedProcessCount++
+            $KilledCount++
         }
         catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
-            $status.msg = "Process with ID $ProcessId no longer exists"
-            return $status
+            return OPSreturn -Code -1 -Message "Process with ID $ProcessId no longer exists"
         }
         catch [System.InvalidOperationException] {
             # Process already exited
             $StopWatch.Stop()
-            $status.terminationDurationMs = $StopWatch.ElapsedMilliseconds
-            $status.code = 0
-            $status.msg = ""
+            
+            $ReturnData = [PSCustomObject]@{
+                ProcessId             = $ProcessId
+                ProcessName           = $ProcessName
+                KilledProcessCount    = $KilledCount
+                TerminationDurationMs = $StopWatch.ElapsedMilliseconds
+            }
+            
             Write-Verbose "Process has already exited"
-            return $status
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
         }
         catch {
-            $status.msg = "Error killing process: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error killing process: $($_.Exception.Message)"
         }
         
         # Verify process has actually terminated
@@ -187,45 +181,49 @@ function KillProcess {
         try {
             $Exited = $Process.WaitForExit($WaitForExit * 1000)
             $StopWatch.Stop()
-            $status.terminationDurationMs = $StopWatch.ElapsedMilliseconds
+            
+            $ReturnData = [PSCustomObject]@{
+                ProcessId             = $ProcessId
+                ProcessName           = $ProcessName
+                KilledProcessCount    = $KilledCount
+                TerminationDurationMs = $StopWatch.ElapsedMilliseconds
+            }
             
             if ($Exited) {
                 Write-Verbose "Process terminated successfully"
-                Write-Verbose "  Killed processes: $($status.killedProcessCount)"
-                Write-Verbose "  Duration: $($status.terminationDurationMs) ms"
+                Write-Verbose "  Killed processes: $KilledCount"
+                Write-Verbose "  Duration: $($StopWatch.ElapsedMilliseconds) ms"
                 
-                # Success
-                $status.code = 0
-                $status.msg = ""
-                return $status
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             else {
-                $status.msg = "Kill command was sent but process did not terminate within $WaitForExit seconds. Process may be in an unkillable state."
-                return $status
+                return OPSreturn -Code -1 -Message "Kill command was sent but process did not terminate within $WaitForExit seconds. Process may be in an unkillable state." -Data $ReturnData
             }
         }
         catch {
             # If we can't verify, assume it worked
             $StopWatch.Stop()
-            $status.terminationDurationMs = $StopWatch.ElapsedMilliseconds
             
             # Double-check if process still exists
             try {
                 $CheckProcess = Get-Process -Id $ProcessId -ErrorAction Stop
-                $status.msg = "Process may still be running - verification failed: $($_.Exception.Message)"
-                return $status
+                return OPSreturn -Code -1 -Message "Process may still be running - verification failed: $($_.Exception.Message)"
             }
             catch {
                 # Process not found = successfully killed
-                $status.code = 0
-                $status.msg = ""
+                $ReturnData = [PSCustomObject]@{
+                    ProcessId             = $ProcessId
+                    ProcessName           = $ProcessName
+                    KilledProcessCount    = $KilledCount
+                    TerminationDurationMs = $StopWatch.ElapsedMilliseconds
+                }
+                
                 Write-Verbose "Process terminated (verified by absence)"
-                return $status
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
         }
     }
     catch {
-        $status.msg = "Unexpected error in KillProcess function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in KillProcess function: $($_.Exception.Message)"
     }
 }

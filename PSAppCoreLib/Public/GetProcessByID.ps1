@@ -29,23 +29,23 @@ function GetProcessByID {
     .EXAMPLE
     $result = GetProcessByID -ProcessId $pid
     if ($result.code -eq 0) {
-        Write-Host "Process Name: $($result.processName)"
-        Write-Host "Path: $($result.path)"
-        Write-Host "Memory: $($result.workingSetMB) MB"
-        Write-Host "Threads: $($result.threadCount)"
-        Write-Host "Start Time: $($result.startTime)"
+        Write-Host "Process Name: $($result.data.ProcessName)"
+        Write-Host "Path: $($result.data.Path)"
+        Write-Host "Memory: $($result.data.WorkingSetMB) MB"
+        Write-Host "Threads: $($result.data.ThreadCount)"
+        Write-Host "Start Time: $($result.data.StartTime)"
     }
     
     .EXAMPLE
     $result = GetProcessByID -ProcessId 5678 -IncludeModules
-    foreach ($module in $result.modules) {
+    foreach ($module in $result.data.Modules) {
         Write-Host "Module: $($module.ModuleName) - $($module.FileName)"
     }
     
     .EXAMPLE
     # Check if process is still running
     $result = GetProcessByID -ProcessId 9999
-    if ($result.code -eq 0 -and -not $result.hasExited) {
+    if ($result.code -eq 0 -and -not $result.data.HasExited) {
         Write-Host "Process is running"
     }
     
@@ -55,6 +55,7 @@ function GetProcessByID {
     - System processes may require administrative privileges to access
     - Returns process handle that can be used for further operations
     - Process handle should be disposed when no longer needed
+    - Returns comprehensive process information in the data field
     #>
     
     [CmdletBinding()]
@@ -70,37 +71,12 @@ function GetProcessByID {
         [switch]$IncludeThreads
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        processId = 0
-        processName = $null
-        processHandle = $null
-        path = $null
-        commandLine = $null
-        workingSetMB = 0
-        privateMemoryMB = 0
-        virtualMemoryMB = 0
-        threadCount = 0
-        handleCount = 0
-        startTime = $null
-        totalProcessorTime = $null
-        hasExited = $false
-        exitCode = $null
-        modules = @()
-        threads = @()
-    }
-    
     # Validate mandatory parameters
     if ($ProcessId -le 0) {
-        $status.msg = "Parameter 'ProcessId' must be a positive integer"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'ProcessId' must be a positive integer"
     }
     
     try {
-        $status.processId = $ProcessId
-        
         Write-Verbose "Retrieving process with PID: $ProcessId"
         
         # Get process by ID
@@ -108,126 +84,139 @@ function GetProcessByID {
             $Process = Get-Process -Id $ProcessId -ErrorAction Stop
             
             if ($null -eq $Process) {
-                $status.msg = "Process with ID $ProcessId was not found"
-                return $status
+                return OPSreturn -Code -1 -Message "Process with ID $ProcessId was not found"
             }
         }
         catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
-            $status.msg = "Process with ID $ProcessId does not exist"
-            return $status
+            return OPSreturn -Code -1 -Message "Process with ID $ProcessId does not exist"
         }
         catch {
-            $status.msg = "Error retrieving process with ID $ProcessId`: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Error retrieving process with ID $ProcessId`: $($_.Exception.Message)"
         }
         
-        # Populate basic process information
+        # Initialize data collection variables
+        $ProcessName = $Process.ProcessName
+        $ProcessPath = $null
+        $CommandLine = $null
+        $WorkingSetMB = 0
+        $PrivateMemoryMB = 0
+        $VirtualMemoryMB = 0
+        $ThreadCount = 0
+        $HandleCount = 0
+        $StartTime = $null
+        $TotalProcessorTime = $null
+        $HasExited = $Process.HasExited
+        $ExitCode = $null
+        $ModulesList = @()
+        $ThreadsList = @()
+        
+        Write-Verbose "Found process: $ProcessName (PID: $ProcessId)"
+        
+        # Get detailed information (some may fail for system processes)
         try {
-            $status.processHandle = $Process
-            $status.processName = $Process.ProcessName
-            $status.hasExited = $Process.HasExited
-            
-            Write-Verbose "Found process: $($status.processName) (PID: $ProcessId)"
-            
-            # Get detailed information (some may fail for system processes)
-            try {
-                $status.path = $Process.Path
-            }
-            catch {
-                Write-Verbose "Warning: Could not retrieve process path: $($_.Exception.Message)"
-                $status.path = $null
-            }
-            
-            try {
-                $status.commandLine = $Process.CommandLine
-            }
-            catch {
-                Write-Verbose "Warning: Could not retrieve command line"
-                $status.commandLine = $null
-            }
-            
-            try {
-                $status.workingSetMB = [Math]::Round($Process.WorkingSet64 / 1MB, 2)
-                $status.privateMemoryMB = [Math]::Round($Process.PrivateMemorySize64 / 1MB, 2)
-                $status.virtualMemoryMB = [Math]::Round($Process.VirtualMemorySize64 / 1MB, 2)
-            }
-            catch {
-                Write-Verbose "Warning: Could not retrieve memory information: $($_.Exception.Message)"
-            }
-            
-            try {
-                $status.threadCount = $Process.Threads.Count
-                $status.handleCount = $Process.HandleCount
-            }
-            catch {
-                Write-Verbose "Warning: Could not retrieve thread/handle count: $($_.Exception.Message)"
-            }
-            
-            try {
-                $status.startTime = $Process.StartTime
-                $status.totalProcessorTime = $Process.TotalProcessorTime
-            }
-            catch {
-                Write-Verbose "Warning: Could not retrieve timing information: $($_.Exception.Message)"
-            }
-            
-            # Check if process has exited
-            if ($status.hasExited) {
-                try {
-                    $status.exitCode = $Process.ExitCode
-                    Write-Verbose "Process has exited with code: $($status.exitCode)"
-                }
-                catch {
-                    Write-Verbose "Warning: Could not retrieve exit code"
-                }
-            }
-            
-            # Include modules if requested
-            if ($IncludeModules) {
-                Write-Verbose "Retrieving loaded modules..."
-                try {
-                    $status.modules = @($Process.Modules)
-                    Write-Verbose "Found $($status.modules.Count) loaded modules"
-                }
-                catch {
-                    Write-Verbose "Warning: Could not retrieve modules: $($_.Exception.Message)"
-                    $status.modules = @()
-                }
-            }
-            
-            # Include threads if requested
-            if ($IncludeThreads) {
-                Write-Verbose "Retrieving thread information..."
-                try {
-                    $status.threads = @($Process.Threads)
-                    Write-Verbose "Found $($status.threads.Count) threads"
-                }
-                catch {
-                    Write-Verbose "Warning: Could not retrieve threads: $($_.Exception.Message)"
-                    $status.threads = @()
-                }
-            }
+            $ProcessPath = $Process.Path
         }
         catch {
-            $status.msg = "Error retrieving process details for PID $ProcessId`: $($_.Exception.Message)"
-            return $status
+            Write-Verbose "Warning: Could not retrieve process path: $($_.Exception.Message)"
         }
         
-        # Success
-        $status.code = 0
-        $status.msg = ""
+        try {
+            $CommandLine = $Process.CommandLine
+        }
+        catch {
+            Write-Verbose "Warning: Could not retrieve command line"
+        }
+        
+        try {
+            $WorkingSetMB = [Math]::Round($Process.WorkingSet64 / 1MB, 2)
+            $PrivateMemoryMB = [Math]::Round($Process.PrivateMemorySize64 / 1MB, 2)
+            $VirtualMemoryMB = [Math]::Round($Process.VirtualMemorySize64 / 1MB, 2)
+        }
+        catch {
+            Write-Verbose "Warning: Could not retrieve memory information: $($_.Exception.Message)"
+        }
+        
+        try {
+            $ThreadCount = $Process.Threads.Count
+            $HandleCount = $Process.HandleCount
+        }
+        catch {
+            Write-Verbose "Warning: Could not retrieve thread/handle count: $($_.Exception.Message)"
+        }
+        
+        try {
+            $StartTime = $Process.StartTime
+            $TotalProcessorTime = $Process.TotalProcessorTime
+        }
+        catch {
+            Write-Verbose "Warning: Could not retrieve timing information: $($_.Exception.Message)"
+        }
+        
+        # Check if process has exited
+        if ($HasExited) {
+            try {
+                $ExitCode = $Process.ExitCode
+                Write-Verbose "Process has exited with code: $ExitCode"
+            }
+            catch {
+                Write-Verbose "Warning: Could not retrieve exit code"
+            }
+        }
+        
+        # Include modules if requested
+        if ($IncludeModules) {
+            Write-Verbose "Retrieving loaded modules..."
+            try {
+                $ModulesList = @($Process.Modules)
+                Write-Verbose "Found $($ModulesList.Count) loaded modules"
+            }
+            catch {
+                Write-Verbose "Warning: Could not retrieve modules: $($_.Exception.Message)"
+            }
+        }
+        
+        # Include threads if requested
+        if ($IncludeThreads) {
+            Write-Verbose "Retrieving thread information..."
+            try {
+                $ThreadsList = @($Process.Threads)
+                Write-Verbose "Found $($ThreadsList.Count) threads"
+            }
+            catch {
+                Write-Verbose "Warning: Could not retrieve threads: $($_.Exception.Message)"
+            }
+        }
         
         Write-Verbose "Process details retrieved successfully"
-        Write-Verbose "  Name: $($status.processName)"
-        Write-Verbose "  Path: $($status.path)"
-        Write-Verbose "  Working Set: $($status.workingSetMB) MB"
-        Write-Verbose "  Threads: $($status.threadCount)"
-        Write-Verbose "  Handles: $($status.handleCount)"
+        Write-Verbose "  Name: $ProcessName"
+        Write-Verbose "  Path: $ProcessPath"
+        Write-Verbose "  Working Set: $WorkingSetMB MB"
+        Write-Verbose "  Threads: $ThreadCount"
+        Write-Verbose "  Handles: $HandleCount"
         
-        return $status
+        # Prepare return data object with comprehensive process details
+        $ReturnData = [PSCustomObject]@{
+            ProcessId           = $ProcessId
+            ProcessName         = $ProcessName
+            ProcessHandle       = $Process
+            Path                = $ProcessPath
+            CommandLine         = $CommandLine
+            WorkingSetMB        = $WorkingSetMB
+            PrivateMemoryMB     = $PrivateMemoryMB
+            VirtualMemoryMB     = $VirtualMemoryMB
+            ThreadCount         = $ThreadCount
+            HandleCount         = $HandleCount
+            StartTime           = $StartTime
+            TotalProcessorTime  = $TotalProcessorTime
+            HasExited           = $HasExited
+            ExitCode            = $ExitCode
+            Modules             = $ModulesList
+            Threads             = $ThreadsList
+        }
+        
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in GetProcessByID function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in GetProcessByID function: $($_.Exception.Message)"
     }
 }
