@@ -34,7 +34,8 @@ function RemoveOnReboot {
     $result = RemoveOnReboot -Path "C:\Temp\locked.log"
     if ($result.code -eq 0) {
         Write-Host "File scheduled for deletion on next reboot"
-        Write-Host "Reboot required: Yes"
+        Write-Host "Path: $($result.data.Path)"
+        Write-Host "Reboot required: $($result.data.RebootRequired)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -48,6 +49,7 @@ function RemoveOnReboot {
     - To view pending operations: Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" -Name PendingFileRenameOperations
     - Deletion occurs automatically on next reboot - cannot be cancelled except by removing registry entry
     - If the file/directory doesn't exist at reboot time, no error occurs
+    - Returns reboot scheduling details in the data field
     
     .LINK
     https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw
@@ -66,18 +68,9 @@ function RemoveOnReboot {
         [switch]$Force
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        path = $null
-        rebootRequired = $false
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
@@ -85,23 +78,20 @@ function RemoveOnReboot {
         $IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         
         if (-not $IsAdmin) {
-            $status.msg = "Administrator privileges are required to schedule file operations for reboot. Please run PowerShell as Administrator."
-            return $status
+            return OPSreturn -Code -1 -Message "Administrator privileges are required to schedule file operations for reboot. Please run PowerShell as Administrator."
         }
         
         # Normalize path
-        $NormalizedPath = $Path.Replace('/', '\').TrimEnd('\')
+        $NormalizedPath = $Path.Replace('/', '\\').TrimEnd('\\')
         
         # Check if path is a UNC path (not supported for pending operations)
-        if ($NormalizedPath.StartsWith('\\')) {
-            $status.msg = "UNC paths are not supported for pending file operations. Only local paths (C:\, D:\, etc.) can be used."
-            return $status
+        if ($NormalizedPath.StartsWith('\\\\')) {
+            return OPSreturn -Code -1 -Message "UNC paths are not supported for pending file operations. Only local paths (C:\\, D:\\, etc.) can be used."
         }
         
         # Validate that path is a valid Windows path format
-        if (-not ($NormalizedPath -match '^[A-Za-z]:\\')) {
-            $status.msg = "Path must be a valid Windows local path starting with a drive letter (e.g., C:\, D:\)"
-            return $status
+        if (-not ($NormalizedPath -match '^[A-Za-z]:\\\\')) {
+            return OPSreturn -Code -1 -Message "Path must be a valid Windows local path starting with a drive letter (e.g., C:\\, D:\\)"
         }
         
         # Convert to absolute path if needed
@@ -109,8 +99,7 @@ function RemoveOnReboot {
             $AbsolutePath = [System.IO.Path]::GetFullPath($NormalizedPath)
         }
         catch {
-            $status.msg = "Invalid path format: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Invalid path format: $($_.Exception.Message)"
         }
         
         # Check if path exists (optional - it may not exist yet or may be locked)
@@ -130,10 +119,8 @@ function RemoveOnReboot {
             Write-Verbose "Path does not currently exist: $AbsolutePath (it will be deleted if it exists at reboot time)"
         }
         
-        $status.path = $AbsolutePath
-        
         # Registry path for pending file operations
-        $RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager"
+        $RegistryPath = "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager"
         $ValueName = "PendingFileRenameOperations"
         
         # Prepare confirmation message
@@ -158,7 +145,7 @@ function RemoveOnReboot {
                 # Prepare the new entry
                 # Format: Source path, then empty string (which means delete)
                 # Paths must be in DOS device format: \??\C:\Path\To\File
-                $DosDevicePath = "\??\" + $AbsolutePath
+                $DosDevicePath = "\\??\\" + $AbsolutePath
                 $NewEntry = @($DosDevicePath, "")
                 
                 # Combine with existing entries
@@ -183,8 +170,7 @@ function RemoveOnReboot {
                     Write-Verbose "Successfully added pending file operation to registry"
                 }
                 catch {
-                    $status.msg = "Failed to write to registry: $($_.Exception.Message)"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Failed to write to registry: $($_.Exception.Message)"
                 }
                 
                 # Verify the entry was added
@@ -193,48 +179,47 @@ function RemoveOnReboot {
                     
                     if ($VerifyValue -contains $DosDevicePath) {
                         Write-Verbose "Verified: Pending operation was successfully registered"
-                        $status.rebootRequired = $true
                     }
                     else {
-                        $status.msg = "Registry write reported success, but verification failed. The pending operation may not have been registered correctly."
-                        return $status
+                        return OPSreturn -Code -1 -Message "Registry write reported success, but verification failed. The pending operation may not have been registered correctly."
                     }
                 }
                 catch {
                     Write-Verbose "Warning: Could not verify registry entry: $($_.Exception.Message)"
                     # Still consider it successful since the write operation succeeded
-                    $status.rebootRequired = $true
                 }
                 
                 Write-Verbose "Successfully scheduled for deletion on reboot: $AbsolutePath"
                 Write-Host "`nIMPORTANT: A system reboot is required for the deletion to take effect." -ForegroundColor Yellow
                 Write-Host "The $TypeString will be deleted during the boot process.`n" -ForegroundColor Yellow
+                
+                # Prepare return data object with reboot scheduling details
+                $ReturnData = [PSCustomObject]@{
+                    Path            = $AbsolutePath
+                    IsDirectory     = $IsDirectory.IsPresent
+                    PathExists      = $PathExists
+                    RebootRequired  = $true
+                    DosDevicePath   = $DosDevicePath
+                    RegistryPath    = "$RegistryPath\\$ValueName"
+                }
+                
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             else {
-                $status.msg = "Operation cancelled by user"
-                return $status
+                return OPSreturn -Code -1 -Message "Operation cancelled by user"
             }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when modifying registry. Ensure you are running as Administrator."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when modifying registry. Ensure you are running as Administrator."
         }
         catch [System.Security.SecurityException] {
-            $status.msg = "Security exception when modifying registry: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Security exception when modifying registry: $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to schedule deletion for '$AbsolutePath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to schedule deletion for '$AbsolutePath': $($_.Exception.Message)"
         }
-        
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
     }
     catch {
-        $status.msg = "Unexpected error in RemoveOnReboot function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RemoveOnReboot function: $($_.Exception.Message)"
     }
 }

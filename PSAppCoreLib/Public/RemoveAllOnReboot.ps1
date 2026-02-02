@@ -35,9 +35,10 @@ function RemoveAllOnReboot {
     $result = RemoveAllOnReboot -Path "D:\LockedFiles"
     if ($result.code -eq 0) {
         Write-Host "Successfully scheduled for deletion:"
-        Write-Host "Files: $($result.fileCount)"
-        Write-Host "Directories: $($result.directoryCount)"
-        Write-Host "Total size: $($result.totalSizeBytes) bytes"
+        Write-Host "Path: $($result.data.Path)"
+        Write-Host "Files: $($result.data.FileCount)"
+        Write-Host "Directories: $($result.data.DirectoryCount)"
+        Write-Host "Total size: $($result.data.TotalSizeBytes) bytes"
         Write-Host "Reboot required to complete deletion"
     }
     
@@ -49,6 +50,7 @@ function RemoveAllOnReboot {
     - Use with caution - deletion is irreversible after reboot
     - Items are registered in specific order: all files first, then directories (deepest first)
     - If registry modification fails for any item, the operation continues but reports errors
+    - Returns comprehensive bulk reboot scheduling statistics in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -61,22 +63,9 @@ function RemoveAllOnReboot {
         [bool]$IncludeRootDirectory = $true
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        path = $null
-        fileCount = 0
-        directoryCount = 0
-        totalSizeBytes = 0
-        registeredItems = @()
-        failedItems = @()
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     # Check for administrative privileges
@@ -84,34 +73,29 @@ function RemoveAllOnReboot {
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     
     if (-not $isAdmin) {
-        $status.msg = "This function requires administrative privileges. Please run PowerShell as Administrator."
-        return $status
+        return OPSreturn -Code -1 -Message "This function requires administrative privileges. Please run PowerShell as Administrator."
     }
     
     try {
         # Normalize path
-        $NormalizedPath = $Path.Replace('/', '\').TrimEnd('\')
+        $NormalizedPath = $Path.Replace('/', '\\').TrimEnd('\\')
         
         # Check if directory exists
         if (-not (Test-Path -Path $NormalizedPath -PathType Container)) {
-            $status.msg = "Directory '$NormalizedPath' does not exist or is not a directory"
-            return $status
+            return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' does not exist or is not a directory"
         }
         
         # Check if path is a file instead of directory
         if (Test-Path -Path $NormalizedPath -PathType Leaf) {
-            $status.msg = "Path '$NormalizedPath' is a file, not a directory. Use RemoveOnReboot for single files."
-            return $status
+            return OPSreturn -Code -1 -Message "Path '$NormalizedPath' is a file, not a directory. Use RemoveOnReboot for single files."
         }
         
         # Get directory item
         try {
             $RootDirectory = Get-Item -Path $NormalizedPath -ErrorAction Stop
-            $status.path = $RootDirectory.FullName
         }
         catch {
-            $status.msg = "Failed to access directory '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to access directory '$NormalizedPath': $($_.Exception.Message)"
         }
         
         # Confirmation for high-impact operation
@@ -119,8 +103,7 @@ function RemoveAllOnReboot {
         $ConfirmMessage = "Schedule deletion of directory '$NormalizedPath' and all $ItemCount items on next reboot"
         
         if (-not $PSCmdlet.ShouldProcess($NormalizedPath, $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
         
         Write-Verbose "Starting recursive directory traversal: $NormalizedPath"
@@ -128,6 +111,7 @@ function RemoveAllOnReboot {
         # Lists to store files and directories
         $AllFiles = New-Object System.Collections.ArrayList
         $AllDirectories = New-Object System.Collections.ArrayList
+        $TotalSize = 0
         
         # Recursively collect all files and directories
         try {
@@ -144,22 +128,21 @@ function RemoveAllOnReboot {
                 else {
                     # It's a file
                     [void]$AllFiles.Add($item)
-                    $status.totalSizeBytes += $item.Length
+                    $TotalSize += $item.Length
                 }
             }
             
             # Sort directories by depth (deepest first) to ensure proper deletion order
-            $AllDirectories = $AllDirectories | Sort-Object { $_.FullName.Split('\').Count } -Descending
+            $AllDirectories = $AllDirectories | Sort-Object { $_.FullName.Split('\\').Count } -Descending
             
             Write-Verbose "Found $($AllFiles.Count) files and $($AllDirectories.Count) directories"
         }
         catch {
-            $status.msg = "Failed to enumerate directory contents: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to enumerate directory contents: $($_.Exception.Message)"
         }
         
         # Registry path for pending operations
-        $RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager"
+        $RegistryPath = "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager"
         $RegistryValueName = "PendingFileRenameOperations"
         
         # Get current pending operations
@@ -180,20 +163,24 @@ function RemoveAllOnReboot {
         
         # Counter for successfully registered items
         $RegisteredCount = 0
+        $FileCount = 0
+        $DirCount = 0
+        $RegisteredItemsList = @()
+        $FailedItemsList = @()
         
         # Register all FILES first
         Write-Verbose "Registering $($AllFiles.Count) files for deletion..."
         foreach ($file in $AllFiles) {
             try {
                 # Convert to native path format (e.g., \??\C:\path\to\file)
-                $NativePath = "\??\" + $file.FullName
+                $NativePath = "\\??\\" + $file.FullName
                 
                 # Add file path and empty string (for deletion)
                 [void]$PendingOperations.Add($NativePath)
                 [void]$PendingOperations.Add("")
                 
-                $status.registeredItems += $file.FullName
-                $status.fileCount++
+                $RegisteredItemsList += $file.FullName
+                $FileCount++
                 $RegisteredCount++
                 
                 Write-Verbose "Registered file: $($file.FullName)"
@@ -203,7 +190,7 @@ function RemoveAllOnReboot {
                     path = $file.FullName
                     error = $_.Exception.Message
                 }
-                $status.failedItems += $ErrorInfo
+                $FailedItemsList += $ErrorInfo
                 Write-Verbose "Failed to register file: $($file.FullName) - $($_.Exception.Message)"
             }
         }
@@ -213,14 +200,14 @@ function RemoveAllOnReboot {
         foreach ($directory in $AllDirectories) {
             try {
                 # Convert to native path format
-                $NativePath = "\??\" + $directory.FullName
+                $NativePath = "\\??\\" + $directory.FullName
                 
                 # Add directory path and empty string (for deletion)
                 [void]$PendingOperations.Add($NativePath)
                 [void]$PendingOperations.Add("")
                 
-                $status.registeredItems += $directory.FullName
-                $status.directoryCount++
+                $RegisteredItemsList += $directory.FullName
+                $DirCount++
                 $RegisteredCount++
                 
                 Write-Verbose "Registered directory: $($directory.FullName)"
@@ -230,7 +217,7 @@ function RemoveAllOnReboot {
                     path = $directory.FullName
                     error = $_.Exception.Message
                 }
-                $status.failedItems += $ErrorInfo
+                $FailedItemsList += $ErrorInfo
                 Write-Verbose "Failed to register directory: $($directory.FullName) - $($_.Exception.Message)"
             }
         }
@@ -238,12 +225,12 @@ function RemoveAllOnReboot {
         # Register root directory if requested
         if ($IncludeRootDirectory) {
             try {
-                $NativePath = "\??\" + $RootDirectory.FullName
+                $NativePath = "\\??\\" + $RootDirectory.FullName
                 [void]$PendingOperations.Add($NativePath)
                 [void]$PendingOperations.Add("")
                 
-                $status.registeredItems += $RootDirectory.FullName
-                $status.directoryCount++
+                $RegisteredItemsList += $RootDirectory.FullName
+                $DirCount++
                 $RegisteredCount++
                 
                 Write-Verbose "Registered root directory: $($RootDirectory.FullName)"
@@ -253,7 +240,7 @@ function RemoveAllOnReboot {
                     path = $RootDirectory.FullName
                     error = $_.Exception.Message
                 }
-                $status.failedItems += $ErrorInfo
+                $FailedItemsList += $ErrorInfo
                 Write-Verbose "Failed to register root directory: $($RootDirectory.FullName) - $($_.Exception.Message)"
             }
         }
@@ -267,32 +254,38 @@ function RemoveAllOnReboot {
             Write-Verbose "Successfully updated registry with $RegisteredCount new deletion operations"
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied writing to registry. Ensure you have administrative privileges."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied writing to registry. Ensure you have administrative privileges."
         }
         catch {
-            $status.msg = "Failed to write pending operations to registry: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to write pending operations to registry: $($_.Exception.Message)"
+        }
+        
+        Write-Verbose "Successfully scheduled complete directory deletion on reboot: $($RootDirectory.FullName)"
+        Write-Verbose "Files: $FileCount, Directories: $DirCount, Total size: $TotalSize bytes"
+        
+        # Prepare return data object with bulk reboot scheduling statistics
+        $ReturnData = [PSCustomObject]@{
+            Path                   = $RootDirectory.FullName
+            FileCount              = $FileCount
+            DirectoryCount         = $DirCount
+            TotalSizeBytes         = $TotalSize
+            IncludeRootDirectory   = $IncludeRootDirectory
+            RegisteredItemsCount   = $RegisteredCount
+            RegisteredItems        = $RegisteredItemsList
+            FailedItemsCount       = $FailedItemsList.Count
+            FailedItems            = $FailedItemsList
+            RebootRequired         = $true
         }
         
         # Check if any items failed to register
-        if ($status.failedItems.Count -gt 0) {
-            $status.msg = "Successfully registered $RegisteredCount items, but $($status.failedItems.Count) items failed. Check failedItems property for details."
-            $status.code = 1  # Partial success
-            return $status
+        if ($FailedItemsList.Count -gt 0) {
+            return OPSreturn -Code 1 -Message "Successfully registered $RegisteredCount items, but $($FailedItemsList.Count) items failed. Check failedItems property for details." -Data $ReturnData
         }
         
         # Complete success
-        $status.code = 0
-        $status.msg = ""
-        
-        Write-Verbose "Successfully scheduled complete directory deletion on reboot: $($status.path)"
-        Write-Verbose "Files: $($status.fileCount), Directories: $($status.directoryCount), Total size: $($status.totalSizeBytes) bytes"
-        
-        return $status
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in RemoveAllOnReboot function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RemoveAllOnReboot function: $($_.Exception.Message)"
     }
 }
