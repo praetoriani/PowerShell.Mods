@@ -51,8 +51,8 @@ function CreateNewFile {
     .EXAMPLE
     $result = CreateNewFile -Path "C:\Temp\test.txt" -Content "Test" -Encoding "ASCII"
     if ($result.code -eq 0) {
-        Write-Host "File created: $($result.fullPath)"
-        Write-Host "Size: $($result.sizeBytes) bytes"
+        Write-Host "File created: $($result.data.FullPath)"
+        Write-Host "Size: $($result.data.SizeBytes) bytes"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -64,6 +64,7 @@ function CreateNewFile {
     - For text content, UTF-8 encoding without BOM is used by default
     - Binary content (byte arrays) is written directly without encoding
     - Path length must not exceed Windows maximum path length (260 characters by default)
+    - Returns file path and size in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
@@ -83,30 +84,20 @@ function CreateNewFile {
         [switch]$Force
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        fullPath = $null
-        sizeBytes = 0
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
         # Normalize path separators
-        $NormalizedPath = $Path.Replace('/', '\')
+        $NormalizedPath = $Path.Replace('/', '\\')
         
         # Validate path format and check for invalid characters
         $InvalidPathChars = [System.IO.Path]::GetInvalidPathChars()
         foreach ($char in $InvalidPathChars) {
             if ($NormalizedPath.Contains($char)) {
-                $status.msg = "Path contains invalid character: '$char'"
-                return $status
+                return OPSreturn -Code -1 -Message "Path contains invalid character: '$char'"
             }
         }
         
@@ -116,14 +107,12 @@ function CreateNewFile {
             $InvalidFileNameChars = [System.IO.Path]::GetInvalidFileNameChars()
             foreach ($char in $InvalidFileNameChars) {
                 if ($FileName.Contains($char)) {
-                    $status.msg = "Filename contains invalid character: '$char'"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Filename contains invalid character: '$char'"
                 }
             }
         }
         catch {
-            $status.msg = "Invalid path format: $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Invalid path format: $($_.Exception.Message)"
         }
         
         # Check for reserved Windows names
@@ -133,29 +122,25 @@ function CreateNewFile {
                            'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9')
         
         if ($FileNameWithoutExt.ToUpper() -in $ReservedNames) {
-            $status.msg = "Filename '$FileName' uses a reserved Windows name and cannot be used"
-            return $status
+            return OPSreturn -Code -1 -Message "Filename '$FileName' uses a reserved Windows name and cannot be used"
         }
         
         # Check path length
         if ($NormalizedPath.Length -gt 260) {
-            $status.msg = "Path length ($($NormalizedPath.Length) characters) exceeds Windows maximum path length (260 characters)"
-            return $status
+            return OPSreturn -Code -1 -Message "Path length ($($NormalizedPath.Length) characters) exceeds Windows maximum path length (260 characters)"
         }
         
         # Check if file already exists
         if (Test-Path -Path $NormalizedPath -PathType Leaf) {
             if (-not $Force) {
-                $status.msg = "File '$NormalizedPath' already exists. Use -Force to overwrite."
-                return $status
+                return OPSreturn -Code -1 -Message "File '$NormalizedPath' already exists. Use -Force to overwrite."
             }
             Write-Verbose "File exists and will be overwritten (Force parameter specified)"
         }
         
         # Check if path exists as a directory
         if (Test-Path -Path $NormalizedPath -PathType Container) {
-            $status.msg = "A directory with the name '$NormalizedPath' already exists. Cannot create file."
-            return $status
+            return OPSreturn -Code -1 -Message "A directory with the name '$NormalizedPath' already exists. Cannot create file."
         }
         
         # Get parent directory
@@ -169,13 +154,11 @@ function CreateNewFile {
                     New-Item -Path $ParentPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
                 }
                 catch {
-                    $status.msg = "Failed to create parent directory '$ParentPath': $($_.Exception.Message)"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Failed to create parent directory '$ParentPath': $($_.Exception.Message)"
                 }
             }
             else {
-                $status.msg = "Parent directory '$ParentPath' does not exist. Use -Force to create it automatically."
-                return $status
+                return OPSreturn -Code -1 -Message "Parent directory '$ParentPath' does not exist. Use -Force to create it automatically."
             }
         }
         
@@ -212,48 +195,43 @@ function CreateNewFile {
                 }
                 
                 if ($null -eq $CreatedFile) {
-                    $status.msg = "Failed to create file '$NormalizedPath'. Operation returned null."
-                    return $status
+                    return OPSreturn -Code -1 -Message "Failed to create file '$NormalizedPath'. Operation returned null."
                 }
                 
                 # Verify the file was created
                 if (-not (Test-Path -Path $NormalizedPath -PathType Leaf)) {
-                    $status.msg = "File creation reported success, but verification failed for '$NormalizedPath'"
-                    return $status
+                    return OPSreturn -Code -1 -Message "File creation reported success, but verification failed for '$NormalizedPath'"
                 }
                 
                 # Get file information
                 $FileInfo = Get-Item -Path $NormalizedPath -ErrorAction Stop
-                $status.fullPath = $FileInfo.FullName
-                $status.sizeBytes = $FileInfo.Length
                 
-                Write-Verbose "Successfully created file: $($status.fullPath) ($($status.sizeBytes) bytes)"
+                Write-Verbose "Successfully created file: $($FileInfo.FullName) ($($FileInfo.Length) bytes)"
+                
+                # Prepare return data object with file information
+                $ReturnData = [PSCustomObject]@{
+                    FullPath  = $FileInfo.FullName
+                    SizeBytes = $FileInfo.Length
+                }
             }
             else {
-                $status.msg = "Operation cancelled by user"
-                return $status
+                return OPSreturn -Code -1 -Message "Operation cancelled by user"
             }
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when creating file '$NormalizedPath'. Check your permissions."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when creating file '$NormalizedPath'. Check your permissions."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error when creating file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error when creating file '$NormalizedPath': $($_.Exception.Message)"
         }
         catch {
-            $status.msg = "Failed to create file '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to create file '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with file information in data field
+        return OPSreturn -Code 0 -Message "" -Data $ReturnData
     }
     catch {
-        $status.msg = "Unexpected error in CreateNewFile function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in CreateNewFile function: $($_.Exception.Message)"
     }
 }

@@ -33,7 +33,7 @@ function CreateNewDir {
     .EXAMPLE
     $result = CreateNewDir -Path "C:\Projects\NewProject"
     if ($result.code -eq 0) {
-        Write-Host "Directory created: $($result.fullPath)"
+        Write-Host "Directory created: $($result.data)"
     } else {
         Write-Host "Error: $($result.msg)"
     }
@@ -45,6 +45,7 @@ function CreateNewDir {
     - Supports both local paths (C:\...) and UNC paths (\\Server\Share\...)
     - Path length must not exceed Windows maximum path length (260 characters by default)
     - Reserved names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) are not allowed
+    - Returns the full path of the created directory in the data field on success
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
@@ -57,29 +58,20 @@ function CreateNewDir {
         [switch]$Force
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        fullPath = $null
-    }
-    
     # Validate mandatory parameters
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        $status.msg = "Parameter 'Path' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Path' is required but was not provided or is empty"
     }
     
     try {
         # Normalize path separators and remove trailing slashes
-        $NormalizedPath = $Path.TrimEnd('\', '/')
+        $NormalizedPath = $Path.TrimEnd('\\', '/')
         
         # Validate path format and check for invalid characters
         $InvalidPathChars = [System.IO.Path]::GetInvalidPathChars()
         foreach ($char in $InvalidPathChars) {
             if ($NormalizedPath.Contains($char)) {
-                $status.msg = "Path contains invalid character: '$char'"
-                return $status
+                return OPSreturn -Code -1 -Message "Path contains invalid character: '$char'"
             }
         }
         
@@ -90,32 +82,27 @@ function CreateNewDir {
                            'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9')
         
         if ($DirectoryName -in $ReservedNames) {
-            $status.msg = "Directory name '$DirectoryName' is a reserved Windows name and cannot be used"
-            return $status
+            return OPSreturn -Code -1 -Message "Directory name '$DirectoryName' is a reserved Windows name and cannot be used"
         }
         
         # Check path length (Windows default max path is 260 characters)
         if ($NormalizedPath.Length -gt 260) {
-            $status.msg = "Path length ($($NormalizedPath.Length) characters) exceeds Windows maximum path length (260 characters)"
-            return $status
+            return OPSreturn -Code -1 -Message "Path length ($($NormalizedPath.Length) characters) exceeds Windows maximum path length (260 characters)"
         }
         
         # Validate that path is not just a drive letter
         if ($NormalizedPath -match '^[A-Za-z]:$') {
-            $status.msg = "Cannot create a directory with only a drive letter. Please specify a directory name."
-            return $status
+            return OPSreturn -Code -1 -Message "Cannot create a directory with only a drive letter. Please specify a directory name."
         }
         
         # Check if directory already exists
         if (Test-Path -Path $NormalizedPath -PathType Container) {
-            $status.msg = "Directory '$NormalizedPath' already exists"
-            return $status
+            return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' already exists"
         }
         
         # Check if path exists as a file (not a directory)
         if (Test-Path -Path $NormalizedPath -PathType Leaf) {
-            $status.msg = "A file with the name '$NormalizedPath' already exists. Cannot create directory."
-            return $status
+            return OPSreturn -Code -1 -Message "A file with the name '$NormalizedPath' already exists. Cannot create directory."
         }
         
         # Get parent directory
@@ -144,51 +131,38 @@ function CreateNewDir {
                     $CreatedDir = New-Item -Path $NormalizedPath -ItemType Directory -ErrorAction Stop
                 }
                 else {
-                    $status.msg = "Operation cancelled by user"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Operation cancelled by user"
                 }
             }
             
             if ($null -eq $CreatedDir) {
-                $status.msg = "Failed to create directory '$NormalizedPath'. New-Item returned null."
-                return $status
+                return OPSreturn -Code -1 -Message "Failed to create directory '$NormalizedPath'. New-Item returned null."
             }
             
             # Verify the directory was created
             if (-not (Test-Path -Path $NormalizedPath -PathType Container)) {
-                $status.msg = "Directory creation reported success, but verification failed for '$NormalizedPath'"
-                return $status
+                return OPSreturn -Code -1 -Message "Directory creation reported success, but verification failed for '$NormalizedPath'"
             }
             
-            # Get the full path of the created directory
-            $status.fullPath = $CreatedDir.FullName
-            
-            Write-Verbose "Successfully created directory: $($status.fullPath)"
+            Write-Verbose "Successfully created directory: $($CreatedDir.FullName)"
         }
         catch [System.UnauthorizedAccessException] {
-            $status.msg = "Access denied when creating directory '$NormalizedPath'. Check your permissions."
-            return $status
+            return OPSreturn -Code -1 -Message "Access denied when creating directory '$NormalizedPath'. Check your permissions."
         }
         catch [System.IO.IOException] {
-            $status.msg = "I/O error when creating directory '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "I/O error when creating directory '$NormalizedPath': $($_.Exception.Message)"
         }
         catch [System.IO.DirectoryNotFoundException] {
-            $status.msg = "Parent directory not found for '$NormalizedPath'. Use -Force to create parent directories automatically."
-            return $status
+            return OPSreturn -Code -1 -Message "Parent directory not found for '$NormalizedPath'. Use -Force to create parent directories automatically."
         }
         catch {
-            $status.msg = "Failed to create directory '$NormalizedPath': $($_.Exception.Message)"
-            return $status
+            return OPSreturn -Code -1 -Message "Failed to create directory '$NormalizedPath': $($_.Exception.Message)"
         }
         
-        # Success - reset status object
-        $status.code = 0
-        $status.msg = ""
-        return $status
+        # Success - return with full path in data field
+        return OPSreturn -Code 0 -Message "" -Data $CreatedDir.FullName
     }
     catch {
-        $status.msg = "Unexpected error in CreateNewDir function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in CreateNewDir function: $($_.Exception.Message)"
     }
 }
