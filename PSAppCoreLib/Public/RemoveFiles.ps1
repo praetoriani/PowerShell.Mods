@@ -36,9 +36,12 @@ function RemoveFiles {
     
     .EXAMPLE
     $result = RemoveFiles -Paths @("C:\file1.txt", "C:\file2.txt") -Force
-    Write-Host "Successfully deleted: $($result.successCount) files"
-    Write-Host "Failed: $($result.failureCount) files"
-    Write-Host "Total size freed: $($result.totalSizeBytes) bytes"
+    Write-Host "Successfully deleted: $($result.data.SuccessCount) files"
+    Write-Host "Failed: $($result.data.FailureCount) files"
+    Write-Host "Total size freed: $($result.data.TotalSizeBytes) bytes"
+    foreach ($file in $result.data.DeletedFiles) {
+        Write-Host "Deleted: $($file.Path) ($($file.SizeBytes) bytes)"
+    }
     
     .EXAMPLE
     # Stop on first error
@@ -51,6 +54,7 @@ function RemoveFiles {
     - Returns detailed results including success/failure counts and error messages
     - With -StopOnError, no files are deleted if any error occurs in validation
     - Read-only attributes are automatically removed with -Force parameter
+    - Returns comprehensive bulk operation statistics in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -66,21 +70,9 @@ function RemoveFiles {
         [switch]$StopOnError
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        successCount = 0
-        failureCount = 0
-        totalSizeBytes = 0
-        deletedFiles = @()
-        failedFiles = @()
-    }
-    
     # Validate mandatory parameters
     if ($null -eq $Paths -or $Paths.Count -eq 0) {
-        $status.msg = "Parameter 'Paths' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Paths' is required but was not provided or is empty"
     }
     
     try {
@@ -89,15 +81,13 @@ function RemoveFiles {
             Write-Verbose "Validating all files before deletion..."
             foreach ($path in $Paths) {
                 if ([string]::IsNullOrWhiteSpace($path)) {
-                    $status.msg = "One of the file paths is null or empty"
-                    return $status
+                    return OPSreturn -Code -1 -Message "One of the file paths is null or empty"
                 }
                 
-                $NormalizedPath = $path.Replace('/', '\').TrimEnd('\')
+                $NormalizedPath = $path.Replace('/', '\\').TrimEnd('\\')
                 
                 if (-not (Test-Path -Path $NormalizedPath -PathType Leaf)) {
-                    $status.msg = "File '$NormalizedPath' does not exist or is not a file"
-                    return $status
+                    return OPSreturn -Code -1 -Message "File '$NormalizedPath' does not exist or is not a file"
                 }
             }
         }
@@ -113,6 +103,8 @@ function RemoveFiles {
             $DeletedCount = 0
             $FailedCount = 0
             $TotalSize = 0
+            $DeletedFilesList = @()
+            $FailedFilesList = @()
             
             foreach ($path in $Paths) {
                 try {
@@ -122,22 +114,26 @@ function RemoveFiles {
                         continue
                     }
                     
-                    $NormalizedPath = $path.Replace('/', '\').TrimEnd('\')
+                    $NormalizedPath = $path.Replace('/', '\\').TrimEnd('\\')
                     
                     # Check if file exists
                     if (-not (Test-Path -Path $NormalizedPath -PathType Leaf)) {
                         $errorMsg = "File '$NormalizedPath' does not exist or is not a file"
-                        $status.failedFiles += [PSCustomObject]@{
+                        $FailedFilesList += [PSCustomObject]@{
                             Path = $NormalizedPath
                             Error = $errorMsg
                         }
                         $FailedCount++
                         
                         if ($StopOnError) {
-                            $status.msg = $errorMsg
-                            $status.successCount = $DeletedCount
-                            $status.failureCount = $FailedCount
-                            return $status
+                            $ReturnData = [PSCustomObject]@{
+                                SuccessCount   = $DeletedCount
+                                FailureCount   = $FailedCount
+                                TotalSizeBytes = $TotalSize
+                                DeletedFiles   = $DeletedFilesList
+                                FailedFiles    = $FailedFilesList
+                            }
+                            return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                         }
                         
                         Write-Verbose "Skipping: $errorMsg"
@@ -151,8 +147,8 @@ function RemoveFiles {
                     
                     # Safety check for system files in critical directories
                     $CriticalDirs = @(
-                        "$env:SystemRoot\System32",
-                        "$env:SystemRoot\SysWOW64",
+                        "$env:SystemRoot\\System32",
+                        "$env:SystemRoot\\SysWOW64",
                         "$env:SystemRoot"
                     )
                     
@@ -163,17 +159,21 @@ function RemoveFiles {
                         if ($criticalDir -and $FileDirectory.StartsWith($criticalDir.ToLower())) {
                             if ($FileInfo.Attributes -band [System.IO.FileAttributes]::System) {
                                 $errorMsg = "Cannot delete system file in critical directory: '$FullPath'"
-                                $status.failedFiles += [PSCustomObject]@{
+                                $FailedFilesList += [PSCustomObject]@{
                                     Path = $FullPath
                                     Error = $errorMsg
                                 }
                                 $FailedCount++
                                 
                                 if ($StopOnError) {
-                                    $status.msg = $errorMsg
-                                    $status.successCount = $DeletedCount
-                                    $status.failureCount = $FailedCount
-                                    return $status
+                                    $ReturnData = [PSCustomObject]@{
+                                        SuccessCount   = $DeletedCount
+                                        FailureCount   = $FailedCount
+                                        TotalSizeBytes = $TotalSize
+                                        DeletedFiles   = $DeletedFilesList
+                                        FailedFiles    = $FailedFilesList
+                                    }
+                                    return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                                 }
                                 
                                 Write-Verbose "Skipping: $errorMsg"
@@ -208,24 +208,28 @@ function RemoveFiles {
                     # Verify deletion
                     if (Test-Path -Path $NormalizedPath) {
                         $errorMsg = "Deletion reported success, but file still exists: '$FullPath'"
-                        $status.failedFiles += [PSCustomObject]@{
+                        $FailedFilesList += [PSCustomObject]@{
                             Path = $FullPath
                             Error = $errorMsg
                         }
                         $FailedCount++
                         
                         if ($StopOnError) {
-                            $status.msg = $errorMsg
-                            $status.successCount = $DeletedCount
-                            $status.failureCount = $FailedCount
-                            return $status
+                            $ReturnData = [PSCustomObject]@{
+                                SuccessCount   = $DeletedCount
+                                FailureCount   = $FailedCount
+                                TotalSizeBytes = $TotalSize
+                                DeletedFiles   = $DeletedFilesList
+                                FailedFiles    = $FailedFilesList
+                            }
+                            return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                         }
                         
                         continue
                     }
                     
                     # Record success
-                    $status.deletedFiles += [PSCustomObject]@{
+                    $DeletedFilesList += [PSCustomObject]@{
                         Path = $FullPath
                         SizeBytes = $FileSize
                     }
@@ -237,51 +241,54 @@ function RemoveFiles {
                 }
                 catch {
                     $errorMsg = "Failed to delete '$path': $($_.Exception.Message)"
-                    $status.failedFiles += [PSCustomObject]@{
+                    $FailedFilesList += [PSCustomObject]@{
                         Path = $path
                         Error = $errorMsg
                     }
                     $FailedCount++
                     
                     if ($StopOnError) {
-                        $status.msg = $errorMsg
-                        $status.successCount = $DeletedCount
-                        $status.failureCount = $FailedCount
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            SuccessCount   = $DeletedCount
+                            FailureCount   = $FailedCount
+                            TotalSizeBytes = $TotalSize
+                            DeletedFiles   = $DeletedFilesList
+                            FailedFiles    = $FailedFilesList
+                        }
+                        return OPSreturn -Code -1 -Message $errorMsg -Data $ReturnData
                     }
                     
                     Write-Verbose "Error: $errorMsg"
                 }
             }
             
-            # Set final statistics
-            $status.successCount = $DeletedCount
-            $status.failureCount = $FailedCount
-            $status.totalSizeBytes = $TotalSize
-            
             Write-Verbose "Deletion operation completed: $DeletedCount succeeded, $FailedCount failed, Total size: $TotalSize bytes"
+            
+            # Prepare return data object with bulk operation statistics
+            $ReturnData = [PSCustomObject]@{
+                SuccessCount   = $DeletedCount
+                FailureCount   = $FailedCount
+                TotalSizeBytes = $TotalSize
+                DeletedFiles   = $DeletedFilesList
+                FailedFiles    = $FailedFilesList
+            }
             
             # Determine overall success
             if ($FailedCount -eq 0) {
-                $status.code = 0
-                $status.msg = ""
+                return OPSreturn -Code 0 -Message "" -Data $ReturnData
             }
             elseif ($DeletedCount -gt 0) {
-                $status.code = 0
-                $status.msg = "Partial success: $DeletedCount file(s) deleted, $FailedCount file(s) failed"
+                return OPSreturn -Code 0 -Message "Partial success: $DeletedCount file(s) deleted, $FailedCount file(s) failed" -Data $ReturnData
             }
             else {
-                $status.msg = "All deletion operations failed"
+                return OPSreturn -Code -1 -Message "All deletion operations failed" -Data $ReturnData
             }
         }
         else {
-            $status.msg = "Operation cancelled by user"
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
-        
-        return $status
     }
     catch {
-        $status.msg = "Unexpected error in RemoveFiles function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RemoveFiles function: $($_.Exception.Message)"
     }
 }

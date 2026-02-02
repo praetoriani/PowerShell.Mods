@@ -35,18 +35,18 @@ function RemoveDirs {
     .EXAMPLE
     $result = RemoveDirs -Paths @("C:\Dir1", "C:\Dir2") -StopOnError
     if ($result.code -eq 0) {
-        Write-Host "Successfully removed $($result.successCount) directories"
+        Write-Host "Successfully removed $($result.data.SuccessCount) directories"
     } else {
         Write-Host "Failed to remove directories: $($result.msg)"
     }
     
     .EXAMPLE
     $result = RemoveDirs -Paths $directoryList
-    Write-Host "Success: $($result.successCount), Failed: $($result.failureCount)"
-    foreach ($success in $result.removedDirs) {
-        Write-Host "Removed: $success"
+    Write-Host "Success: $($result.data.SuccessCount), Failed: $($result.data.FailureCount)"
+    foreach ($dir in $result.data.RemovedDirs) {
+        Write-Host "Removed: $dir"
     }
-    foreach ($failure in $result.failedDirs) {
+    foreach ($failure in $result.data.FailedDirs) {
         Write-Host "Failed: $($failure.path) - $($failure.error)"
     }
     
@@ -58,6 +58,7 @@ function RemoveDirs {
     - Handles readonly, hidden, and system files when -Force is specified
     - Each directory is deleted recursively (all files and subdirectories)
     - Use with extreme caution - this operation is irreversible
+    - Returns comprehensive bulk operation statistics in the data field
     #>
     
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -73,23 +74,9 @@ function RemoveDirs {
         [switch]$StopOnError
     )
     
-    # Initialize status object for return value
-    $status = [PSCustomObject]@{
-        code = -1
-        msg = "Detailed error message"
-        successCount = 0
-        failureCount = 0
-        totalSizeBytes = 0
-        totalFileCount = 0
-        totalDirCount = 0
-        removedDirs = @()
-        failedDirs = @()
-    }
-    
     # Validate mandatory parameters
     if ($null -eq $Paths -or $Paths.Count -eq 0) {
-        $status.msg = "Parameter 'Paths' is required but was not provided or is empty"
-        return $status
+        return OPSreturn -Code -1 -Message "Parameter 'Paths' is required but was not provided or is empty"
     }
     
     try {
@@ -98,15 +85,13 @@ function RemoveDirs {
             Write-Verbose "Validating all directory paths before deletion..."
             foreach ($path in $Paths) {
                 if ([string]::IsNullOrWhiteSpace($path)) {
-                    $status.msg = "One of the directory paths is null or empty"
-                    return $status
+                    return OPSreturn -Code -1 -Message "One of the directory paths is null or empty"
                 }
                 
-                $NormalizedPath = $path.Replace('/', '\').TrimEnd('\')
+                $NormalizedPath = $path.Replace('/', '\\').TrimEnd('\\')
                 
                 if (-not (Test-Path -Path $NormalizedPath -PathType Container)) {
-                    $status.msg = "Directory '$NormalizedPath' does not exist or is not a directory"
-                    return $status
+                    return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' does not exist or is not a directory"
                 }
             }
         }
@@ -116,9 +101,17 @@ function RemoveDirs {
         $ConfirmMessage = "Permanently remove $TotalDirs directories and all their contents"
         
         if (-not $Force -and -not $PSCmdlet.ShouldProcess("$TotalDirs directories", $ConfirmMessage)) {
-            $status.msg = "Operation cancelled by user"
-            return $status
+            return OPSreturn -Code -1 -Message "Operation cancelled by user"
         }
+        
+        # Initialize counters and lists
+        $SuccessCount = 0
+        $FailureCount = 0
+        $TotalSize = 0
+        $TotalFileCount = 0
+        $TotalDirCount = 0
+        $RemovedDirsList = @()
+        $FailedDirsList = @()
         
         # Process each directory
         Write-Verbose "Starting removal of $TotalDirs directories..."
@@ -130,20 +123,28 @@ function RemoveDirs {
                     path = $path
                     error = "Path is null or empty"
                 }
-                $status.failedDirs += $ErrorInfo
-                $status.failureCount++
+                $FailedDirsList += $ErrorInfo
+                $FailureCount++
                 Write-Verbose "Skipped null or empty path"
                 
                 if ($StopOnError) {
-                    $status.msg = "Operation stopped due to error: Path is null or empty"
-                    return $status
+                    $ReturnData = [PSCustomObject]@{
+                        SuccessCount    = $SuccessCount
+                        FailureCount    = $FailureCount
+                        TotalSizeBytes  = $TotalSize
+                        TotalFileCount  = $TotalFileCount
+                        TotalDirCount   = $TotalDirCount
+                        RemovedDirs     = $RemovedDirsList
+                        FailedDirs      = $FailedDirsList
+                    }
+                    return OPSreturn -Code -1 -Message "Operation stopped due to error: Path is null or empty" -Data $ReturnData
                 }
                 continue
             }
             
             try {
                 # Normalize path
-                $NormalizedPath = $path.Replace('/', '\').TrimEnd('\')
+                $NormalizedPath = $path.Replace('/', '\\').TrimEnd('\\')
                 
                 Write-Verbose "Processing directory: $NormalizedPath"
                 
@@ -153,13 +154,21 @@ function RemoveDirs {
                         path = $NormalizedPath
                         error = "Directory does not exist or is not a directory"
                     }
-                    $status.failedDirs += $ErrorInfo
-                    $status.failureCount++
+                    $FailedDirsList += $ErrorInfo
+                    $FailureCount++
                     Write-Verbose "Directory not found: $NormalizedPath"
                     
                     if ($StopOnError) {
-                        $status.msg = "Operation stopped due to error: Directory '$NormalizedPath' does not exist"
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            SuccessCount    = $SuccessCount
+                            FailureCount    = $FailureCount
+                            TotalSizeBytes  = $TotalSize
+                            TotalFileCount  = $TotalFileCount
+                            TotalDirCount   = $TotalDirCount
+                            RemovedDirs     = $RemovedDirsList
+                            FailedDirs      = $FailedDirsList
+                        }
+                        return OPSreturn -Code -1 -Message "Operation stopped due to error: Directory '$NormalizedPath' does not exist" -Data $ReturnData
                     }
                     continue
                 }
@@ -170,13 +179,21 @@ function RemoveDirs {
                         path = $NormalizedPath
                         error = "Path is a file, not a directory"
                     }
-                    $status.failedDirs += $ErrorInfo
-                    $status.failureCount++
+                    $FailedDirsList += $ErrorInfo
+                    $FailureCount++
                     Write-Verbose "Path is a file, not a directory: $NormalizedPath"
                     
                     if ($StopOnError) {
-                        $status.msg = "Operation stopped due to error: Path '$NormalizedPath' is a file, not a directory"
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            SuccessCount    = $SuccessCount
+                            FailureCount    = $FailureCount
+                            TotalSizeBytes  = $TotalSize
+                            TotalFileCount  = $TotalFileCount
+                            TotalDirCount   = $TotalDirCount
+                            RemovedDirs     = $RemovedDirsList
+                            FailedDirs      = $FailedDirsList
+                        }
+                        return OPSreturn -Code -1 -Message "Operation stopped due to error: Path '$NormalizedPath' is a file, not a directory" -Data $ReturnData
                     }
                     continue
                 }
@@ -204,13 +221,21 @@ function RemoveDirs {
                         path = $NormalizedPath
                         error = "Failed to access directory: $($_.Exception.Message)"
                     }
-                    $status.failedDirs += $ErrorInfo
-                    $status.failureCount++
+                    $FailedDirsList += $ErrorInfo
+                    $FailureCount++
                     Write-Verbose "Failed to access directory: $NormalizedPath - $($_.Exception.Message)"
                     
                     if ($StopOnError) {
-                        $status.msg = "Operation stopped due to error accessing directory '$NormalizedPath': $($_.Exception.Message)"
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            SuccessCount    = $SuccessCount
+                            FailureCount    = $FailureCount
+                            TotalSizeBytes  = $TotalSize
+                            TotalFileCount  = $TotalFileCount
+                            TotalDirCount   = $TotalDirCount
+                            RemovedDirs     = $RemovedDirsList
+                            FailedDirs      = $FailedDirsList
+                        }
+                        return OPSreturn -Code -1 -Message "Operation stopped due to error accessing directory '$NormalizedPath': $($_.Exception.Message)" -Data $ReturnData
                     }
                     continue
                 }
@@ -244,22 +269,30 @@ function RemoveDirs {
                             path = $DirFullPath
                             error = "Remove operation reported success, but directory still exists"
                         }
-                        $status.failedDirs += $ErrorInfo
-                        $status.failureCount++
+                        $FailedDirsList += $ErrorInfo
+                        $FailureCount++
                         
                         if ($StopOnError) {
-                            $status.msg = "Operation stopped: Directory '$DirFullPath' was not removed"
-                            return $status
+                            $ReturnData = [PSCustomObject]@{
+                                SuccessCount    = $SuccessCount
+                                FailureCount    = $FailureCount
+                                TotalSizeBytes  = $TotalSize
+                                TotalFileCount  = $TotalFileCount
+                                TotalDirCount   = $TotalDirCount
+                                RemovedDirs     = $RemovedDirsList
+                                FailedDirs      = $FailedDirsList
+                            }
+                            return OPSreturn -Code -1 -Message "Operation stopped: Directory '$DirFullPath' was not removed" -Data $ReturnData
                         }
                         continue
                     }
                     
                     # Successfully removed
-                    $status.removedDirs += $DirFullPath
-                    $status.successCount++
-                    $status.totalSizeBytes += $DirSize
-                    $status.totalFileCount += $FileCount
-                    $status.totalDirCount += ($SubDirCount + 1)  # +1 for the root directory itself
+                    $RemovedDirsList += $DirFullPath
+                    $SuccessCount++
+                    $TotalSize += $DirSize
+                    $TotalFileCount += $FileCount
+                    $TotalDirCount += ($SubDirCount + 1)  # +1 for the root directory itself
                     
                     Write-Verbose "Successfully removed directory: $DirFullPath ($FileCount files, $SubDirCount subdirs, $DirSize bytes)"
                 }
@@ -268,13 +301,21 @@ function RemoveDirs {
                         path = $NormalizedPath
                         error = "Access denied. Check permissions or use -Force for readonly files."
                     }
-                    $status.failedDirs += $ErrorInfo
-                    $status.failureCount++
+                    $FailedDirsList += $ErrorInfo
+                    $FailureCount++
                     Write-Verbose "Access denied removing directory: $NormalizedPath"
                     
                     if ($StopOnError) {
-                        $status.msg = "Operation stopped due to access denied on directory '$NormalizedPath'"
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            SuccessCount    = $SuccessCount
+                            FailureCount    = $FailureCount
+                            TotalSizeBytes  = $TotalSize
+                            TotalFileCount  = $TotalFileCount
+                            TotalDirCount   = $TotalDirCount
+                            RemovedDirs     = $RemovedDirsList
+                            FailedDirs      = $FailedDirsList
+                        }
+                        return OPSreturn -Code -1 -Message "Operation stopped due to access denied on directory '$NormalizedPath'" -Data $ReturnData
                     }
                 }
                 catch [System.IO.IOException] {
@@ -282,13 +323,21 @@ function RemoveDirs {
                         path = $NormalizedPath
                         error = "I/O error: $($_.Exception.Message)"
                     }
-                    $status.failedDirs += $ErrorInfo
-                    $status.failureCount++
+                    $FailedDirsList += $ErrorInfo
+                    $FailureCount++
                     Write-Verbose "I/O error removing directory: $NormalizedPath - $($_.Exception.Message)"
                     
                     if ($StopOnError) {
-                        $status.msg = "Operation stopped due to I/O error on directory '$NormalizedPath': $($_.Exception.Message)"
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            SuccessCount    = $SuccessCount
+                            FailureCount    = $FailureCount
+                            TotalSizeBytes  = $TotalSize
+                            TotalFileCount  = $TotalFileCount
+                            TotalDirCount   = $TotalDirCount
+                            RemovedDirs     = $RemovedDirsList
+                            FailedDirs      = $FailedDirsList
+                        }
+                        return OPSreturn -Code -1 -Message "Operation stopped due to I/O error on directory '$NormalizedPath': $($_.Exception.Message)" -Data $ReturnData
                     }
                 }
                 catch {
@@ -296,13 +345,21 @@ function RemoveDirs {
                         path = $NormalizedPath
                         error = $_.Exception.Message
                     }
-                    $status.failedDirs += $ErrorInfo
-                    $status.failureCount++
+                    $FailedDirsList += $ErrorInfo
+                    $FailureCount++
                     Write-Verbose "Failed to remove directory: $NormalizedPath - $($_.Exception.Message)"
                     
                     if ($StopOnError) {
-                        $status.msg = "Operation stopped due to error on directory '$NormalizedPath': $($_.Exception.Message)"
-                        return $status
+                        $ReturnData = [PSCustomObject]@{
+                            SuccessCount    = $SuccessCount
+                            FailureCount    = $FailureCount
+                            TotalSizeBytes  = $TotalSize
+                            TotalFileCount  = $TotalFileCount
+                            TotalDirCount   = $TotalDirCount
+                            RemovedDirs     = $RemovedDirsList
+                            FailedDirs      = $FailedDirsList
+                        }
+                        return OPSreturn -Code -1 -Message "Operation stopped due to error on directory '$NormalizedPath': $($_.Exception.Message)" -Data $ReturnData
                     }
                 }
             }
@@ -311,42 +368,56 @@ function RemoveDirs {
                     path = $path
                     error = $_.Exception.Message
                 }
-                $status.failedDirs += $ErrorInfo
-                $status.failureCount++
+                $FailedDirsList += $ErrorInfo
+                $FailureCount++
                 Write-Verbose "Unexpected error processing path: $path - $($_.Exception.Message)"
                 
                 if ($StopOnError) {
-                    $status.msg = "Operation stopped due to unexpected error on path '$path': $($_.Exception.Message)"
-                    return $status
+                    $ReturnData = [PSCustomObject]@{
+                        SuccessCount    = $SuccessCount
+                        FailureCount    = $FailureCount
+                        TotalSizeBytes  = $TotalSize
+                        TotalFileCount  = $TotalFileCount
+                        TotalDirCount   = $TotalDirCount
+                        RemovedDirs     = $RemovedDirsList
+                        FailedDirs      = $FailedDirsList
+                    }
+                    return OPSreturn -Code -1 -Message "Operation stopped due to unexpected error on path '$path': $($_.Exception.Message)" -Data $ReturnData
                 }
             }
         }
         
-        # Determine final status
-        if ($status.failureCount -eq 0) {
-            # Complete success
-            $status.code = 0
-            $status.msg = ""
-            Write-Verbose "Successfully removed all $($status.successCount) directories"
+        Write-Verbose "Total removed: $TotalFileCount files, $TotalDirCount directories, $TotalSize bytes"
+        
+        # Prepare return data object with bulk operation statistics
+        $ReturnData = [PSCustomObject]@{
+            SuccessCount    = $SuccessCount
+            FailureCount    = $FailureCount
+            TotalSizeBytes  = $TotalSize
+            TotalFileCount  = $TotalFileCount
+            TotalDirCount   = $TotalDirCount
+            RemovedDirs     = $RemovedDirsList
+            FailedDirs      = $FailedDirsList
         }
-        elseif ($status.successCount -eq 0) {
+        
+        # Determine final status
+        if ($FailureCount -eq 0) {
+            # Complete success
+            Write-Verbose "Successfully removed all $SuccessCount directories"
+            return OPSreturn -Code 0 -Message "" -Data $ReturnData
+        }
+        elseif ($SuccessCount -eq 0) {
             # Complete failure
-            $status.msg = "Failed to remove all $($status.failureCount) directories. Check failedDirs property for details."
             Write-Verbose "Failed to remove all directories"
+            return OPSreturn -Code -1 -Message "Failed to remove all $FailureCount directories. Check failedDirs property for details." -Data $ReturnData
         }
         else {
             # Partial success
-            $status.code = 1
-            $status.msg = "Partially successful: Removed $($status.successCount) directories, but $($status.failureCount) failed. Check failedDirs property for details."
-            Write-Verbose "Partial success: $($status.successCount) removed, $($status.failureCount) failed"
+            Write-Verbose "Partial success: $SuccessCount removed, $FailureCount failed"
+            return OPSreturn -Code 1 -Message "Partially successful: Removed $SuccessCount directories, but $FailureCount failed. Check failedDirs property for details." -Data $ReturnData
         }
-        
-        Write-Verbose "Total removed: $($status.totalFileCount) files, $($status.totalDirCount) directories, $($status.totalSizeBytes) bytes"
-        
-        return $status
     }
     catch {
-        $status.msg = "Unexpected error in RemoveDirs function: $($_.Exception.Message)"
-        return $status
+        return OPSreturn -Code -1 -Message "Unexpected error in RemoveDirs function: $($_.Exception.Message)"
     }
 }
