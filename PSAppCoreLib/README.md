@@ -2,333 +2,350 @@
 
 ## Overview
 
-PSAppCoreLib is a comprehensive PowerShell module that provides a collection of useful functions for PowerShell application development. This module includes advanced functions for logging, icon extraction, and other common tasks needed in professional PowerShell applications.
+PSAppCoreLib is a comprehensive PowerShell module that provides a collection of useful functions for PowerShell application development. This module includes advanced functions for logging, registry management, file and directory operations, process control, Windows service management and icon extraction.
 
 ## Module Information
 
 - **Name**: PSAppCoreLib
-- **Version**: 1.00.00  
+- **Version**: 1.06.00  
 - **Author**: Praetoriani (a.k.a. M.Sczepanski)
 - **Website**: [github.com/praetoriani](https://github.com/praetoriani)
 - **Root Module**: PSAppCoreLib.psm1
-- **Description**: Collection of useful functions for PowerShell apps
+- **Description**: Powerful collection of useful Windows system functions for PowerShell apps
 
 ## Requirements
 
-- **PowerShell**: Version 5.1 or higher
-- **.NET Framework**: 4.7.2 or higher (for Windows PowerShell)
-- **PowerShell Core**: Supported on all platforms
+- **PowerShell**: Version 5.1 oder höher
+- **.NET Framework**: 4.7.2 oder höher (für Windows PowerShell)
+- **PowerShell Core**: Unterstützt auf allen Plattformen
 - **Required Assemblies**: System.Drawing, System.Windows.Forms
 
 ## Installation
 
-### Manual Installation
+### Manuelle Installation
 
-1. Download or clone the module files
-2. Create a folder named `PSAppCoreLib` in one of your PowerShell module paths:
+1. Repository klonen oder ZIP herunterladen
+2. Einen Ordner `PSAppCoreLib` in einem der PowerShell Modulpfade anlegen:
    - `$env:PSModulePath -split ';'` (Windows)
    - `$env:PSModulePath -split ':'` (Linux/macOS)
-3. Copy all module files to the `PSAppCoreLib` folder
-4. Import the module: `Import-Module PSAppCoreLib`
+3. Alle Dateien aus `PSAppCoreLib` in diesen Ordner kopieren
+4. Modul importieren: `Import-Module PSAppCoreLib`
 
-### PowerShell Gallery Installation (Future)
+### (Zukünftig) PowerShell Gallery Installation
 
 ```powershell
-# When published to PowerShell Gallery
+# Sobald das Modul in der Gallery veröffentlicht ist
 Install-Module -Name PSAppCoreLib -Scope CurrentUser
 ```
 
 ## Module Structure
 
-```
+```text
 PSAppCoreLib/
-├── Private/                    # Internal helper functions
-├── Public/                     # Public functions exported by the module  
-│   ├── WriteLogMessage.ps1
-│   └── GetBitmapIconFromDLL.ps1
-├── Examples/                   # Usage examples for each function
+├── Private/                    # Interne Helper-Funktionen (nicht exportiert)
+│   └── OPSreturn.ps1           # Standardisiertes Return-Objekt (code/msg/data)
+├── Public/                     # Öffentliche Funktionen (werden exportiert)
+│   ├── Registry Management
+│   │   ├── CreateRegKey.ps1
+│   │   ├── CreateRegVal.ps1
+│   │   ├── DeleteRegKey.ps1
+│   │   ├── DeleteRegVal.ps1
+│   │   ├── GetRegEntryType.ps1
+│   │   ├── GetRegEntryValue.ps1
+│   │   └── SetNewRegValue.ps1
+│   ├── File & Directory Management
+│   │   ├── CreateNewDir.ps1
+│   │   ├── CreateNewFile.ps1
+│   │   ├── CopyDir.ps1
+│   │   ├── RemoveDir.ps1
+│   │   ├── RemoveDirs.ps1
+│   │   ├── CopyFile.ps1
+│   │   ├── CopyFiles.ps1
+│   │   ├── RemoveFile.ps1
+│   │   ├── RemoveFiles.ps1
+│   │   ├── WriteTextToFile.ps1
+│   │   └── ReadTextFile.ps1
+│   ├── Special System Management
+│   │   ├── RemoveOnReboot.ps1
+│   │   └── RemoveAllOnReboot.ps1
+│   ├── Process Management
+│   │   ├── RunProcess.ps1
+│   │   ├── GetProcessByName.ps1
+│   │   ├── GetProcessByID.ps1
+│   │   ├── RestartProcess.ps1
+│   │   ├── StopProcess.ps1
+│   │   └── KillProcess.ps1
+│   ├── Service Management
+│   │   ├── StartService.ps1
+│   │   ├── RestartService.ps1
+│   │   ├── ForceRestartService.ps1
+│   │   ├── StopService.ps1
+│   │   ├── KillService.ps1
+│   │   └── SetServiceState.ps1
+│   ├── Logging
+│   │   └── WriteLogMessage.ps1
+│   └── Misc
+│       └── GetBitmapIconFromDLL.ps1
+├── Examples/                   # Ausführliche Anwendungsbeispiele
+│   ├── 01_Registry_Management_Examples.ps1
+│   ├── 02_File_Directory_Management_Examples.ps1
+│   ├── 03_Process_Service_Management_Examples.ps1
 │   ├── WriteLogMessage_Examples.ps1
 │   └── GetBitmapIconFromDLL_Examples.ps1
-├── PSAppCoreLib.psm1          # Main module file
-├── PSAppCoreLib.psd1          # Module manifest
-└── README.md                   # This file
+├── PSAppCoreLib.psm1          # Hauptmodul (lädt Public/Private Funktionen)
+├── PSAppCoreLib.psd1          # Modul-Manifest (Version 1.06.00)
+└── README.md                   # Diese Datei
 ```
 
-## Functions
+## Standardisiertes Return-Objekt (OPSreturn)
 
-### WriteLogMessage
-
-Creates formatted log entries with timestamps and severity flags.
-
-#### Syntax
-```powershell
-WriteLogMessage [-Logfile] <String> [-Message] <String> [[-Flag] <String>] [[-Override] <Int32>]
-```
-
-#### Parameters
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `Logfile` | String | Yes | - | Full path including filename to the log file |
-| `Message` | String | Yes | - | The text message to write to the log file |
-| `Flag` | String | No | "DEBUG" | Severity flag: INFO, DEBUG, WARN, or ERROR |
-| `Override` | Int32 | No | 0 | Whether to overwrite the log file (1) or append (0) |
-
-#### Return Value
-
-Returns a status object with the following properties:
-- `code`: Integer (0 = success, -1 = error)
-- `msg`: String (empty on success, error message on failure)
-
-#### Log Format
-
-```
-[2025.10.26 ; 14:30:15] [INFO ] Application started successfully
-[2025.10.26 ; 14:30:16] [DEBUG] Configuration loaded
-[2025.10.26 ; 14:30:17] [WARN ] Deprecated function used
-[2025.10.26 ; 14:30:18] [ERROR] Critical system failure
-```
-
-#### Examples
+Alle Funktionen im Modul verwenden ein einheitliches Rückgabeobjekt, das von der privaten Helper-Funktion `OPSreturn` erzeugt wird:
 
 ```powershell
-# Basic logging with default DEBUG flag
-$result = WriteLogMessage -Logfile "C:\Logs\app.log" -Message "Application started"
+$status = OPSreturn -Code 0 -Message "Operation completed" -Data $someData
+```
 
-# Info message logging
-$result = WriteLogMessage -Logfile "C:\Logs\app.log" -Message "User logged in" -Flag "INFO"
+Das Objekt hat immer die Form:
 
-# Error logging with file override
-$result = WriteLogMessage -Logfile "C:\Logs\error.log" -Message "Critical error" -Flag "ERROR" -Override 1
-
-# Check result
-if ($result.code -eq 0) {
-    Write-Host "Log entry created successfully"
-} else {
-    Write-Host "Error: $($result.msg)"
+```powershell
+[PSCustomObject]@{
+    code = 0      # 0 = Erfolg, -1 = Fehler
+    msg  = ""     # Fehlerbeschreibung oder leer bei Erfolg
+    data = $null  # Optionales Payload-Objekt (Dateipfade, Handles, Inhalte,...)
 }
 ```
 
-### GetBitmapIconFromDLL
+Dadurch kannst Du in Deinem Code konsistent prüfen:
 
-Extracts icons from DLL files and converts them to bitmap format.
-
-#### Syntax
 ```powershell
-GetBitmapIconFromDLL [-DLLfile] <String> [-IconIndex] <Int32>
+$result = CreateNewDir -Path "C:\Temp\Test"
+if ($result.code -eq 0) {
+    Write-Host "OK" -ForegroundColor Green
+} else {
+    Write-Warning $result.msg
+}
 ```
 
-#### Parameters
+## Function Overview (Version 1.06.00)
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `DLLfile` | String | Yes | Full path including filename to the DLL file |
-| `IconIndex` | Int32 | Yes | Zero-based index of the icon to extract |
+### Registry Management
 
-#### Return Value
+- **CreateRegKey**  
+  Erstellt neue Registry-Schlüssel mit Validierung (inkl. Schutz kritischer Pfade).
 
-Returns a status object with the following properties:
-- `code`: Integer (0 = success, -1 = error)
-- `msg`: String (empty on success, error message on failure)
-- `bitmap`: System.Drawing.Bitmap object (on success)
+- **CreateRegVal**  
+  Erstellt Registry-Werte aller gängigen Typen (String, ExpandString, DWord, QWord, MultiString, Binary).
 
-#### Examples
+- **DeleteRegKey**  
+  Löscht Registry-Schlüssel optional rekursiv. Unterstützt `-WhatIf`/`-Confirm`.
+
+- **DeleteRegVal**  
+  Löscht einzelne Registry-Werte.
+
+- **GetRegEntryValue**  
+  Liest Registry-Werte typ-sensitiv aus und gibt den tatsächlichen .NET-Typ im `data`-Feld zurück.
+
+- **GetRegEntryType**  
+  Liefert den Registry-Typ (z.B. `REG_SZ`, `REG_DWORD`, `REG_MULTI_SZ`).
+
+- **SetNewRegValue**  
+  Aktualisiert existierende Registry-Werte mit Validierung und Typkonvertierung.
+
+**Typische Rückgabe:**
+```powershell
+$result = GetRegEntryValue -KeyPath "HKCU:\Software\MyApp" -ValueName "Setting1"
+$result.code  # 0 oder -1
+$result.msg   # Fehlertext oder leer
+$result.data  # Der gelesene Registry-Wert
+```
+
+### File & Directory Management
+
+- **CreateNewDir**  
+  Erstellt neue Verzeichnisse (lokal oder UNC), inkl. Parent-Creation, Reserved-Name-Checks, Längenprüfung.
+
+- **CreateNewFile**  
+  Erstellt neue Dateien mit optionalem Inhalt und definierbarer Kodierung (UTF8, ASCII, Unicode...).
+
+- **CopyDir**  
+  Kopiert komplette Verzeichnisbäume rekursiv, mit Exclude-Patterns und Zeitstempel-Übernahme.
+
+- **CopyFile / CopyFiles**  
+  Kopieren einzelne bzw. mehrere Dateien, inkl. detailliertem Reporting und StopOnError-Logik.
+
+- **RemoveDir / RemoveDirs**  
+  Löschen sichere Verzeichnis-Operationen mit Schutzsystem für kritische Pfade und wahlweise rekursiv.
+
+- **RemoveFile / RemoveFiles**  
+  Entfernen einzelne oder mehrere Dateien mit detailliertem Status.
+
+- **WriteTextToFile**  
+  Schreibt Text mit gewünschter Kodierung in Dateien, optional im Override-Modus.
+
+- **ReadTextFile**  
+  Liest Textdateien vollständig mit definierter Kodierung und liefert den Inhalt im `data`-Feld.
+
+### Special System Management
+
+- **RemoveOnReboot**  
+  Plant einzelne Dateien/Verzeichnisse zur Löschung beim nächsten Neustart (PendingFileRenameOperations).
+
+- **RemoveAllOnReboot**  
+  Markiert komplette Verzeichnisse inklusive Inhalt zur Entfernung beim nächsten Reboot.
+
+### Process Management
+
+- **RunProcess**  
+  Startet einen Prozess, optional mit Argumenten und optionalem Warten auf Beendigung.  
+  Liefert z.B. die ProcessId im `data`-Feld.
+
+- **GetProcessByName**  
+  Liefert den Prozess (oder seine ID) anhand des exakten Namens.
+
+- **GetProcessByID**  
+  Liefert einen Prozess anhand der PID (inkl. Handle).
+
+- **RestartProcess**  
+  Stoppt und startet einen Prozess mit gleicher CommandLine neu.
+
+- **StopProcess**  
+  Versucht einen Prozess „graceful“ zu stoppen.
+
+- **KillProcess**  
+  Erzwingt die sofortige Beendigung eines Prozesses.
+
+### Service Management
+
+- **StartService**  
+  Startet einen Windows Dienst per Name.
+
+- **RestartService**  
+  Startet einen Dienst neu (Stop + Start).
+
+- **ForceRestartService**  
+  Erzwingt einen Neustart inkl. Kill im Fehlerfall.
+
+- **StopService**  
+  Stoppt einen Dienst regulär.
+
+- **KillService**  
+  Beendet den Prozess eines Dienstes hart.
+
+- **SetServiceState**  
+  Setzt den Starttyp eines Dienstes (Disabled, Manual, Automatic, AutomaticDelayed).
+
+### Logging
+
+- **WriteLogMessage**  
+  Schreibt formatierte Log-Zeilen mit Zeitstempel und Flag (INFO/DEBUG/WARN/ERROR).
+  Rückgabe enthält im `data`-Feld die tatsächlich geschriebene Log-Zeile.
+
+### Miscellaneous
+
+- **GetBitmapIconFromDLL**  
+  Extrahiert Icons aus DLLs und liefert ein `System.Drawing.Bitmap`-Objekt im `data`-Feld.
+
+## Examples
+
+Neben den ursprünglichen Beispielskripten gibt es zusätzliche, thematisch gruppierte Example-Skripte im Ordner `Examples`:
+
+- `01_Registry_Management_Examples.ps1` – Komplettes Registry-Demo-Szenario
+- `02_File_Directory_Management_Examples.ps1` – Datei- und Ordner-Workflows
+- `03_Process_Service_Management_Examples.ps1` – Prozesse & Dienste steuern
+- `WriteLogMessage_Examples.ps1` – Logging Pattern
+- `GetBitmapIconFromDLL_Examples.ps1` – Icon Extraktion & Speicherung
+
+Beispiel: Registry Management Demo starten
 
 ```powershell
-# Extract icon from shell32.dll
-$result = GetBitmapIconFromDLL -DLLfile "$env:SystemRoot\System32\shell32.dll" -IconIndex 0
+Import-Module PSAppCoreLib -Force
+& "$PSScriptRoot\Examples\01_Registry_Management_Examples.ps1"
+```
 
-if ($result.code -eq 0) {
-    Write-Host "Icon extracted successfully!"
-    Write-Host "Size: $($result.bitmap.Width)x$($result.bitmap.Height)"
-    
-    # Save bitmap to file
-    $result.bitmap.Save("C:\Temp\icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
-    
-    # Always dispose of the bitmap when done
-    $result.bitmap.Dispose()
-} else {
-    Write-Host "Error: $($result.msg)"
-}
+Beispiel: Datei-/Verzeichnis-Operations-Demo
 
-# Extract from imageres.dll
-$result = GetBitmapIconFromDLL -DLLfile "$env:SystemRoot\System32\imageres.dll" -IconIndex 15
+```powershell
+Import-Module PSAppCoreLib -Force
+& "$PSScriptRoot\Examples\02_File_Directory_Management_Examples.ps1"
 ```
 
 ## Error Handling
 
-All functions in this module use a standardized error handling approach with a consistent return object:
+Durch `OPSreturn` ist das Fehlerhandling überall identisch:
 
 ```powershell
-$status = [PSCustomObject]@{
-    code = 0        # 0 = success, -1 = error
-    msg = ""        # Empty on success, error message on failure
+$result = RunProcess -FilePath "notepad.exe"
+if ($result.code -ne 0) {
+    Write-Error "Failed to start process: $($result.msg)"
+    return
 }
-```
 
-This allows for reliable error checking and debugging in your applications.
+# Erfolg – weiter mit Payload im data-Feld
+$pid = $result.data
+```
 
 ## Advanced Function Features
 
-All functions in this module are implemented as PowerShell Advanced Functions, providing:
+Alle Funktionen sind als Advanced Functions implementiert und bieten:
 
-- **Parameter Validation**: Built-in parameter validation and type checking
-- **Pipeline Support**: Full pipeline support where applicable  
-- **Verbose Output**: Detailed verbose output for troubleshooting
-- **Error Handling**: Comprehensive error handling with detailed messages
-- **Help Documentation**: Complete help documentation accessible via `Get-Help`
+- **[CmdletBinding()]** mit gutem Pipeline- und Parameterverhalten
+- **Parameter Validation** (ValidateSet, ValidateNotNullOrEmpty, etc.)
+- **Verbose Output** via `Write-Verbose`
+- **Sauberes Fehlerhandling** mittels Try/Catch und OPSreturn
+- **Hilfetexte** im PowerShell-Standardformat (Get-Help kompatibel)
 
-## Usage Examples
-
-### Basic Module Usage
+## Typical Usage
 
 ```powershell
-# Import the module
+# Modul laden
 Import-Module PSAppCoreLib
 
-# Get available functions
+# Verfügbare Funktionen anzeigen
 Get-Command -Module PSAppCoreLib
 
-# Get help for a specific function
-Get-Help WriteLogMessage -Full
-Get-Help GetBitmapIconFromDLL -Examples
-```
+# Hilfe für eine Funktion
+Get-Help CreateNewDir -Full
 
-### Logging Workflow
-
-```powershell
-# Application startup logging
-$logFile = "C:\Logs\MyApp.log"
-
-$result = WriteLogMessage -Logfile $logFile -Message "Application startup initiated" -Flag "INFO"
-if ($result.code -ne 0) { 
-    throw "Failed to initialize logging: $($result.msg)" 
-}
-
-# Process logging
-WriteLogMessage -Logfile $logFile -Message "Processing user data" -Flag "DEBUG"
-WriteLogMessage -Logfile $logFile -Message "Performance warning: slow response" -Flag "WARN"
-
-# Error logging
-try {
-    # Your application code here
-} catch {
-    WriteLogMessage -Logfile $logFile -Message "Exception: $($_.Exception.Message)" -Flag "ERROR"
+# Beispiel: Verzeichnis anlegen
+$result = CreateNewDir -Path "C:\Temp\MyApp"
+if ($result.code -eq 0) {
+    Write-Host "Created: $($result.data)" -ForegroundColor Green
+} else {
+    Write-Warning $result.msg
 }
 ```
-
-### Icon Extraction Workflow
-
-```powershell
-# Extract multiple icons from system DLLs
-$iconDLLs = @(
-    @{ File = "$env:SystemRoot\System32\shell32.dll"; Indices = @(0, 1, 2, 3) }
-    @{ File = "$env:SystemRoot\System32\imageres.dll"; Indices = @(5, 10, 15) }
-)
-
-foreach ($dll in $iconDLLs) {
-    foreach ($index in $dll.Indices) {
-        $result = GetBitmapIconFromDLL -DLLfile $dll.File -IconIndex $index
-        
-        if ($result.code -eq 0) {
-            $fileName = "icon_$(Split-Path $dll.File -Leaf)_$index.png"
-            $result.bitmap.Save("C:\Icons\$fileName", [System.Drawing.Imaging.ImageFormat]::Png)
-            $result.bitmap.Dispose()
-            Write-Host "✓ Saved: $fileName"
-        } else {
-            Write-Warning "Failed to extract icon $index from $(Split-Path $dll.File -Leaf): $($result.msg)"
-        }
-    }
-}
-```
-
-## Best Practices
-
-### Memory Management
-
-When using `GetBitmapIconFromDLL`, always dispose of bitmap objects:
-
-```powershell
-$result = GetBitmapIconFromDLL -DLLfile $dllPath -IconIndex $index
-try {
-    # Use the bitmap
-    $result.bitmap.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
-} finally {
-    # Always dispose to prevent memory leaks
-    if ($result.bitmap) { $result.bitmap.Dispose() }
-}
-```
-
-### Error Handling
-
-Always check the return code from functions:
-
-```powershell
-$result = WriteLogMessage -Logfile $logFile -Message $message
-if ($result.code -ne 0) {
-    # Handle the error appropriately
-    throw "Logging failed: $($result.msg)"
-}
-```
-
-### Logging Strategy
-
-- Use appropriate log levels (DEBUG for development, INFO for important events, WARN for issues, ERROR for failures)
-- Consider log file rotation for long-running applications
-- Use meaningful, descriptive log messages
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Assembly Loading Errors**: Ensure .NET Framework 4.7.2+ is installed
-2. **Permission Errors**: Verify write permissions to log file directories
-3. **DLL Access Errors**: Ensure DLL files exist and are accessible
-4. **Memory Issues**: Always dispose of bitmap objects after use
-
-### Verbose Output
-
-Enable verbose output for detailed troubleshooting:
-
-```powershell
-Import-Module PSAppCoreLib -Verbose
-$VerbosePreference = "Continue"
-WriteLogMessage -Logfile $logFile -Message $message -Verbose
-```
-
-## Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. All code must be in English with English comments
-2. Follow PowerShell best practices and coding standards
-3. Implement functions as Advanced Functions with proper parameter validation
-4. Include comprehensive help documentation
-5. Add examples for new functions
-6. Test thoroughly on both Windows PowerShell and PowerShell Core
-
-## License
-
-This module is provided as-is under the MIT License. See the LICENSE file for details.
-
-## Support
-
-For support, issues, and feature requests, please visit:
-- **GitHub**: [github.com/praetoriani](https://github.com/praetoriani)
-- **Issues**: Create an issue on the GitHub repository
 
 ## Version History
 
+### Version 1.06.00 (Windows Service Management)
+- StartService / RestartService / ForceRestartService
+- StopService / KillService / SetServiceState
+- Erweiterte Beispiele für Prozesse & Dienste
+
+### Version 1.05.00 (Process Management)
+- RunProcess, GetProcessByName, GetProcessByID
+- RestartProcess, StopProcess, KillProcess
+
+### Version 1.04.00 (Extended File Operations & Reboot Scheduling)
+- CopyFile, CopyFiles, RemoveFile, RemoveFiles
+- WriteTextToFile, ReadTextFile
+- RemoveOnReboot, RemoveAllOnReboot
+
+### Version 1.03.00 (File System Management)
+- CreateNewDir, CreateNewFile, CopyDir, RemoveDir, RemoveDirs
+
+### Version 1.02.00 (Extended Registry Management)
+- DeleteRegKey, DeleteRegVal, GetRegEntryValue, GetRegEntryType, SetNewRegValue
+
+### Version 1.01.00 (Registry Functions Update)
+- CreateRegKey, CreateRegVal
+
 ### Version 1.00.00 (Initial Release)
-- `WriteLogMessage`: Advanced logging function with timestamp and severity flags
-- `GetBitmapIconFromDLL`: Extract and convert icons from DLL files to bitmaps  
-- Comprehensive error handling with standardized return objects
-- Full English documentation and code comments
-- Compatible with PowerShell 5.1+ and PowerShell Core
-- Complete examples and usage documentation
+- WriteLogMessage
+- GetBitmapIconFromDLL
 
 ---
 
-*Generated on: 26 October 2025*  
+*Updated: 02 February 2026*  
 *Author: Praetoriani (a.k.a. M.Sczepanski)*  
-*Website: [github.com/praetoriani](https://github.com/praetoriani)*
+*Website: [github.com/praetoriani](https://github.com/praetoriani)
