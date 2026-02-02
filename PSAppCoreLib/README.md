@@ -1,8 +1,11 @@
 # PSAppCoreLib PowerShell Module
 
+> **⚠️ Important Notice:**  
+> This module is under active development. While most functions have been thoroughly tested, not all functions have undergone complete testing in all scenarios. You may encounter bugs or unexpected behavior. Please report any issues you find, and always test in a non-production environment first.
+
 ## Overview
 
-PSAppCoreLib is a comprehensive PowerShell module that provides a collection of useful functions for PowerShell application development. This module includes advanced functions for logging, registry management, file and directory operations, process control, Windows service management and icon extraction.
+PSAppCoreLib is a comprehensive PowerShell module that provides a collection of useful functions for PowerShell application development. This module includes advanced functions for logging, registry management, file and directory operations, process control, Windows service management, and icon extraction.
 
 ## Module Information
 
@@ -15,36 +18,29 @@ PSAppCoreLib is a comprehensive PowerShell module that provides a collection of 
 
 ## Requirements
 
-- **PowerShell**: Version 5.1 oder höher
-- **.NET Framework**: 4.7.2 oder höher (für Windows PowerShell)
-- **PowerShell Core**: Unterstützt auf allen Plattformen
+- **PowerShell**: Version 5.1 or higher
+- **.NET Framework**: 4.7.2 or higher (for Windows PowerShell)
+- **PowerShell Core**: Supported on all platforms
 - **Required Assemblies**: System.Drawing, System.Windows.Forms
 
 ## Installation
 
-### Manuelle Installation
+### Manual Installation
 
-1. Repository klonen oder ZIP herunterladen
-2. Einen Ordner `PSAppCoreLib` in einem der PowerShell Modulpfade anlegen:
+1. Clone the repository or download the ZIP file
+2. Create a folder named `PSAppCoreLib` in one of your PowerShell module paths:
    - `$env:PSModulePath -split ';'` (Windows)
    - `$env:PSModulePath -split ':'` (Linux/macOS)
-3. Alle Dateien aus `PSAppCoreLib` in diesen Ordner kopieren
-4. Modul importieren: `Import-Module PSAppCoreLib`
-
-### (Zukünftig) PowerShell Gallery Installation
-
-```powershell
-# Sobald das Modul in der Gallery veröffentlicht ist
-Install-Module -Name PSAppCoreLib -Scope CurrentUser
-```
+3. Copy all files from the `PSAppCoreLib` folder into this directory
+4. Import the module: `Import-Module PSAppCoreLib`
 
 ## Module Structure
 
 ```text
 PSAppCoreLib/
-├── Private/                    # Interne Helper-Funktionen (nicht exportiert)
-│   └── OPSreturn.ps1           # Standardisiertes Return-Objekt (code/msg/data)
-├── Public/                     # Öffentliche Funktionen (werden exportiert)
+├── Private/                    # Internal helper functions (not exported)
+│   └── OPSreturn.ps1           # Standardized return object (code/msg/data)
+├── Public/                     # Public functions (exported)
 │   ├── Registry Management
 │   │   ├── CreateRegKey.ps1
 │   │   ├── CreateRegVal.ps1
@@ -84,43 +80,43 @@ PSAppCoreLib/
 │   │   └── SetServiceState.ps1
 │   ├── Logging
 │   │   └── WriteLogMessage.ps1
-│   └── Misc
+│   └── Miscellaneous
 │       └── GetBitmapIconFromDLL.ps1
-├── Examples/                   # Ausführliche Anwendungsbeispiele
+├── Examples/                   # Comprehensive usage examples
 │   ├── 01_Registry_Management_Examples.ps1
 │   ├── 02_File_Directory_Management_Examples.ps1
 │   ├── 03_Process_Service_Management_Examples.ps1
 │   ├── WriteLogMessage_Examples.ps1
 │   └── GetBitmapIconFromDLL_Examples.ps1
-├── PSAppCoreLib.psm1          # Hauptmodul (lädt Public/Private Funktionen)
-├── PSAppCoreLib.psd1          # Modul-Manifest (Version 1.06.00)
-└── README.md                   # Diese Datei
+├── PSAppCoreLib.psm1          # Main module file (loads Public/Private functions)
+├── PSAppCoreLib.psd1          # Module manifest (Version 1.06.00)
+└── README.md                   # This file
 ```
 
-## Standardisiertes Return-Objekt (OPSreturn)
+## Standardized Return Object (OPSreturn)
 
-Alle Funktionen im Modul verwenden ein einheitliches Rückgabeobjekt, das von der privaten Helper-Funktion `OPSreturn` erzeugt wird:
+All functions in this module use a unified return object created by the private helper function `OPSreturn`:
 
 ```powershell
 $status = OPSreturn -Code 0 -Message "Operation completed" -Data $someData
 ```
 
-Das Objekt hat immer die Form:
+The object always has this structure:
 
 ```powershell
 [PSCustomObject]@{
-    code = 0      # 0 = Erfolg, -1 = Fehler
-    msg  = ""     # Fehlerbeschreibung oder leer bei Erfolg
-    data = $null  # Optionales Payload-Objekt (Dateipfade, Handles, Inhalte,...)
+    code = 0      # 0 = success, -1 = error
+    msg  = ""     # Error description or empty on success
+    data = $null  # Optional payload object (file paths, handles, content, etc.)
 }
 ```
 
-Dadurch kannst Du in Deinem Code konsistent prüfen:
+This allows consistent error checking in your code:
 
 ```powershell
 $result = CreateNewDir -Path "C:\Temp\Test"
 if ($result.code -eq 0) {
-    Write-Host "OK" -ForegroundColor Green
+    Write-Host "Success" -ForegroundColor Green
 } else {
     Write-Warning $result.msg
 }
@@ -131,138 +127,138 @@ if ($result.code -eq 0) {
 ### Registry Management
 
 - **CreateRegKey**  
-  Erstellt neue Registry-Schlüssel mit Validierung (inkl. Schutz kritischer Pfade).
+  Creates new registry keys with validation (includes protection for critical paths).
 
 - **CreateRegVal**  
-  Erstellt Registry-Werte aller gängigen Typen (String, ExpandString, DWord, QWord, MultiString, Binary).
+  Creates registry values of all common types (String, ExpandString, DWord, QWord, MultiString, Binary).
 
 - **DeleteRegKey**  
-  Löscht Registry-Schlüssel optional rekursiv. Unterstützt `-WhatIf`/`-Confirm`.
+  Deletes registry keys with optional recursive deletion. Supports `-WhatIf`/`-Confirm`.
 
 - **DeleteRegVal**  
-  Löscht einzelne Registry-Werte.
+  Deletes individual registry values.
 
 - **GetRegEntryValue**  
-  Liest Registry-Werte typ-sensitiv aus und gibt den tatsächlichen .NET-Typ im `data`-Feld zurück.
+  Reads registry values in a type-aware manner and returns the actual .NET type in the `data` field.
 
 - **GetRegEntryType**  
-  Liefert den Registry-Typ (z.B. `REG_SZ`, `REG_DWORD`, `REG_MULTI_SZ`).
+  Returns the registry type (e.g., `REG_SZ`, `REG_DWORD`, `REG_MULTI_SZ`).
 
 - **SetNewRegValue**  
-  Aktualisiert existierende Registry-Werte mit Validierung und Typkonvertierung.
+  Updates existing registry values with validation and type conversion.
 
-**Typische Rückgabe:**
+**Typical return value:**
 ```powershell
 $result = GetRegEntryValue -KeyPath "HKCU:\Software\MyApp" -ValueName "Setting1"
-$result.code  # 0 oder -1
-$result.msg   # Fehlertext oder leer
-$result.data  # Der gelesene Registry-Wert
+$result.code  # 0 or -1
+$result.msg   # Error text or empty
+$result.data  # The read registry value
 ```
 
 ### File & Directory Management
 
 - **CreateNewDir**  
-  Erstellt neue Verzeichnisse (lokal oder UNC), inkl. Parent-Creation, Reserved-Name-Checks, Längenprüfung.
+  Creates new directories (local or UNC), including parent creation, reserved name checks, length validation.
 
 - **CreateNewFile**  
-  Erstellt neue Dateien mit optionalem Inhalt und definierbarer Kodierung (UTF8, ASCII, Unicode...).
+  Creates new files with optional content and definable encoding (UTF8, ASCII, Unicode, etc.).
 
 - **CopyDir**  
-  Kopiert komplette Verzeichnisbäume rekursiv, mit Exclude-Patterns und Zeitstempel-Übernahme.
+  Copies complete directory trees recursively, with exclude patterns and timestamp preservation.
 
 - **CopyFile / CopyFiles**  
-  Kopieren einzelne bzw. mehrere Dateien, inkl. detailliertem Reporting und StopOnError-Logik.
+  Copies single or multiple files, including detailed reporting and StopOnError logic.
 
 - **RemoveDir / RemoveDirs**  
-  Löschen sichere Verzeichnis-Operationen mit Schutzsystem für kritische Pfade und wahlweise rekursiv.
+  Safe directory deletion operations with protection for critical paths, optionally recursive.
 
 - **RemoveFile / RemoveFiles**  
-  Entfernen einzelne oder mehrere Dateien mit detailliertem Status.
+  Removes single or multiple files with detailed status reporting.
 
 - **WriteTextToFile**  
-  Schreibt Text mit gewünschter Kodierung in Dateien, optional im Override-Modus.
+  Writes text with desired encoding to files, optionally in override mode.
 
 - **ReadTextFile**  
-  Liest Textdateien vollständig mit definierter Kodierung und liefert den Inhalt im `data`-Feld.
+  Reads text files completely with defined encoding and returns content in the `data` field.
 
 ### Special System Management
 
 - **RemoveOnReboot**  
-  Plant einzelne Dateien/Verzeichnisse zur Löschung beim nächsten Neustart (PendingFileRenameOperations).
+  Schedules individual files/directories for deletion on next reboot (PendingFileRenameOperations).
 
 - **RemoveAllOnReboot**  
-  Markiert komplette Verzeichnisse inklusive Inhalt zur Entfernung beim nächsten Reboot.
+  Marks complete directories including contents for removal on next reboot.
 
 ### Process Management
 
 - **RunProcess**  
-  Startet einen Prozess, optional mit Argumenten und optionalem Warten auf Beendigung.  
-  Liefert z.B. die ProcessId im `data`-Feld.
+  Starts a process, optionally with arguments and optional wait for completion.  
+  Returns the ProcessId in the `data` field.
 
 - **GetProcessByName**  
-  Liefert den Prozess (oder seine ID) anhand des exakten Namens.
+  Returns the process (or its ID) by exact name match.
 
 - **GetProcessByID**  
-  Liefert einen Prozess anhand der PID (inkl. Handle).
+  Returns a process by PID (including handle).
 
 - **RestartProcess**  
-  Stoppt und startet einen Prozess mit gleicher CommandLine neu.
+  Stops and restarts a process with the same command line.
 
 - **StopProcess**  
-  Versucht einen Prozess „graceful“ zu stoppen.
+  Attempts to stop a process gracefully.
 
 - **KillProcess**  
-  Erzwingt die sofortige Beendigung eines Prozesses.
+  Forces immediate termination of a process.
 
 ### Service Management
 
 - **StartService**  
-  Startet einen Windows Dienst per Name.
+  Starts a Windows service by name.
 
 - **RestartService**  
-  Startet einen Dienst neu (Stop + Start).
+  Restarts a service (Stop + Start).
 
 - **ForceRestartService**  
-  Erzwingt einen Neustart inkl. Kill im Fehlerfall.
+  Forces a restart including kill on failure.
 
 - **StopService**  
-  Stoppt einen Dienst regulär.
+  Stops a service regularly.
 
 - **KillService**  
-  Beendet den Prozess eines Dienstes hart.
+  Terminates a service's process forcefully.
 
 - **SetServiceState**  
-  Setzt den Starttyp eines Dienstes (Disabled, Manual, Automatic, AutomaticDelayed).
+  Sets the startup type of a service (Disabled, Manual, Automatic, AutomaticDelayed).
 
 ### Logging
 
 - **WriteLogMessage**  
-  Schreibt formatierte Log-Zeilen mit Zeitstempel und Flag (INFO/DEBUG/WARN/ERROR).
-  Rückgabe enthält im `data`-Feld die tatsächlich geschriebene Log-Zeile.
+  Writes formatted log entries with timestamps and flags (INFO/DEBUG/WARN/ERROR).  
+  Returns the actual log line written in the `data` field.
 
 ### Miscellaneous
 
 - **GetBitmapIconFromDLL**  
-  Extrahiert Icons aus DLLs und liefert ein `System.Drawing.Bitmap`-Objekt im `data`-Feld.
+  Extracts icons from DLLs and returns a `System.Drawing.Bitmap` object in the `data` field.
 
 ## Examples
 
-Neben den ursprünglichen Beispielskripten gibt es zusätzliche, thematisch gruppierte Example-Skripte im Ordner `Examples`:
+In addition to the original example scripts, there are thematically grouped example scripts in the `Examples` folder:
 
-- `01_Registry_Management_Examples.ps1` – Komplettes Registry-Demo-Szenario
-- `02_File_Directory_Management_Examples.ps1` – Datei- und Ordner-Workflows
-- `03_Process_Service_Management_Examples.ps1` – Prozesse & Dienste steuern
-- `WriteLogMessage_Examples.ps1` – Logging Pattern
-- `GetBitmapIconFromDLL_Examples.ps1` – Icon Extraktion & Speicherung
+- `01_Registry_Management_Examples.ps1` – Complete registry demo scenario
+- `02_File_Directory_Management_Examples.ps1` – File and folder workflows
+- `03_Process_Service_Management_Examples.ps1` – Process & service control
+- `WriteLogMessage_Examples.ps1` – Logging patterns
+- `GetBitmapIconFromDLL_Examples.ps1` – Icon extraction & saving
 
-Beispiel: Registry Management Demo starten
+Example: Run Registry Management demo
 
 ```powershell
 Import-Module PSAppCoreLib -Force
 & "$PSScriptRoot\Examples\01_Registry_Management_Examples.ps1"
 ```
 
-Beispiel: Datei-/Verzeichnis-Operations-Demo
+Example: Run File/Directory operations demo
 
 ```powershell
 Import-Module PSAppCoreLib -Force
@@ -271,7 +267,7 @@ Import-Module PSAppCoreLib -Force
 
 ## Error Handling
 
-Durch `OPSreturn` ist das Fehlerhandling überall identisch:
+Through `OPSreturn`, error handling is identical everywhere:
 
 ```powershell
 $result = RunProcess -FilePath "notepad.exe"
@@ -280,33 +276,33 @@ if ($result.code -ne 0) {
     return
 }
 
-# Erfolg – weiter mit Payload im data-Feld
+# Success - continue with payload in data field
 $pid = $result.data
 ```
 
 ## Advanced Function Features
 
-Alle Funktionen sind als Advanced Functions implementiert und bieten:
+All functions are implemented as Advanced Functions and provide:
 
-- **[CmdletBinding()]** mit gutem Pipeline- und Parameterverhalten
+- **[CmdletBinding()]** with good pipeline and parameter behavior
 - **Parameter Validation** (ValidateSet, ValidateNotNullOrEmpty, etc.)
 - **Verbose Output** via `Write-Verbose`
-- **Sauberes Fehlerhandling** mittels Try/Catch und OPSreturn
-- **Hilfetexte** im PowerShell-Standardformat (Get-Help kompatibel)
+- **Clean Error Handling** using Try/Catch and OPSreturn
+- **Help Texts** in PowerShell standard format (Get-Help compatible)
 
 ## Typical Usage
 
 ```powershell
-# Modul laden
+# Load module
 Import-Module PSAppCoreLib
 
-# Verfügbare Funktionen anzeigen
+# Show available functions
 Get-Command -Module PSAppCoreLib
 
-# Hilfe für eine Funktion
+# Get help for a function
 Get-Help CreateNewDir -Full
 
-# Beispiel: Verzeichnis anlegen
+# Example: Create directory
 $result = CreateNewDir -Path "C:\Temp\MyApp"
 if ($result.code -eq 0) {
     Write-Host "Created: $($result.data)" -ForegroundColor Green
@@ -320,7 +316,7 @@ if ($result.code -eq 0) {
 ### Version 1.06.00 (Windows Service Management)
 - StartService / RestartService / ForceRestartService
 - StopService / KillService / SetServiceState
-- Erweiterte Beispiele für Prozesse & Dienste
+- Extended examples for processes & services
 
 ### Version 1.05.00 (Process Management)
 - RunProcess, GetProcessByName, GetProcessByID
@@ -348,4 +344,4 @@ if ($result.code -eq 0) {
 
 *Updated: 02 February 2026*  
 *Author: Praetoriani (a.k.a. M.Sczepanski)*  
-*Website: [github.com/praetoriani](https://github.com/praetoriani)
+*Website: [github.com/praetoriani](https://github.com/praetoriani)*
