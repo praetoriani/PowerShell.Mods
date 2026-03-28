@@ -39,6 +39,7 @@ $script:appenv = @{
 $script:appenv['ISOdata']    = Join-Path $script:appenv['ISOroot'] "DATA"
 $script:appenv['MountPoint'] = Join-Path $script:appenv['ISOroot'] "MountPoint"
 $script:appenv['installwim'] = Join-Path $script:appenv['ISOroot'] "DATA\sources\install.wim"
+$script:appenv['LogfileDir'] = Join-Path $script:appenv['ISOroot'] "Logfiles"
 $script:appenv['AppxBundle'] = Join-Path $script:appenv['ISOroot'] "Appx"
 $script:appenv['OEMDrivers'] = Join-Path $script:appenv['ISOroot'] "Drivers"
 $script:appenv['OEMfolder']  = Join-Path $script:appenv['ISOroot'] 'OEM'
