@@ -1,0 +1,20 @@
+{
+    "_comment": "Demo config.json for WinISOSciptFXLib PowerShell Module",
+    "WinISO":   {
+        "appenv":  {
+            "ISOroot":      "C:\\WinISO",
+            "ISOdata":      "DATA",
+            "MountPoint":   "MountPoint",
+            "installwim":   "DATA\\sources\\install.wim",
+            "AppxBundle":   "Appx",
+            "OEMDrivers":   "Drivers",
+            "OEMfolder":    "OEM",
+            "ScratchDir":   "ScratchDir",
+            "TempFolder":   "temp",
+            "Downloads":    "Downloads",
+            "UUPDumpDir":   "uupdump",
+            "OscdimgDir":   "Oscdimg",
+            "OscdimgExe":   "Oscdimg\\oscdimg.exe"
+        }
+    }
+}

@@ -45,8 +45,7 @@ RequiredAssemblies = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @(
-    'WriteLogMessage',
-    'GetInstallDir'
+    'WriteLogMessage'
 )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -64,7 +63,6 @@ FileList = @(
     'WinISOSciptFXLib.psd1',
     'Private\OPSreturn.ps1',
     'Public\WriteLogMessage.ps1',
-    'Public\GetInstallDir.ps1',
     'README.md'
 )
 

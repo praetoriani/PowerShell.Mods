@@ -22,6 +22,83 @@
     - Windows Registry access for installation directory detection
 #>
 
+# define vars on module-level (script scope = module scope)
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$script:appinfo = @{
+    AppName     = 'WinISOSciptFXLib'
+    AppVers     = '1.00.00'
+    AppDevName  = 'Praetoriani'
+    AppWebsite  = 'https://github.com/praetoriani/PowerShell.Mods'
+    DateCreate  = '28.03.2026'
+    LastUpdate  = '28.03.2026'
+}
+
+$script:appenv = @{
+    ISOroot    = 'C:\WinISO'
+}
+$script:appenv['ISOdata']    = Join-Path $script:appenv['ISOroot'] "DATA"
+$script:appenv['MountPoint'] = Join-Path $script:appenv['ISOroot'] "MountPoint"
+$script:appenv['installwim'] = Join-Path $script:appenv['ISOroot'] "DATA\sources\install.wim"
+$script:appenv['AppxBundle'] = Join-Path $script:appenv['ISOroot'] "Appx"
+$script:appenv['OEMDrivers'] = Join-Path $script:appenv['ISOroot'] "Drivers"
+$script:appenv['OEMfolder']  = Join-Path $script:appenv['ISOroot'] 'OEM'
+$script:appenv['ScratchDir'] = Join-Path $script:appenv['ISOroot'] 'ScratchDir'
+$script:appenv['TempFolder'] = Join-Path $script:appenv['ISOroot'] 'TEMPDIR'
+$script:appenv['Downloads']  = Join-Path $script:appenv['ISOroot'] 'TEMPDIR\Downloads'
+$script:appenv['UUPDumpDir'] = Join-Path $script:appenv['ISOroot'] 'TEMPDIR\uupdump'
+$script:appenv['OscdimgDir'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg'
+$script:appenv['OscdimgExe'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg\oscdimg.exe'
+
+$script:exit = @{
+    code    = -1
+    text    = [string]::Empty
+}
+
+
+# Getter functions so dot-sourced scripts can access script-scope vars :)
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+function AppScope {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $KeyID
+    )
+
+    # Initialize status object (as per App Development Guidelines)
+    $script:exit['code'] = -1
+    $script:exit['text'] = [string]::Empty
+
+    try {
+        # Validate the KeyID-Param
+        if ([string]::IsNullOrWhiteSpace($KeyID)) {
+            $script:exit['code'] = -1
+            $script:exit['text'] = "Parameter 'KeyID' is required and must not be null, empty or whitespace-only."
+        }
+        # KeyID-Param seems to be valid
+        else {
+            # Normalize the KeyID for case-insensitive comparison
+            $KeyID = $KeyID.ToLower()
+            switch ($KeyID) {
+                'appinfo'   { return $script:appinfo }
+                'appenv'    { return $script:appenv }
+                default     {
+                    $script:exit['code'] = -1
+                    $script:exit['text'] = "Parameter 'KeyID' can only be 'appinfo'  or  'appenv'."
+                }
+            }
+        }
+    }
+    catch {
+        <#Do this if a terminating exception happens#>
+        $script:exit['code'] = -1
+        $script:exit['text'] = "Error in AppScope: $($_.Exception.Message)"
+    }
+
+    # final return
+    return $script:exit
+}
+
 # Get public and private function definition files
 $PublicFunctions = @(Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction SilentlyContinue)
 $PrivateFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue)
@@ -39,7 +116,7 @@ foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
 
 # Export public functions only
 if ($PublicFunctions) {
-    Export-ModuleMember -Function $PublicFunctions.BaseName
+    Export-ModuleMember -Function ($PublicFunctions.BaseName + @('AppScope'))
 }
 
 # Module initialization message
