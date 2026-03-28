@@ -43,9 +43,9 @@ $script:appenv['AppxBundle'] = Join-Path $script:appenv['ISOroot'] "Appx"
 $script:appenv['OEMDrivers'] = Join-Path $script:appenv['ISOroot'] "Drivers"
 $script:appenv['OEMfolder']  = Join-Path $script:appenv['ISOroot'] 'OEM'
 $script:appenv['ScratchDir'] = Join-Path $script:appenv['ISOroot'] 'ScratchDir'
-$script:appenv['TempFolder'] = Join-Path $script:appenv['ISOroot'] 'TEMPDIR'
-$script:appenv['Downloads']  = Join-Path $script:appenv['ISOroot'] 'TEMPDIR\Downloads'
-$script:appenv['UUPDumpDir'] = Join-Path $script:appenv['ISOroot'] 'TEMPDIR\uupdump'
+$script:appenv['TempFolder'] = Join-Path $script:appenv['ISOroot'] 'temp'
+$script:appenv['Downloads']  = Join-Path $script:appenv['ISOroot'] 'Downloads'
+$script:appenv['UUPDumpDir'] = Join-Path $script:appenv['ISOroot'] 'uupdump'
 $script:appenv['OscdimgDir'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg'
 $script:appenv['OscdimgExe'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg\oscdimg.exe'
 
