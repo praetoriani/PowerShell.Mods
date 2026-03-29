@@ -37,12 +37,12 @@ $script:appinfo = @{
 $script:appenv = @{
     ISOroot    = 'C:\WinISO'
 }
-$script:appenv['ISOdata']    = Join-Path $script:appenv['ISOroot'] "DATA"
-$script:appenv['MountPoint'] = Join-Path $script:appenv['ISOroot'] "MountPoint"
-$script:appenv['installwim'] = Join-Path $script:appenv['ISOroot'] "DATA\sources\install.wim"
-$script:appenv['LogfileDir'] = Join-Path $script:appenv['ISOroot'] "Logfiles"
-$script:appenv['AppxBundle'] = Join-Path $script:appenv['ISOroot'] "Appx"
-$script:appenv['OEMDrivers'] = Join-Path $script:appenv['ISOroot'] "Drivers"
+$script:appenv['ISOdata']    = Join-Path $script:appenv['ISOroot'] 'DATA'
+$script:appenv['MountPoint'] = Join-Path $script:appenv['ISOroot'] 'MountPoint'
+$script:appenv['installwim'] = Join-Path $script:appenv['ISOroot'] 'DATA\sources\install.wim'
+$script:appenv['LogfileDir'] = Join-Path $script:appenv['ISOroot'] 'Logfiles'
+$script:appenv['AppxBundle'] = Join-Path $script:appenv['ISOroot'] 'Appx'
+$script:appenv['OEMDrivers'] = Join-Path $script:appenv['ISOroot'] 'Drivers'
 $script:appenv['OEMfolder']  = Join-Path $script:appenv['ISOroot'] 'OEM'
 $script:appenv['ScratchDir'] = Join-Path $script:appenv['ISOroot'] 'ScratchDir'
 $script:appenv['TempFolder'] = Join-Path $script:appenv['ISOroot'] 'temp'
@@ -50,6 +50,15 @@ $script:appenv['Downloads']  = Join-Path $script:appenv['ISOroot'] 'Downloads'
 $script:appenv['UUPDumpDir'] = Join-Path $script:appenv['ISOroot'] 'uupdump'
 $script:appenv['OscdimgDir'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg'
 $script:appenv['OscdimgExe'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg\oscdimg.exe'
+
+$script:appcore = @{
+    Root    = Join-Path $script:appenv['ISOroot'] 'app.core'
+    PSmod   = @{
+        WinISOmodlib = Join-Path $script:appenv['ISOroot'] 'app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1'
+        PSAppCoreLib = Join-Path $script:appenv['ISOroot'] 'app.core\PSAppCoreLib\PSAppCoreLib.psd1'
+    }
+}
+
 
 $script:exit = @{
     code    = -1

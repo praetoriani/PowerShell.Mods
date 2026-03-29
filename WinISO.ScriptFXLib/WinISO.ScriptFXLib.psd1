@@ -9,7 +9,7 @@
 @{
 
 # Script module or binary module file associated with this manifest.
-RootModule = 'WinISOSciptFXLib.psm1'
+RootModule = 'WinISO.ScriptFXLib.psm1'
 
 # Version number of this module.
 ModuleVersion = '1.00.03'
@@ -47,29 +47,29 @@ RequiredAssemblies = @()
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @(
         # Core / Infrastructure
-        'AppScope'
-        'InitializeEnvironment'
-        'VerifyEnvironment'
-        'CheckModuleRequirements'
-        'WinISOcore'
+        'AppScope',
+        'InitializeEnvironment',
+        'VerifyEnvironment',
+        'CheckModuleRequirements',
+        'WinISOcore',
 
         # Logging
-        'WriteLogMessage'
+        'WriteLogMessage',
 
         # Download helpers
-        'GitHubDownload'
+        'GitHubDownload',
 
         # UUP Dump workflow
-        'DownloadUUPDump'
-        'ExtractUUPDump'
-        'CreateUUPDiso'
-        'CleanupUUPDump'
-        'RenameUUPDiso'
-        'ExtractUUPDiso'
+        'DownloadUUPDump',
+        'ExtractUUPDump',
+        'CreateUUPDiso',
+        'CleanupUUPDump',
+        'RenameUUPDiso',
+        'ExtractUUPDiso',
 
         # WIM image operations
-        'ImageIndexLookup'
-        'MountWIMimage'
+        'ImageIndexLookup',
+        'MountWIMimage',
         'UnMountWIMimage'
 )
 
@@ -84,35 +84,34 @@ AliasesToExport = @()
 
 # List of all files packaged with this module
 FileList = @(
-    # Root
-    'WinISO.ScriptFXLib.psm1'
-    'WinISO.ScriptFXLib.psd1'
-    'README.md'
+    'WinISO.ScriptFXLib.psm1',
+    'WinISO.ScriptFXLib.psd1',
+    'README.md',
 
     # Private
-    'Private\OPSreturn.ps1'
-    'Private\Invoke-UUPRuntimeLog.ps1'
-    'Private\Get-UUPLogTail.ps1'
-    'Private\Test-UUPConversionPhase.ps1'
-    'Private\Invoke-UUPProcessKill.ps1'
-    'Private\Get-UUPNewestISO.ps1'
+    'Private\OPSreturn.ps1',
+    'Private\Invoke-UUPRuntimeLog.ps1',
+    'Private\Get-UUPLogTail.ps1',
+    'Private\Test-UUPConversionPhase.ps1',
+    'Private\Invoke-UUPProcessKill.ps1',
+    'Private\Get-UUPNewestISO.ps1',
 
     # Public
-    'Public\AppScope.ps1'
-    'Public\InitializeEnvironment.ps1'
-    'Public\VerifyEnvironment.ps1'
-    'Public\CheckModuleRequirements.ps1'
-    'Public\WinISOcore.ps1'
-    'Public\WriteLogMessage.ps1'
-    'Public\GitHubDownload.ps1'
-    'Public\DownloadUUPDump.ps1'
-    'Public\ExtractUUPDump.ps1'
-    'Public\CreateUUPDiso.ps1'
-    'Public\CleanupUUPDump.ps1'
-    'Public\RenameUUPDiso.ps1'
-    'Public\ExtractUUPDiso.ps1'
-    'Public\ImageIndexLookup.ps1'
-    'Public\MountWIMimage.ps1'
+    'Public\AppScope.ps1',
+    'Public\InitializeEnvironment.ps1',
+    'Public\VerifyEnvironment.ps1',
+    'Public\CheckModuleRequirements.ps1',
+    'Public\WinISOcore.ps1',
+    'Public\WriteLogMessage.ps1',
+    'Public\GitHubDownload.ps1',
+    'Public\DownloadUUPDump.ps1',
+    'Public\ExtractUUPDump.ps1',
+    'Public\CreateUUPDiso.ps1',
+    'Public\CleanupUUPDump.ps1',
+    'Public\RenameUUPDiso.ps1',
+    'Public\ExtractUUPDiso.ps1',
+    'Public\ImageIndexLookup.ps1',
+    'Public\MountWIMimage.ps1',
     'Public\UnMountWIMimage.ps1'
 )
 
