@@ -152,9 +152,9 @@ function CreateNewDir {
         catch [System.IO.IOException] {
             return OPSreturn -Code -1 -Message "I/O error when creating directory '$NormalizedPath': $($_.Exception.Message)"
         }
-        catch [System.IO.DirectoryNotFoundException] {
-            return OPSreturn -Code -1 -Message "Parent directory not found for '$NormalizedPath'. Use -Force to create parent directories automatically."
-        }
+#        catch [System.IO.DirectoryNotFoundException] {
+#            return OPSreturn -Code -1 -Message "Parent directory not found for '$NormalizedPath'. Use -Force to create parent directories automatically."
+#        }
         catch {
             return OPSreturn -Code -1 -Message "Failed to create directory '$NormalizedPath': $($_.Exception.Message)"
         }
