@@ -28,9 +28,10 @@ $script:appinfo = @{
     AppName     = 'WinISOSciptFXLib'
     AppVers     = '1.00.00'
     AppDevName  = 'Praetoriani'
+    AppDevMail  = 'mr.praetoriani{at}gmail.com'
     AppWebsite  = 'https://github.com/praetoriani/PowerShell.Mods'
     DateCreate  = '28.03.2026'
-    LastUpdate  = '28.03.2026'
+    LastUpdate  = '29.03.2026'
 }
 
 $script:appenv = @{

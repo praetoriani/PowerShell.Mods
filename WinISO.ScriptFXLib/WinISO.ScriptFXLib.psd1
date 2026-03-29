@@ -12,7 +12,7 @@
 RootModule = 'WinISOSciptFXLib.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.00.02'
+ModuleVersion = '1.00.03'
 
 # Supported PSEditions
 CompatiblePSEditions = @('Desktop', 'Core')
@@ -46,16 +46,31 @@ RequiredAssemblies = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @(
-    'WriteLogMessage',
-    'InitializeEnvironment',
-    'VerifyEnvironment',
-    'GitHubDownload',
-    'MountWIMimage',
-    'DownloadUUPDump',
-    'ExtractUUPDump',
-    'CleanupUUPDump',
-    'RenameUUPDiso',
-    'ExtractUUPDiso'
+        # Core / Infrastructure
+        'AppScope'
+        'InitializeEnvironment'
+        'VerifyEnvironment'
+        'CheckModuleRequirements'
+        'WinISOcore'
+
+        # Logging
+        'WriteLogMessage'
+
+        # Download helpers
+        'GitHubDownload'
+
+        # UUP Dump workflow
+        'DownloadUUPDump'
+        'ExtractUUPDump'
+        'CreateUUPDiso'
+        'CleanupUUPDump'
+        'RenameUUPDiso'
+        'ExtractUUPDiso'
+
+        # WIM image operations
+        'ImageIndexLookup'
+        'MountWIMimage'
+        'UnMountWIMimage'
 )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -69,20 +84,36 @@ AliasesToExport = @()
 
 # List of all files packaged with this module
 FileList = @(
-    'WinISOSciptFXLib.psm1',
-    'WinISOSciptFXLib.psd1',
-    'Private\OPSreturn.ps1',
-    'Public\WriteLogMessage.ps1',
-    'Public\InitializeEnvironment.ps1',
-    'Public\VerifyEnvironment.ps1',
-    'Public\GitHubDownload.ps1',
-    'Public\MountWIMimage.ps1',
-    'Public\DownloadUUPDump.ps1',
-    'Public\ExtractUUPDump.ps1',
-    'Public\CleanupUUPDump.ps1',
-    'Public\RenameUUPDiso.ps1',
-    'Public\ExtractUUPDiso.ps1',
+    # Root
+    'WinISO.ScriptFXLib.psm1'
+    'WinISO.ScriptFXLib.psd1'
     'README.md'
+
+    # Private
+    'Private\OPSreturn.ps1'
+    'Private\Invoke-UUPRuntimeLog.ps1'
+    'Private\Get-UUPLogTail.ps1'
+    'Private\Test-UUPConversionPhase.ps1'
+    'Private\Invoke-UUPProcessKill.ps1'
+    'Private\Get-UUPNewestISO.ps1'
+
+    # Public
+    'Public\AppScope.ps1'
+    'Public\InitializeEnvironment.ps1'
+    'Public\VerifyEnvironment.ps1'
+    'Public\CheckModuleRequirements.ps1'
+    'Public\WinISOcore.ps1'
+    'Public\WriteLogMessage.ps1'
+    'Public\GitHubDownload.ps1'
+    'Public\DownloadUUPDump.ps1'
+    'Public\ExtractUUPDump.ps1'
+    'Public\CreateUUPDiso.ps1'
+    'Public\CleanupUUPDump.ps1'
+    'Public\RenameUUPDiso.ps1'
+    'Public\ExtractUUPDiso.ps1'
+    'Public\ImageIndexLookup.ps1'
+    'Public\MountWIMimage.ps1'
+    'Public\UnMountWIMimage.ps1'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
@@ -98,23 +129,34 @@ PrivateData = @{
 
         # ReleaseNotes of this module
         ReleaseNotes = @'
-Version 1.00.02
-================================
+v1.00.03
+‾‾‾‾‾‾‾‾‾‾
+    - CreateUUPDiso:           Full ISO creation orchestration with multi-layer process monitoring
+    - WinISOcore:              Type-safe read/write accessor for module-scope variables
+    - ImageIndexLookup:        WIM image edition search returning unique ImageIndex
+    - MountWIMimage:           Replaces previous MountWIMimage with full validation and defensive unmount
+    - UnMountWIMimage:         Verified WIM dismount with commit/discard support
+    - CheckModuleRequirements: System dependency audit with optional text export
+    - Private helpers:         Invoke-UUPRuntimeLog, Get-UUPLogTail, Test-UUPConversionPhase,
+                               Invoke-UUPProcessKill, Get-UUPNewestISO
+
+v1.00.02
+‾‾‾‾‾‾‾‾‾‾
 - DownloadUUPDump  : Downloads a UUPDump ZIP package from uupdump.net based on OS type, version, architecture and optional build number
 - ExtractUUPDump   : Extracts a UUPDump ZIP archive to a target directory with optional integrity verification and ZIP cleanup
 - CleanupUUPDump   : Cleans the UUPDump working directory, retaining only the generated ISO file
 - RenameUUPDiso    : Renames the ISO file found in the UUPDump working directory to a specified name
 - ExtractUUPDiso   : Mounts a UUPDump ISO image and copies all contents to a target directory
 
-Version 1.00.01 (Initial Release)
-================================
+v1.00.01
+‾‾‾‾‾‾‾‾‾‾
 - InitializeEnvironment : Creates the full WinISO working environment directory structure
 - VerifyEnvironment : Verifies all required directories and tools are present
 - GitHubDownload   : Downloads files from public GitHub repositories with completeness verification
 - MountWIMimage    : Mounts the install.wim file for offline customization via DISM
 
-Version 1.00.00 (Initial Release)
-================================
+v1.00.00 (Initial Release)
+‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 - WriteLogMessage  : Advanced logging function with timestamp and severity flags
 Additional Notes:
 - Comprehensive error handling with standardized return objects
