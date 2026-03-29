@@ -40,6 +40,10 @@
         Required when Permission='write'. The new value to assign to VarKeyID.
         Type MUST match the existing key's value type (implicit conversion is attempted).
 
+    .PARAMETER Unwrap
+        Switch-Parameter. Wenn angegeben, gibt 'read' direkt die Hashtable zurück
+        statt des OPSreturn-Objekts. Vereinfacht den aufrufenden Code erheblich.
+
     .OUTPUTS
         PSCustomObject { .code, .msg, .data }
         READ  : .data = the live hashtable reference
@@ -84,7 +88,10 @@
         [string]$VarKeyID = '',
 
         [Parameter(Mandatory = $false, HelpMessage = "New value (write only). Type must match existing key's type.")]
-        $SetNewVal = $null
+        $SetNewVal = $null,
+
+        [Parameter(Mandatory = $false, HelpMessage = "If set, read returns the hashtable directly instead of OPSreturn wrapper.")]
+        [switch]$Unwrap
     )
 
     # Normalise all string inputs to lowercase for consistent comparisons
@@ -118,15 +125,40 @@
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Invalid GlobalVar '$GlobalVar'. Allowed: $($ValidVars -join ', ').")
     }
 
+    # -- Enforce read-only vars --
+    # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+    $ReadOnlyVars = @('appcore', 'exit')
+    if ($PermissionNorm -eq 'write' -and $GlobalVarNorm -in $ReadOnlyVars) {
+        return (OPSreturn -Code -1 -Message "WinISOcore failed! '$GlobalVar' is read-only and cannot be modified. Write access is only allowed for: appinfo, appenv.")
+    }
+    
     # -- Resolve the target hashtable --
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $TargetHashtable = $null
     try {
         switch ($GlobalVarNorm) {
-            'appinfo' { $TargetHashtable = AppScope -KeyID 'appinfo' }
-            'appenv'  { $TargetHashtable = AppScope -KeyID 'appenv'  }
-            'appexit' {
-                # $script:exit is not exposed by the AppScope getter — resolve directly
+            'appinfo'  {
+                $AppInfoVar = Get-Variable -Name 'appinfo' -Scope Script -ErrorAction SilentlyContinue
+                if ($null -eq $AppInfoVar) {
+                    return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:appinfo could not be resolved.")
+                }
+                $TargetHashtable = $AppInfoVar.Value
+            }
+            'appenv'  {
+                $AppEnvVar = Get-Variable -Name 'appenv' -Scope Script -ErrorAction SilentlyContinue
+                if ($null -eq $AppEnvVar) {
+                    return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:appenv could not be resolved.")
+                }
+                $TargetHashtable = $AppEnvVar.Value
+            }
+            'appcore' {
+                $AppCoreVar = Get-Variable -Name 'appcore' -Scope Script -ErrorAction SilentlyContinue
+                if ($null -eq $AppCoreVar) {
+                    return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:appcore could not be resolved.")
+                }
+                $TargetHashtable = $AppCoreVar.Value
+            }
+            'exit' {
                 $ExitVar = Get-Variable -Name 'exit' -Scope Script -ErrorAction SilentlyContinue
                 if ($null -eq $ExitVar) {
                     return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:exit could not be resolved.")
@@ -147,6 +179,11 @@
     # READ
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     if ($PermissionNorm -eq 'read') {
+        # With -Unwrap: directly access the hashtable
+        if ($Unwrap.IsPresent) {
+            return $TargetHashtable
+        }
+        # Standard: OPSreturn-Wrapper (backwards compatibility)
         return (OPSreturn -Code 0 -Message "WinISOcore: Read access granted for '$GlobalVar'." -Data $TargetHashtable)
     }
 

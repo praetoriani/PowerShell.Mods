@@ -19,15 +19,13 @@ Import-Module 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1'
 
 
 # Import global vars using getter-functionallity
-$MyWinISO = @{
-    appinfo = WinISOcore -Scope 'env' -GlobalVar 'appinfo' -Permission 'read'
-    appenv  = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'read'
-#    appcore = WinISOcore -Scope 'env' -GlobalVar 'appcore' -Permission 'read'
-}
-$MyWinISO.appinfo = $MyWinISO.appinfo.data
-$MyWinISO.appenv  = $MyWinISO.appenv.data
+$appinfo = WinISOcore -Scope 'env' -GlobalVar 'appinfo' -Permission 'read' -Unwrap
+$appenv  = WinISOcore -Scope 'env' -GlobalVar 'appenv'  -Permission 'read' -Unwrap
 
-Write-Host 'You are using '$MyWinISO.appinfo.AppName' v'$MyWinISO.appinfo.AppVers
+
+Write-Host 'You are using '$appinfo.AppName' v'$appinfo.AppVers
+Write-Host 'Current Root-Directory of your project: '$appenv.ISOroot
+Write-Host 'Please make sure to put all required files in that directory'
 
 # Let's check the requirements for using the WinISO ScriptFX Library
 $CheckReq = CheckModuleRequirements -Export 1

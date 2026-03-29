@@ -326,8 +326,18 @@
             $ExportContent.Add("PASS: $P | WARNING: $W | FAIL: $F")
             $ExportContent.Add("")
             $ExportContent.Add("")
-            $ExportContent.Add("Please visit $($AppInfo['AppWebsite']) for more information and support.")
-            $ExportContent.Add("You can find the Download URLs of some of the requirements inside the README.md file.")
+            if ( $P -ne 11) {
+                $ExportContent.Add("Please visit $($AppInfo['AppWebsite']) for more information and support.")
+                $ExportContent.Add("You can find the Download URLs of some of the requirements inside the README.md file.")
+                $ExportContent.Add("")
+                $ExportContent.Add("Official Download Sources:")
+                $ExportContent.Add("- PowerShell 7.x        https://github.com/PowerShell/PowerShell/releases")
+                $ExportContent.Add("- .NET Framework 4.8    https://dotnet.microsoft.com/en-us/download/dotnet-framework")
+                $ExportContent.Add("- Windows ADK           https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install")
+            } else {
+                $ExportContent.Add("Thanks for using $($AppInfo['AppName']) :)")
+                $ExportContent.Add("Please visit $($AppInfo['AppWebsite']) for more information and support.")
+            }
             $ExportContent.Add("")
 
             $ExportContent | Out-File -FilePath $ExportFile -Encoding UTF8 -Force -ErrorAction Stop
