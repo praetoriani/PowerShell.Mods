@@ -1,4 +1,4 @@
-function InitializeEnvironment {
+﻿function InitializeEnvironment {
     <#
     .SYNOPSIS
     InitializeEnvironment - Core function that creates our WinISO-Environment

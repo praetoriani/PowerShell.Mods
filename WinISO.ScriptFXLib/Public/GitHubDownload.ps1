@@ -1,4 +1,4 @@
-function GitHubDownload {
+﻿function GitHubDownload {
     <#
     .SYNOPSIS
         Downloades a single file from a public GitHub repository..

@@ -1,4 +1,4 @@
-# WinISO.ScriptFXLib
+﻿# WinISO.ScriptFXLib
 
 > **PowerShell module for fully automated Windows 11 ISO creation, customisation, and rebuilding**
 > Using [UUP Dump](https://uupdump.net), DISM, and oscdimg.

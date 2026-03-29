@@ -1,4 +1,4 @@
-function ExtractUUPDump {
+﻿function ExtractUUPDump {
     <#
     .SYNOPSIS
         Extracts the contents of a UUPDump ZIP archive to a specified target directory.

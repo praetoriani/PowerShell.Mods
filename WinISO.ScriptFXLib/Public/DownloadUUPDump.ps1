@@ -1,4 +1,4 @@
-function DownloadUUPDump {
+﻿function DownloadUUPDump {
     <#
     .SYNOPSIS
         Downloads a UUPDump package ZIP file from uupdump.net.

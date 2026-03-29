@@ -1,4 +1,4 @@
-function ImageIndexLookup {
+﻿function ImageIndexLookup {
     <#
     .SYNOPSIS
         Searches a WIM image file for a Windows edition and returns its image index.

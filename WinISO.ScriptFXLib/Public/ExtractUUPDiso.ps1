@@ -1,4 +1,4 @@
-function ExtractUUPDiso {
+﻿function ExtractUUPDiso {
     <#
     .SYNOPSIS
         Extracts (copies) the full contents of a UUPDump ISO file to a target directory.

@@ -1,4 +1,4 @@
-function CreateUUPDiso {
+﻿function CreateUUPDiso {
     <#
     .SYNOPSIS
         Runs uup_download_windows.cmd and monitors the full ISO creation process.
@@ -311,7 +311,7 @@ function CreateUUPDiso {
                         }
                     }
                     elseif (-not $SoftWarnLogged) {
-                        Write-Verbose ("CreateUUPDiso: Soft-idle ({0:mm\:ss} no activity)." -f $IdleSpan)
+                        Write-Verbose ('CreateUUPDiso: Soft-idle ({0:mm\:ss} no activity).' -f $IdleSpan)
                         $SoftWarnLogged = $true
                     }
                 } catch { }

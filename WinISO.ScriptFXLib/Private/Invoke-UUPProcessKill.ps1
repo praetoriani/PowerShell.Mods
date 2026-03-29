@@ -1,4 +1,4 @@
-function Invoke-UUPProcessKill {
+﻿function Invoke-UUPProcessKill {
     <#
     .SYNOPSIS
         Forcefully terminates a process and its entire child process tree.

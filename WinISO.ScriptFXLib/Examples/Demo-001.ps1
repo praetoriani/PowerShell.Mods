@@ -1,4 +1,4 @@
-<#
+﻿<#
     .SYNOPSIS
         Demo 001 - A simple demonstration on how to use the WinISO ScriptFX Library in your own scripts.
     
@@ -12,7 +12,10 @@
 #>
 
 #Import-Module -Name 'C:\WinISO\app.core\PSAppCoreLib\PSAppCoreLib.psd1' -Force -Verbose
-Import-Module -Name 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1' -Force -Verbose
+#Import-Module 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1' -Force -Verbose
+#Get-Command -Module WinISO.ScriptFXLib | Sort-Object Name
+Import-Module 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1'
+
 
 
 # Import global vars using getter-functionallity
@@ -21,5 +24,13 @@ $MyWinISO = @{
     appenv  = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'read'
 #    appcore = WinISOcore -Scope 'env' -GlobalVar 'appcore' -Permission 'read'
 }
+$MyWinISO.appinfo = $MyWinISO.appinfo.data
+$MyWinISO.appenv  = $MyWinISO.appenv.data
 
-Write-Host $MyWinISO.appinfo.data.AppName   # >> WinISOSciptFXLib
+Write-Host 'You are using '$MyWinISO.appinfo.AppName' v'$MyWinISO.appinfo.AppVers
+
+# Let's check the requirements for using the WinISO ScriptFX Library
+$CheckReq = CheckModuleRequirements -Export 1
+if ( $CheckReq.code -eq 0) { Write-Host $CheckReq.msg } 
+else { Write-Error $CheckReq.msg }
+Write-Host 'The Logfile is available at: '$MyWinISO.appenv.LogfileDir

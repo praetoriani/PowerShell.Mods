@@ -1,4 +1,4 @@
-function WinISOcore {
+﻿function WinISOcore {
     <#
     .SYNOPSIS
         Unified read/write accessor for WinISO module-scope (script-scope) variables.

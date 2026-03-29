@@ -1,4 +1,4 @@
-function WriteLogMessage {
+﻿function WriteLogMessage {
     <#
     .SYNOPSIS
     Writes messages to a log file with timestamps and severity flags.

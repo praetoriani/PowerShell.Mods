@@ -1,4 +1,4 @@
-function UnMountWIMimage {
+﻿function UnMountWIMimage {
     <#
     .SYNOPSIS
         Dismounts a currently active WIM image from a DISM mount point.
@@ -81,7 +81,7 @@ function UnMountWIMimage {
         if ($null -ne $ActiveEntry) { $IsActiveMount = $true }
     }
     catch {
-        Write-Verbose "UnMountWIMimage: Get-WindowsImage -Mounted failed — trying dism.exe fallback: $($_.Exception.Message)"
+        Write-Verbose "UnMountWIMimage: Get-WindowsImage -Mounted failed - trying dism.exe fallback: $($_.Exception.Message)"
     }
 
     # Fallback: dism.exe /Get-MountedWimInfo

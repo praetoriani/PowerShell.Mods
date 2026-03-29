@@ -1,4 +1,4 @@
-function VerifyEnvironment {
+﻿function VerifyEnvironment {
     <#
     .SYNOPSIS
     VerifyEnvironment - Core function that can verify several things regarding our environment

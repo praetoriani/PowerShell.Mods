@@ -1,4 +1,4 @@
-function Get-UUPLogTail {
+﻿function Get-UUPLogTail {
     <#
     .SYNOPSIS
         Returns the last N lines (or last MaxBytes bytes) of a log file.

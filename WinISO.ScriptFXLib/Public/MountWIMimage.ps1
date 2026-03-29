@@ -1,4 +1,4 @@
-function MountWIMimage {
+﻿function MountWIMimage {
     <#
     .SYNOPSIS
         Mounts a specific image index from a WIM file to a mount-point directory.

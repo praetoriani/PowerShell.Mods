@@ -1,4 +1,4 @@
-function CleanupUUPDump {
+﻿function CleanupUUPDump {
     <#
     .SYNOPSIS
         Cleans up the UUPDump working directory, retaining only the ISO file.

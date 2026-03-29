@@ -1,4 +1,4 @@
-function CheckModuleRequirements {
+﻿function CheckModuleRequirements {
     <#
     .SYNOPSIS
         Verifies that all system dependencies required by WinISO.ScriptFXLib are present.
@@ -58,10 +58,10 @@ function CheckModuleRequirements {
     $Results       = [System.Collections.Generic.List[PSCustomObject]]::new()
     $CriticalFails = 0
 
-    # Inline helper to append a result row
+    # Inline helper - references the local $Results via parameter
     $AddResult = {
         param([string]$Name, [string]$Status, [string]$Detail = '')
-        $script:Results.Add([PSCustomObject]@{
+        $Results.Add([PSCustomObject]@{
             CheckName = $Name
             Status    = $Status.ToUpper()
             Detail    = $Detail
@@ -70,6 +70,24 @@ function CheckModuleRequirements {
 
     # CHECK 1: Operating System (Windows only)
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+    try {
+        $OSPlatform = [System.Environment]::OSVersion.Platform
+        if ($OSPlatform -eq 'Win32NT') {
+            # Use CIM for accurate OS caption (Environment.OSVersion is unreliable on Win8.1+)
+            $CimOS      = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+            $OSCaption  = $CimOS.Caption           # e.g. "Microsoft Windows 11 Pro"
+            $OSBuild    = $CimOS.BuildNumber        # e.g. "26200"
+            $OSVersion  = $CimOS.Version            # e.g. "10.0.26200"
+            $DetailStr  = "$OSCaption (Build $OSBuild, v$OSVersion)"
+            & $AddResult 'Operating System' 'PASS' $DetailStr
+        } else {
+            & $AddResult 'Operating System' 'FAIL' "Windows required. Detected: $OSPlatform"
+            $CriticalFails++
+        }
+    } catch {
+        & $AddResult 'Operating System' 'WARNING' "Check failed: $($_.Exception.Message)"
+    }
+    <#
     try {
         $OSPlatform = [System.Environment]::OSVersion.Platform
         $OSVersion  = [System.Environment]::OSVersion.Version
@@ -82,7 +100,8 @@ function CheckModuleRequirements {
     } catch {
         & $AddResult 'Operating System' 'WARNING' "Check failed: $($_.Exception.Message)"
     }
-
+    #>
+    
     # CHECK 2: PowerShell version (5.1 minimum)
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     try {

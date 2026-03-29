@@ -1,4 +1,4 @@
-function RenameUUPDiso {
+﻿function RenameUUPDiso {
     <#
     .SYNOPSIS
         Renames the ISO file found in the UUPDump working directory.
