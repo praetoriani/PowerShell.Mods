@@ -12,7 +12,7 @@
 .NOTES
     Creation Date: 28.03.2026
     Last Update:   28.03.2026
-    Version:       1.00.00
+    Version:       1.00.02
     Author:        Praetoriani (a.k.a. M.Sczepanski)
     Website:       https://github.com/praetoriani/PowerShell.Mods
 
