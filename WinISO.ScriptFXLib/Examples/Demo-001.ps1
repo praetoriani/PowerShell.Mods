@@ -21,14 +21,35 @@ Import-Module 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1'
 # Import global vars using getter-functionallity
 $appinfo = WinISOcore -Scope 'env' -GlobalVar 'appinfo' -Permission 'read' -Unwrap
 $appenv  = WinISOcore -Scope 'env' -GlobalVar 'appenv'  -Permission 'read' -Unwrap
+$appcore = WinISOcore -Scope 'env' -GlobalVar 'appcore' -Permission 'read' -Unwrap
 
 
-Write-Host 'You are using '$appinfo.AppName' v'$appinfo.AppVers
-Write-Host 'Current Root-Directory of your project: '$appenv.ISOroot
+Write-Host "You are using $($appinfo.AppName) v$($appinfo.AppVers)"
+Write-Host ""
+Write-Host "Current Root-Directory of your project: $($appenv.ISOroot)"
 Write-Host 'Please make sure to put all required files in that directory'
+Write-Host ""
+Write-Host "This demo is using the following PowerShell Libraries:"
+Write-Host "$($appcore.PSmod.WinISOmodlib)"
+Write-Host "$($appcore.PSmod.PSAppCoreLib)"
+Write-Host "PowerShell Modules are stored in: $($appcore.Root)"
+Write-Host ""
 
+Write-Host "Checking Requirements. Please wait ..."
+Write-Host ""
 # Let's check the requirements for using the WinISO ScriptFX Library
 $CheckReq = CheckModuleRequirements -Export 1
 if ( $CheckReq.code -eq 0) { Write-Host $CheckReq.msg } 
 else { Write-Error $CheckReq.msg }
-Write-Host 'The Logfile is available at: '$MyWinISO.appenv.LogfileDir
+Write-Host ""
+Write-Host "The Logfile is available at: $($appenv.LogfileDir)\$($appcore.ReqResLog)"
+Write-Host ""
+
+Write-Host "Trying to download oscdimg.exe from Github. Please wait ..."
+$DownloadURL = "https://github.com/praetoriani/PowerShell.Mods/blob/main/WinISO.ScriptFXLib/Requirements/oscdimg.exe"
+$Save2Folder = "$($appenv.Downloads)\oscdimg.exe"
+$result = GitHubDownload `
+    -URL    $DownloadURL `
+    -SaveTo $Save2Folder
+if ($result.code -eq 0) { Write-Host "Success: $($result.msg)" }
+else { Write-Host "Failed: $($result.msg)" }

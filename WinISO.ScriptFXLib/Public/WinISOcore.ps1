@@ -117,7 +117,7 @@
 
     # -- Validate GlobalVar (required for scope 'env') --
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-    $ValidVars = @('appinfo', 'appenv', 'appexit')
+    $ValidVars = @('appinfo', 'appenv', 'appcore', 'exit', 'appexit')
     if ([string]::IsNullOrWhiteSpace($GlobalVarNorm)) {
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Parameter 'GlobalVar' is required when Scope='env'.")
     }

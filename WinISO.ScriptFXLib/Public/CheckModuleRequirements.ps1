@@ -52,8 +52,10 @@
         [int]$Export = 0
     )
 
-    $AppInfo = AppScope -KeyID 'appinfo'
-    $EnvData  = AppScope -KeyID 'appenv'
+    # Import global vars using getter-functionallity
+    $appinfo = WinISOcore -Scope 'env' -GlobalVar 'appinfo' -Permission 'read' -Unwrap
+    $appenv  = WinISOcore -Scope 'env' -GlobalVar 'appenv'  -Permission 'read' -Unwrap
+    $appcore = WinISOcore -Scope 'env' -GlobalVar 'appcore'  -Permission 'read' -Unwrap
 
     $Results       = [System.Collections.Generic.List[PSCustomObject]]::new()
     $CriticalFails = 0
@@ -229,7 +231,7 @@
     # CHECK 9: oscdimg.exe
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     try {
-        $OscdimgPath = $EnvData['OscdimgExe']
+        $OscdimgPath = $appenv.OscdimgExe
         if (-not [string]::IsNullOrWhiteSpace($OscdimgPath) -and (Test-Path $OscdimgPath -PathType Leaf)) {
             $OscdimgVer = (Get-Item $OscdimgPath).VersionInfo.FileVersionRaw
             & $AddResult 'oscdimg.exe' 'PASS' "$OscdimgPath (v$OscdimgVer)"
@@ -245,12 +247,12 @@
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     try {
         $DirChecks = [ordered]@{
-            'ISOroot'    = $EnvData['ISOroot']
-            'ISOdata'    = $EnvData['ISOdata']
-            'MountPoint' = $EnvData['MountPoint']
-            'LogfileDir' = $EnvData['LogfileDir']
-            'UUPDumpDir' = $EnvData['UUPDumpDir']
-            'OscdimgDir' = $EnvData['OscdimgDir']
+            'ISOroot'    = $appenv.ISOroot
+            'ISOdata'    = $appenv.ISOdata
+            'MountPoint' = $appenv.MountPoint
+            'LogfileDir' = $appenv.LogfileDir
+            'UUPDumpDir' = $appenv.UUPDumpDir
+            'OscdimgDir' = $appenv.OscdimgDir
         }
         $MissingDirs = @()
         foreach ($Entry in $DirChecks.GetEnumerator()) {
@@ -293,8 +295,8 @@
     # EXPORT results to text file (if Export=1)
     if ($Export -eq 1) {
         try {
-            $ExportDir  = $EnvData['LogfileDir']
-            $ExportFile = Join-Path $ExportDir 'WinISO.ScriptFXLib.Requirements.Result.txt'
+            $ExportDir  = $appenv.LogfileDir
+            $ExportFile = Join-Path $ExportDir "$($appcore.ReqResLog)"
 
             if (-not (Test-Path -Path $ExportDir -PathType Container)) {
                 $null = New-Item -Path $ExportDir -ItemType Directory -Force -ErrorAction Stop
@@ -304,13 +306,13 @@
             $ExportContent.Add("WinISO.ScriptFXLib - Requirements Check Result")
             $ExportContent.Add("⋆" * 80)
             $ExportContent.Add("Generated : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
-            $ExportContent.Add("Module    : $($AppInfo['AppName']) v$($AppInfo['AppVers'])")
+            $ExportContent.Add("Module    : $($appinfo.AppName) v$($appinfo.AppVers)")
             $ExportContent.Add("⋆" * 80)
-            $ExportContent.Add("WinISO.ScriptFXLib written by $($AppInfo['AppDevName'])")
-            $ExportContent.Add("URL: $($AppInfo['AppWebsite'])")
+            $ExportContent.Add("WinISO.ScriptFXLib written by $($appinfo.AppDevName)")
+            $ExportContent.Add("URL: $($appinfo.AppWebsite)")
             $ExportContent.Add("⋆" * 80)
-            $ExportContent.Add("Created on:   $($AppInfo['DateCreate'])")
-            $ExportContent.Add("Last updated: $($AppInfo['LastUpdate'])")
+            $ExportContent.Add("Created on:   $($appinfo.DateCreate)")
+            $ExportContent.Add("Last updated: $($appinfo.LastUpdate)")
             $ExportContent.Add("⋆" * 80)
             $ExportContent.Add("")
 
@@ -327,7 +329,7 @@
             $ExportContent.Add("")
             $ExportContent.Add("")
             if ( $P -ne 11) {
-                $ExportContent.Add("Please visit $($AppInfo['AppWebsite']) for more information and support.")
+                $ExportContent.Add("Please visit $($appinfo.AppWebsite) for more information and support.")
                 $ExportContent.Add("You can find the Download URLs of some of the requirements inside the README.md file.")
                 $ExportContent.Add("")
                 $ExportContent.Add("Official Download Sources:")
@@ -335,8 +337,8 @@
                 $ExportContent.Add("- .NET Framework 4.8    https://dotnet.microsoft.com/en-us/download/dotnet-framework")
                 $ExportContent.Add("- Windows ADK           https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install")
             } else {
-                $ExportContent.Add("Thanks for using $($AppInfo['AppName']) :)")
-                $ExportContent.Add("Please visit $($AppInfo['AppWebsite']) for more information and support.")
+                $ExportContent.Add("Thanks for using $($appinfo.AppName) :)")
+                $ExportContent.Add("Please visit $($appinfo.AppWebsite) for more information and support.")
             }
             $ExportContent.Add("")
 

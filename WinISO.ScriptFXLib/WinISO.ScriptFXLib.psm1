@@ -57,6 +57,14 @@ $script:appcore = @{
         WinISOmodlib = Join-Path $script:appenv['ISOroot'] 'app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1'
         PSAppCoreLib = Join-Path $script:appenv['ISOroot'] 'app.core\PSAppCoreLib\PSAppCoreLib.psd1'
     }
+    CoreLog   = "$($script:appinfo.AppName).$($script:appinfo.AppVers).log"
+    ReqResLog = "$($script:appinfo.AppName).Requirements.Result.txt"
+    util    = @{
+        oscdimg  = "oscdimg.exe"
+    }
+#    requirement = @{
+#
+#    }
 }
 
 

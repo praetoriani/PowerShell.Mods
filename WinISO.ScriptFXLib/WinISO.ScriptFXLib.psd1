@@ -58,6 +58,7 @@ FunctionsToExport = @(
 
         # Download helpers
         'GitHubDownload',
+        'GetLatestPowerShellSetup',
 
         # UUP Dump workflow
         'DownloadUUPDump',
@@ -103,6 +104,7 @@ FileList = @(
     'Public\CheckModuleRequirements.ps1',
     'Public\WinISOcore.ps1',
     'Public\WriteLogMessage.ps1',
+    'Public\GetLatestPowerShellSetup.ps1',
     'Public\GitHubDownload.ps1',
     'Public\DownloadUUPDump.ps1',
     'Public\ExtractUUPDump.ps1',
@@ -130,14 +132,15 @@ PrivateData = @{
         ReleaseNotes = @'
 v1.00.03
 ‾‾‾‾‾‾‾‾‾‾
-    - CreateUUPDiso:           Full ISO creation orchestration with multi-layer process monitoring
-    - WinISOcore:              Type-safe read/write accessor for module-scope variables
-    - ImageIndexLookup:        WIM image edition search returning unique ImageIndex
-    - MountWIMimage:           Replaces previous MountWIMimage with full validation and defensive unmount
-    - UnMountWIMimage:         Verified WIM dismount with commit/discard support
-    - CheckModuleRequirements: System dependency audit with optional text export
-    - Private helpers:         Invoke-UUPRuntimeLog, Get-UUPLogTail, Test-UUPConversionPhase,
-                               Invoke-UUPProcessKill, Get-UUPNewestISO
+    - GetLatestPowerShellSetup: Downloads the latest PowerShell release from GitHub and optionally installs it silently
+    - CreateUUPDiso:            Full ISO creation orchestration with multi-layer process monitoring
+    - WinISOcore:               Type-safe read/write accessor for module-scope variables
+    - ImageIndexLookup:         WIM image edition search returning unique ImageIndex
+    - MountWIMimage:            Replaces previous MountWIMimage with full validation and defensive unmount
+    - UnMountWIMimage:          Verified WIM dismount with commit/discard support
+    - CheckModuleRequirements:  System dependency audit with optional text export
+    - Private helpers:          Invoke-UUPRuntimeLog, Get-UUPLogTail, Test-UUPConversionPhase,
+                                Invoke-UUPProcessKill, Get-UUPNewestISO
 
 v1.00.02
 ‾‾‾‾‾‾‾‾‾‾
