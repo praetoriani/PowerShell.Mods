@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    WinISOSciptFXLib - Powerfull Module for downloading, customizing and re-building bootable Windows 11 Pro Setup ISO Files
+    WinISO.SciptFXLib - Powerfull Module for downloading, customizing and re-building bootable Windows 11 Pro Setup ISO Files
 
 .DESCRIPTION
     This PowerShell Module was designed to provide powerfull functions to almost fully automate the process of
     downloading and generating Windows 11 Pro ISO Files (using uupdump.net), customizing install.wim images
     to fit your personal needs and necessary requirements (using DISM and other tools) and re-building a final
     version to an bootable ISO file based on your previously made customizations to the Windows Image.
-    In simple words: With WinISOSciptFXLib you can create your own customized bootable Windows 11 Pro Setup ISO!
+    In simple words: With WinISO.SciptFXLib you can create your own customized bootable Windows 11 Pro Setup ISO!
 
 .NOTES
     Creation Date: 28.03.2026
@@ -25,7 +25,7 @@
 # define vars on module-level (script scope = module scope)
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:appinfo = @{
-    AppName     = 'WinISOSciptFXLib'
+    AppName     = 'WinISO.SciptFXLib'
     AppVers     = '1.00.00'
     AppDevName  = 'Praetoriani'
     AppDevMail  = 'mr.praetoriani{at}gmail.com'

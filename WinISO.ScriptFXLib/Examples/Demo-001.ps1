@@ -11,8 +11,8 @@
         Version:       1.00.02
 #>
 
-Import-Module -Name 'C:\WinISO\app.core\PSAppCoreLib\PSAppCoreLib.psd1'
-Import-Module -Name 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1'
+#Import-Module -Name 'C:\WinISO\app.core\PSAppCoreLib\PSAppCoreLib.psd1' -Force -Verbose
+Import-Module -Name 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1' -Force -Verbose
 
 
 # Import global vars using getter-functionallity
