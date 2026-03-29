@@ -53,3 +53,10 @@ $result = GitHubDownload `
     -SaveTo $Save2Folder
 if ($result.code -eq 0) { Write-Host "Success: $($result.msg)" }
 else { Write-Host "Failed: $($result.msg)" }
+Write-Host ""
+
+Write-Host "Time to download a UUP Dump for Windows 11 24H2 amd64. Please wait ..."
+$result = DownloadUUPDump -OStype 'Windows11' -OSvers '24H2' -OSarch 'amd64' `
+                            -Target "$($appenv.Downloads)\Win11-24H2-amd64.zip"
+if ($result.code -eq 0) { Write-Host "Downloaded: $($result.data)" }
+Write-Host ""
