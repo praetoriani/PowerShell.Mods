@@ -1,4 +1,4 @@
-﻿function WinISOcore {
+﻿﻿function WinISOcore {
     <#
     .SYNOPSIS
         Unified read/write accessor for WinISO module-scope (script-scope) variables.
@@ -22,49 +22,49 @@
         - Keeping the door open for future Scope extensions (e.g. 'ext' for external
           JSON config) without changing the interface
 
+        Supported GlobalVar values (Permission='read' and 'write' where applicable):
+        - appinfo     : module metadata (read/write)
+        - appenv      : working directory paths (read/write)
+        - appcore     : core configuration / download URLs (read-only)
+        - exit        : exit code/text accumulator (read-only)
+        - LoadedHives : runtime hashtable of currently loaded offline registry hives
+                        (read/write — managed by LoadRegistryHive / UnloadRegistryHive)
+
     .PARAMETER Scope
         The access scope. Currently only 'env' is supported.
 
     .PARAMETER GlobalVar
         Which module-scope variable to access. Required when Scope='env'.
-        Accepted values: 'appinfo' | 'appenv' | 'appexit'
+        Accepted values: 'appinfo' | 'appenv' | 'appcore' | 'exit' | 'LoadedHives'
 
     .PARAMETER Permission
         Access type: 'read' (default, read-only) | 'write' (validated read+write).
 
     .PARAMETER VarKeyID
         Required when Permission='write'. The key inside the GlobalVar hashtable to update.
-        The key MUST already exist — WinISOcore does not create new keys.
+        For LoadedHives: the HiveName (e.g. 'SOFTWARE').
+        For all other vars: the key must already exist — WinISOcore does not create new keys,
+        EXCEPT for LoadedHives where new hive entries may be added or removed by the
+        registry hive management functions.
 
     .PARAMETER SetNewVal
         Required when Permission='write'. The new value to assign to VarKeyID.
-        Type MUST match the existing key's value type (implicit conversion is attempted).
+        For LoadedHives write: pass the RegMountKey string (e.g. 'HKLM\WinISO_SOFTWARE')
+        to add a new tracking entry, OR pass $null to remove an existing entry.
 
     .PARAMETER Unwrap
-        Switch-Parameter. Wenn angegeben, gibt 'read' direkt die Hashtable zurück
-        statt des OPSreturn-Objekts. Vereinfacht den aufrufenden Code erheblich.
+        Switch-Parameter. When specified, 'read' returns the hashtable directly instead
+        of the OPSreturn wrapper. Significantly simplifies calling code.
 
     .OUTPUTS
         PSCustomObject { .code, .msg, .data }
         READ  : .data = the live hashtable reference
-        WRITE : .data = the newly written value
+        WRITE : .data = the newly written value (or $null if entry was removed)
 
     .EXAMPLE
         # Read the full appenv hashtable
         $r = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'read'
         Write-Host $r.data['ISOroot']   # >> C:\WinISO
-
-    .EXAMPLE
-        # Write a new string value (same type)
-        $r = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'write' `
-                        -VarKeyID 'MountPoint' -SetNewVal 'D:\WIMmount'
-        if ($r.code -eq 0) { Write-Host "Updated." }
-
-    .EXAMPLE
-        # Type mismatch — will fail gracefully, original value untouched
-        $r = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'write' `
-                        -VarKeyID 'MountPoint' -SetNewVal 42
-        # $r.code -eq -1
 
     .EXAMPLE
         # Read LoadedHives directly (unwrapped)
@@ -86,7 +86,7 @@
         $r = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'write' `
                         -VarKeyID 'MountPoint' -SetNewVal 'D:\WIMmount'
         if ($r.code -eq 0) { Write-Host "Updated." }
-    
+
     .NOTES
         Dependencies: AppScope, OPSreturn (WinISO.ScriptFXLib.psm1), PowerShell 5.1+.
     #>
@@ -108,7 +108,7 @@
         [Parameter(Mandatory = $false, HelpMessage = "Key to update (write only). Must exist in GlobalVar (except LoadedHives — new keys allowed).")]
         [string]$VarKeyID = '',
 
-        [Parameter(Mandatory = $false, HelpMessage = "New value (write only). Pass null to remove a LoadedHives entry.")]
+        [Parameter(Mandatory = $false, HelpMessage = "New value (write only). Pass \$null to remove a LoadedHives entry.")]
         $SetNewVal = $null,
 
         [Parameter(Mandatory = $false, HelpMessage = "If set, read returns the hashtable directly instead of OPSreturn wrapper.")]
@@ -122,21 +122,21 @@
     $GlobalVarNorm  = $GlobalVar.Trim().ToLower()
     $VarKeyIDNorm   = $VarKeyID.Trim()   # preserve original casing for key lookup
 
-    # Validate Scope
+    # -- Validate Scope --
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $ValidScopes = @('env')
     if ($ScopeNorm -notin $ValidScopes) {
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Invalid Scope '$Scope'. Allowed: $($ValidScopes -join ', ').")
     }
 
-    # Validate Permission
+    # -- Validate Permission --
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $ValidPermissions = @('read', 'write')
     if ($PermissionNorm -notin $ValidPermissions) {
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Invalid Permission '$Permission'. Allowed: 'read' | 'write'.")
     }
 
-    # Validate GlobalVar (required for scope 'env')
+    # -- Validate GlobalVar (required for scope 'env') --
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $ValidVars = @('appinfo', 'appenv', 'appcore', 'exit', 'appexit', 'loadedhives')
     if ([string]::IsNullOrWhiteSpace($GlobalVarNorm)) {
@@ -146,14 +146,14 @@
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Invalid GlobalVar '$GlobalVar'. Allowed: $($ValidVars -join ', ').")
     }
 
-    # Enforce read-only vars
+    # -- Enforce read-only vars --
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $ReadOnlyVars = @('appcore', 'exit')
     if ($PermissionNorm -eq 'write' -and $GlobalVarNorm -in $ReadOnlyVars) {
         return (OPSreturn -Code -1 -Message "WinISOcore failed! '$GlobalVar' is read-only and cannot be modified. Write access is only allowed for: appinfo, appenv, LoadedHives.")
     }
 
-    # Resolve the target hashtable
+    # -- Resolve the target hashtable --
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $TargetHashtable = $null
     try {
@@ -214,13 +214,15 @@
     }
 
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-    # WRITE - validate VarKeyID first
+    # WRITE — validate VarKeyID first
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     if ([string]::IsNullOrWhiteSpace($VarKeyIDNorm)) {
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Parameter 'VarKeyID' is required for write access.")
     }
 
+    # =========================================================================
     # WRITE: LoadedHives — special handling (add/remove dynamic entries)
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     if ($GlobalVarNorm -eq 'loadedhives') {
         $HiveKey = $VarKeyIDNorm.ToUpper()
@@ -245,7 +247,9 @@
         }
     }
 
+    # =========================================================================
     # WRITE: appinfo / appenv — standard key-must-exist + type-safety logic
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $ResolvedKey = $TargetHashtable.Keys | Where-Object { $_ -eq $VarKeyIDNorm } | Select-Object -First 1
     if (-not $ResolvedKey) {

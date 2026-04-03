@@ -1,4 +1,4 @@
-﻿<#
+﻿﻿<#
 .SYNOPSIS
     WinISO.ScriptFXLib - Powerfull Module for downloading, customizing and re-building bootable Windows 11 Pro Setup ISO Files
 
@@ -68,6 +68,13 @@ $script:appcore = @{
     }
 }
 
+
+$script:exit = @{
+    code    = -1
+    text    = [string]::Empty
+}
+
+
 # Runtime state tracker for offline registry hives loaded via LoadRegistryHive.
 # Stores: HiveName (e.g. 'SOFTWARE') -> RegMountKey (e.g. 'HKLM\WinISO_SOFTWARE')
 # Written by: LoadRegistryHive  (adds entries on successful reg.exe LOAD)
@@ -75,11 +82,6 @@ $script:appcore = @{
 #             RegistryHiveImport, RegistryHiveExport, RegistryHiveQuery
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:LoadedHives = @{}
-
-$script:exit = @{
-    code    = -1
-    text    = [string]::Empty
-}
 
 
 # Getter functions so dot-sourced scripts can access script-scope vars :)
@@ -109,10 +111,9 @@ function AppScope {
             switch ($KeyID) {
                 'appinfo'   { return $script:appinfo }
                 'appenv'    { return $script:appenv }
-                'reghive'   { return $script:LoadedHives }
                 default     {
                     $script:exit['code'] = -1
-                    $script:exit['text'] = "Parameter 'KeyID' can only be 'appinfo'  or  'appenv' or 'reghive'."
+                    $script:exit['text'] = "Parameter 'KeyID' can only be 'appinfo'  or  'appenv'."
                 }
             }
         }

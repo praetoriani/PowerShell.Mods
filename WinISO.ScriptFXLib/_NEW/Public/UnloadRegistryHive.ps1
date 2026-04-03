@@ -72,20 +72,25 @@
         })
     }
 
-
+    # =========================================================================
     # STEP 1: Flush GC handles (reduces open-handle errors on UNLOAD)
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     [GC]::Collect()
     [GC]::WaitForPendingFinalizers()
 
+    # =========================================================================
     # STEP 2: Read current LoadedHives state via WinISOcore
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $LoadedHivesRef = WinISOcore -Scope 'env' -GlobalVar 'LoadedHives' -Permission 'read' -Unwrap
     if ($null -eq $LoadedHivesRef) {
         return (OPSreturn -Code -1 -Message "UnloadRegistryHive failed! Could not retrieve LoadedHives tracking table via WinISOcore.")
     }
 
+    # =========================================================================
     # STEP 3: Determine which hives to unload
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $HiveIDNorm    = $HiveID.Trim().ToUpper()
     $IsAutoDiscover = [string]::IsNullOrWhiteSpace($HiveIDNorm)
@@ -110,7 +115,9 @@
         $HivesToUnload = @($HiveIDNorm)
     }
 
+    # =========================================================================
     # STEP 4: Unload each hive
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     foreach ($Name in $HivesToUnload) {
         $RegMountKey = $LoadedHivesRef[$Name]
@@ -143,7 +150,9 @@
         }
     }
 
+    # =========================================================================
     # FINAL SUMMARY
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $PassCount = @($Results | Where-Object { $_.Status -eq 'PASS' }).Count
     $FailCount = @($Results | Where-Object { $_.Status -eq 'FAIL' }).Count

@@ -78,14 +78,18 @@
         })
     }
 
+    # =========================================================================
     # STEP 1: Retrieve appenv via WinISOcore
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $appenv = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'read' -Unwrap
     if ($null -eq $appenv) {
         return (OPSreturn -Code -1 -Message "LoadRegistryHive failed! Could not retrieve appenv via WinISOcore.")
     }
 
+    # =========================================================================
     # STEP 2: Verify MountPoint contains a mounted Windows image
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $MountPoint = $appenv['MountPoint']
     $WindowsDir = Join-Path $MountPoint 'Windows'
@@ -93,7 +97,9 @@
         return (OPSreturn -Code -1 -Message "LoadRegistryHive failed! No mounted Windows image detected at '$MountPoint\Windows'. Call MountWIMimage first.")
     }
 
+    # =========================================================================
     # STEP 3: Define the hive map
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $HiveMap = [ordered]@{
         'SOFTWARE' = Join-Path $MountPoint 'Windows\System32\config\SOFTWARE'
@@ -102,7 +108,9 @@
         'NTUSER'   = Join-Path $MountPoint 'Users\Default\NTUSER.DAT'
     }
 
+    # =========================================================================
     # STEP 4: Resolve which hives to load
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $HiveIDNorm = $HiveID.Trim().ToUpper()
 
@@ -116,7 +124,9 @@
         return (OPSreturn -Code -1 -Message "LoadRegistryHive failed! Unknown HiveID '$HiveID'. Valid values: ALL, $($HiveMap.Keys -join ', ').")
     }
 
+    # =========================================================================
     # STEP 5: Load each hive via reg.exe LOAD, track via WinISOcore
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     # Read current LoadedHives state once via WinISOcore
     $LoadedHivesRef = WinISOcore -Scope 'env' -GlobalVar 'LoadedHives' -Permission 'read' -Unwrap
@@ -164,7 +174,9 @@
         }
     }
 
+    # =========================================================================
     # FINAL SUMMARY
+    # =========================================================================
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $PassCount = @($Results | Where-Object { $_.Status -eq 'PASS' }).Count
     $SkipCount = @($Results | Where-Object { $_.Status -eq 'SKIP' }).Count
