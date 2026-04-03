@@ -11,8 +11,8 @@
 
 .NOTES
     Creation Date: 28.03.2026
-    Last Update:   29.03.2026
-    Version:       1.00.03
+    Last Update:   03.04.2026
+    Version:       1.00.04
     Author:        Praetoriani (a.k.a. M.Sczepanski)
     Website:       https://github.com/praetoriani/PowerShell.Mods
 
@@ -26,12 +26,12 @@
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:appinfo = @{
     AppName     = 'WinISO.ScriptFXLib'
-    AppVers     = '1.00.03'
+    AppVers     = '1.00.04'
     AppDevName  = 'Praetoriani'
     AppDevMail  = 'mr.praetoriani{at}gmail.com'
     AppWebsite  = 'https://github.com/praetoriani/PowerShell.Mods'
     DateCreate  = '28.03.2026'
-    LastUpdate  = '29.03.2026'
+    LastUpdate  = '03.04.2026'
 }
 
 $script:appenv = @{
