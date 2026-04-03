@@ -187,7 +187,7 @@ For this demo we're going to use the latest $($uupdump.ostype) Pro $($uupdump.os
 # Write new value to uupdump-scope
 $r = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'write' `
                 -VarKeyID 'zipname' -SetNewVal "$($uupdump.ostype)-Pro-$($uupdump.osvers)-$($uupdump.osarch)-latest.zip"
-if ($r.code -eq 0) { Write-Host "Updated." }
+#if ($r.code -eq 0) { Write-Host "Updated." }
 # re-fresh the local variable with the latest values from the module-scope
 $uupdump = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'read' -Unwrap
 

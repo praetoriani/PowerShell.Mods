@@ -82,6 +82,12 @@ $script:appverify = @{
     checkoscdimg    = ""
     checkenvdirs    = ""
     checkinternet   = ""
+    result          = @{
+        pass        = 0
+        fail        = 0
+        info        = 0
+        warn        = 0
+    }
 }
 
 # Runtime state tracker for offline registry hives loaded via LoadRegistryHive.
@@ -96,13 +102,22 @@ $script:LoadedHives = @{}
 # Stores: ostype, osvers, osarch, buildno, zipname (after successful download)
 # Written by: DownloadUUPDump
 $script:uupdump = @{
-    ostype  = "Windows11"           # can be Windows10 | Windows11
-    edition = "Professional"        # can be Home | Professional | Education | Enterprise
-    osvers  = "24H2"                # can be 23H2 | 24H2 | 25H2 (and so on, depending on the latest Windows release)
-    osarch  = "amd64"               # can be amd64 | x86 | arm64
-    buildno = ""
-    kbsize  = ""
-    zipname = ""
+    ostype          = "Windows11"               # can be Windows11 only
+    edition         = "Professional"            # can be Home | Professional (only important for DownloadUUPDump-Function)
+    multiedition    = "Professional;Education"  # only importand if GetUUPDumpPackage is used. This defines the editions to be included
+    osvers          = "24H2"                    # can be 24H2 | 25H2 | 26H1
+    osarch          = "amd64"                   # can be amd64 | arm64
+    buildno         = ""                        # can be any official build number (e.g. 22621.1600)
+    kbsize          = ""                        # will be used to store the Filesize in KB of the donwnloaded ZIP-File
+    zipname         = ""                        # after successfull download, this will be set to a filename like "Windows11-Pro-24H2-amd64-Build-22621.1600.zip"
+}
+
+# Runtime state tracker for Appx-Interactions (listing, removing, adding Appx-Packages)
+$script:appx = @{
+    # This scope is reserved for Appx-Package related data and variables
+    listed = @() # This array will be used to store the list of Appx-Packages that are currently in the image
+    remove = @() # This array is reserved for data about Appx-Packages that should be removed from the image
+    inject = @() # This array is reserved for data about Appx-Packages that should be added from $script:appenv['AppxBundle'] into the image)
 }
 
 $script:exit = @{
