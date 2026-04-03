@@ -1,4 +1,4 @@
-function GetLatestPowerShellSetup {
+﻿function GetLatestPowerShellSetup {
     <#
     .SYNOPSIS
         Downloads the latest PowerShell release from GitHub and optionally installs it silently.
@@ -289,7 +289,7 @@ function GetLatestPowerShellSetup {
                 }
             }
             catch {
-                # Installation was successful – only warn, do not fail the overall operation
+                # Installation was successful - only warn, do not fail the overall operation
                 return (OPSreturn -Code 0 -Message "GetLatestPowerShellSetup: Installation of '$FileName' ($LatestTag) completed successfully. WARNING: Installer file could not be deleted: $($_.Exception.Message)" -Data $DestinationPath)
             }
 

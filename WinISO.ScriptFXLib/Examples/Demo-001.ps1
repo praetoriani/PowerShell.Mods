@@ -60,3 +60,22 @@ $result = DownloadUUPDump -OStype 'Windows11' -OSvers '24H2' -OSarch 'amd64' `
                             -Target "$($appenv.Downloads)\Win11-24H2-amd64.zip"
 if ($result.code -eq 0) { Write-Host "Downloaded: $($result.data)" }
 Write-Host ""
+
+
+Write-Host "Time to download latest PowerShell Installer for arch win-x64. Please wait ..."
+$result = GetLatestPowerShellSetup `
+-DownloadDir  "$($appenv.Downloads)" `
+-Architecture "win-x64" `
+-RunInstaller 0
+if ($result.code -eq 0) { Write-Host "Downloaded: $($result.data)" }
+else                    { Write-Host "Failed: $($result.msg)" }
+Write-Host ""
+
+Write-Host "Download latest PowerShell Installer (msixbundle). Please wait ..."
+$result = GetLatestPowerShellSetup `
+-DownloadDir  "$($appenv.Downloads)" `
+-Architecture "win-msix" `
+-RunInstaller 0
+if ($result.code -eq 0) { Write-Host "Downloaded: $($result.data)" }
+else                    { Write-Host "Failed: $($result.msg)" }
+Write-Host ""

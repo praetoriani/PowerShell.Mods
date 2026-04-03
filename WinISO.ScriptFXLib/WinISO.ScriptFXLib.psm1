@@ -62,9 +62,10 @@ $script:appcore = @{
     util    = @{
         oscdimg  = "oscdimg.exe"
     }
-#    requirement = @{
-#
-#    }
+    requirement = @{
+        oscdimg  = "https://github.com/praetoriani/PowerShell.Mods/blob/main/WinISO.ScriptFXLib/Requirements/oscdimg.exe"
+        dotnet48 = "https://github.com/praetoriani/PowerShell.Mods/raw/refs/heads/main/WinISO.ScriptFXLib/Requirements/NDP481-x86-x64-AllOS-ENU.exe"
+    }
 }
 
 
