@@ -76,6 +76,18 @@ $script:appcore = @{
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:LoadedHives = @{}
 
+# Runtime state tracker for UUPDump Downloads
+# Stores: ostype, osvers, osarch, buildno, zipname (after successful download)
+# Written by: DownloadUUPDump
+$script:uupdump = @{
+    ostype  = "Windows11"
+    osvers  = "24H2"
+    osarch  = "amd64"
+    buildno = ""
+    kbsize  = ""
+    zipname = ""
+}
+
 $script:exit = @{
     code    = -1
     text    = [string]::Empty

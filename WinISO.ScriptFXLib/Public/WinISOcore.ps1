@@ -98,7 +98,7 @@
         [ValidateNotNullOrEmpty()]
         [string]$Scope,
 
-        [Parameter(Mandatory = $false, HelpMessage = "Module variable: 'appinfo' | 'appenv' | 'appcore' | 'exit' | 'LoadedHives'")]
+        [Parameter(Mandatory = $false, HelpMessage = "Module variable: 'appinfo' | 'appenv' | 'appcore' | 'exit' | 'LoadedHives' | 'uupdump'")]
         [string]$GlobalVar = '',
 
         [Parameter(Mandatory = $true,  HelpMessage = "Access type: 'read' (default) | 'write'")]
@@ -138,7 +138,7 @@
 
     # Validate GlobalVar (required for scope 'env')
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-    $ValidVars = @('appinfo', 'appenv', 'appcore', 'exit', 'appexit', 'loadedhives')
+    $ValidVars = @('appinfo', 'appenv', 'appcore', 'exit', 'appexit', 'loadedhives', 'uupdump')
     if ([string]::IsNullOrWhiteSpace($GlobalVarNorm)) {
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Parameter 'GlobalVar' is required when Scope='env'.")
     }
@@ -193,6 +193,13 @@
                 }
                 $TargetHashtable = $LoadedHivesVar.Value
             }
+            'uupdump' {
+                $UUPDumpVar = Get-Variable -Name 'uupdump' -Scope Script -ErrorAction SilentlyContinue
+                if ($null -eq $UUPDumpVar) {
+                    return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:uupdump could not be resolved. Ensure the module was loaded correctly.")
+                }
+                $TargetHashtable = $UUPDumpVar.Value
+            }
         }
     }
     catch {
@@ -245,7 +252,7 @@
         }
     }
 
-    # WRITE: appinfo / appenv — standard key-must-exist + type-safety logic
+    # WRITE: appinfo / appenv / uupdump — standard key-must-exist + type-safety logic
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $ResolvedKey = $TargetHashtable.Keys | Where-Object { $_ -eq $VarKeyIDNorm } | Select-Object -First 1
     if (-not $ResolvedKey) {

@@ -83,8 +83,10 @@
     )
 
     # Retrieve module-scope variables via the AppScope getter
-    $AppInfo = AppScope -KeyID 'appinfo'
-    $EnvData  = AppScope -KeyID 'appenv'
+    $appinfo = WinISOcore -Scope 'env' -GlobalVar 'appinfo' -Permission 'read' -Unwrap
+    $appenv  = WinISOcore -Scope 'env' -GlobalVar 'appenv'  -Permission 'read' -Unwrap
+    $appcore = WinISOcore -Scope 'env' -GlobalVar 'appcore' -Permission 'read' -Unwrap
+    $uupdump = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'read' -Unwrap
 
     # Internal API and base URL constants for UUP Dump
     $UUP_API_URL  = 'https://api.uupdump.net'
@@ -208,10 +210,10 @@
         # POST body tells UUP Dump which conversion options to include in the package
         $PostBody = @{
             autodl  = '2'   # Automatic download mode
-            updates = '1'   # Include latest cumulative update
+            updates = '0'   # Include latest cumulative update
             cleanup = '1'   # Include cleanup scripts
             netfx   = '1'   # Include .NET Framework 3.5
-            esd     = '1'   # Use ESD compression
+            esd     = '0'   # Use ESD compression
         }
     }
     catch {
@@ -262,5 +264,11 @@
     # SUCCESS » ZIP file downloaded and verified
     # -------------------------------------------------------------------------
     $FinalSizeKB = [math]::Round($WrittenSize / 1KB, 2)
+
+    # Update module-scope 'uupdump'
+    WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'write' `
+               -VarKeyID 'buildno' -SetNewVal $BuildUUID
+    WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'write' `
+               -VarKeyID 'kbsize' -SetNewVal $FinalSizeKB
     return (OPSreturn -Code 0 -Message "DownloadUUPDump successfully finished! Build: '$BuildTitle' | UUID: $BuildUUID | File: '$Target' ($FinalSizeKB KB)" -Data $Target)
 }

@@ -15,6 +15,7 @@
 
 # Let's define some useful functions we can use during this demonstration
 function WaitForEnter {
+    # This function will display a message to the current user and wait till the <enter> key is pressed
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false,  HelpMessage = "Sets the message that will be displayed to the user while waiting for the input.")]
@@ -37,6 +38,46 @@ function WaitForEnter {
 
 }
 
+function ThrowInternalError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true,  HelpMessage = "Sets the message that will be displayed to the user.")]
+        [ValidateNotNullOrEmpty()]
+        [string]$ErrorMessage,
+
+        [Parameter(Mandatory = $false,  HelpMessage = "Can contain additional data that will be displayed to the user")]
+        [ValidateNotNullOrEmpty()]
+        [string]$ErrorData,
+
+        [Parameter(Mandatory = $false, HelpMessage = "Text color for the prompt. Uses ConsoleColor enum.")]
+        [ConsoleColor]$Color = [ConsoleColor]::White,
+
+        [Parameter(Mandatory = $false, HelpMessage = "This will set the exit code for the script.")]
+        [int]$ExitCode = -1,
+
+        [Parameter(Mandatory = $false, HelpMessage = "If set, the user input will be wrapped in empty lines.")]
+        [switch]$Block,
+
+        [Parameter(Mandatory = $false, HelpMessage = "If set, the console will be cleared after the user acknowledged the error.")]
+        [switch]$CleanupAfterExit
+    )
+
+    if ($Block.IsPresent) { Write-Error "" }
+
+    Write-Error -Message $ErrorMessage -ForegroundColor $Color
+    if (-not [string]::IsNullOrWhiteSpace($ErrorData)) {
+        Write-Error -Message $ErrorData -ForegroundColor $Color
+    }
+
+    Write-Error -Message ""
+    Write-Error -Message "$($appinfo.AppName) cannot continue and has to be terminated!" -ForegroundColor $Color
+    WaitForEnter -Message "Please Press <enter> to exit $($appinfo.AppName) ... " -Color $Color
+    
+    # Let's clear the console (if requested) and exit the demonstration with the provided exit code
+    if ($CleanupAfterExit.IsPresent) { Clear-Host }
+    exit $ExitCode
+}
+
 
 # For debugging purpose only
 #Import-Module 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1' -Force -Verbose
@@ -47,6 +88,7 @@ Import-Module 'C:\WinISO\app.core\WinISO.ScriptFXLib\WinISO.ScriptFXLib.psd1'
 $appinfo = WinISOcore -Scope 'env' -GlobalVar 'appinfo' -Permission 'read' -Unwrap
 $appenv  = WinISOcore -Scope 'env' -GlobalVar 'appenv'  -Permission 'read' -Unwrap
 $appcore = WinISOcore -Scope 'env' -GlobalVar 'appcore' -Permission 'read' -Unwrap
+$uupdump = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'read' -Unwrap
 
 
 # INITIALIZATION
@@ -86,7 +128,7 @@ Write-Host $step1msg -ForegroundColor DarkGray
 # Step 02: Let's initialize the WinISO Environment and check if everything is in place
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $step2msg = @"
-The second step should always be used to verify that the WinISO Environment
+The 2nd step should always be used to verify that the WinISO Environment
 does exists and make sure that we have the correct environmental structure.
 You can do this, by using the InitializeEnvironment function.
 This function will automatically do the whole job for you :)
@@ -97,17 +139,59 @@ Write-Host ""
 $TMPresult = InitializeEnvironment
 if ($TMPresult.code -eq 0) { Write-Host $TMPresult.msg -ForegroundColor DarkGreen }
 else {
-    Write-Error -Message "Runtime Error in $($appinfo.AppName) while initializing WinISO Environment!" -ForegroundColor DarkRed
-    Write-Error -Message ""
-    Write-Error $TMPresult.data | Format-Table StepName, Status, Detail -AutoSize -ForegroundColor DarkRed
-    Write-Error -Message ""
-    Write-Error -Message "$($appinfo.AppName) cannot continue and has to be terminated!" -ForegroundColor DarkRed
-    WaitForEnter -Message "Please Press <enter> to exit $($appinfo.AppName) ... " -Color DarkRed
-    # Let's clear the console and exit the demonstration
-    Clear-Host
-    exit -1
+$errormsg = @"
+Runtime Error in $($appinfo.AppName) while initializing WinISO Environment!
+
+"@
+ThrowInternalError -ErrorMessage $errormsg `
+                    -ErrorData ($TMPresult.data | Format-Table StepName, Status, Detail -AutoSize | Out-String) `
+                    -Color DarkRed -ExitCode -1 -Block -CleanupAfterExit
 }
 WaitForEnter -Message "Please Press <enter> to continue ... " -Color DarkGray -Block
+
+# Step 03: Let's try do download and unzip a uupdump package from uupdump.net
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$step3msg = @"
+In this 3rd step, we're going to download a ZIP-File from uupdump.net and extract its
+whole content so we can create a bootable ISO file out of the uupdump package.
+For this demo we're going to use the latest $($uupdump.ostype) Pro $($uupdump.osvers) (Arch: $($uupdump.osarch))
+"@
+# Write new value to uupdump-scope
+$r = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'write' `
+                -VarKeyID 'zipname' -SetNewVal "$($uupdump.ostype)-Pro-$($uupdump.osvers)-$($uupdump.osarch)-latest.zip"
+if ($r.code -eq 0) { Write-Host "Updated." }
+# re-fresh the local variable with the latest values from the module-scope
+$uupdump = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'read' -Unwrap
+
+Write-Host $step3msg -ForegroundColor DarkGray
+WaitForEnter -Message "Please Press <enter> to continue ... " -Color DarkGray
+$UUPDresult = DownloadUUPDump -OStype $($uupdump.ostype) -OSvers $($uupdump.osvers) -OSarch $($uupdump.osarch) `
+                            -Target "$($appenv.Downloads)\$($uupdump.zipname)"
+if ($UUPDresult.code -eq 0) { Write-Host "Download successfully finished." -ForegroundColor DarkGreen }
+else {
+$errormsg = @"
+Runtime Error in $($appinfo.AppName) while downloading UUPDump!
+
+"@
+ThrowInternalError -ErrorMessage $errormsg `
+                    -ErrorData ($UUPDresult.data | Out-String) `
+                    -Color DarkRed -ExitCode -1 -Block -CleanupAfterExit
+}
+# Extract, verify and delete ZIP afterwards
+$ExtractResult = ExtractUUPDump -ZIPfile "$($appenv.Downloads)\$($uupdump.zipname)" `
+                                -Target  "$($appenv.UUPDumpDir)" `
+                                -Verify  1 `
+                                -Cleanup 1
+if ($ExtractResult.code -eq 0) { Write-Host "Extraction completed successfully." -ForegroundColor DarkGreen }
+else {
+$errormsg = @"
+Runtime Error in $($appinfo.AppName) while extracting $($uupdump.zipname)!
+
+"@
+ThrowInternalError -ErrorMessage $errormsg `
+                    -ErrorData ($ExtractResult.data | Out-String) `
+                    -Color DarkRed -ExitCode -1 -Block -CleanupAfterExit
+}
 
 # Let's clear the console and exit the demonstration
 #Clear-Host
