@@ -222,5 +222,6 @@ ThrowInternalError -ErrorMessage $errormsg `
 }
 
 # Let's clear the console and exit the demonstration
-#Clear-Host
+WaitForEnter -Message "We're done. Please Press <enter> to exit ... " -Color DarkGray -Block
+Clear-Host
 Exit 0
