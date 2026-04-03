@@ -1,4 +1,4 @@
-<#
+﻿<#
     .SYNOPSIS
         Demo-002.ps1 - A simple demonstration on how to use the WinISO ScriptFX Library in your own scripts.
 
@@ -39,37 +39,65 @@ function WaitForEnter {
 }
 
 function ThrowInternalError {
+    <#
+    .SYNOPSIS
+        Displays a formatted error message to the user, waits for acknowledgement,
+        then terminates the script with the specified exit code.
+
+    .PARAMETER ErrorMessage
+        The primary error message to display.
+
+    .PARAMETER ErrorData
+        Optional additional data (e.g. a formatted table) to display below the
+        primary error message.
+
+    .PARAMETER Color
+        Foreground color for all output lines. Defaults to White.
+
+    .PARAMETER ExitCode
+        Exit code passed to 'exit'. Defaults to -1.
+
+    .PARAMETER Block
+        If set, adds an empty line before and after the error output.
+
+    .PARAMETER CleanupAfterExit
+        If set, clears the console before terminating.
+    #>
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true,  HelpMessage = "Sets the message that will be displayed to the user.")]
+        [Parameter(Mandatory = $true, HelpMessage = "Primary error message to display.")]
         [ValidateNotNullOrEmpty()]
         [string]$ErrorMessage,
 
-        [Parameter(Mandatory = $false,  HelpMessage = "Can contain additional data that will be displayed to the user")]
-        [String]$ErrorData,
+        [Parameter(Mandatory = $false, HelpMessage = "Optional additional data to display.")]
+        [string]$ErrorData,
 
-        [Parameter(Mandatory = $false, HelpMessage = "Text color for the prompt. Uses ConsoleColor enum.")]
+        [Parameter(Mandatory = $false, HelpMessage = "Text color for all output. Uses ConsoleColor enum.")]
         [ConsoleColor]$Color = [ConsoleColor]::White,
 
-        [Parameter(Mandatory = $false, HelpMessage = "This will set the exit code for the script.")]
+        [Parameter(Mandatory = $false, HelpMessage = "Exit code for the script.")]
         [int]$ExitCode = -1,
 
-        [Parameter(Mandatory = $false, HelpMessage = "If set, the user input will be wrapped in empty lines.")]
+        [Parameter(Mandatory = $false, HelpMessage = "If set, wraps output in empty lines.")]
         [switch]$Block,
 
-        [Parameter(Mandatory = $false, HelpMessage = "If set, the console will be cleared after the user acknowledged the error.")]
+        [Parameter(Mandatory = $false, HelpMessage = "If set, clears the console before exit.")]
         [switch]$CleanupAfterExit
     )
 
-    if ($Block.IsPresent) { Write-Error "" }
+    if ($Block.IsPresent) { Write-Host "" }
 
-    Write-Error -Message $ErrorMessage -ForegroundColor $Color
+    # Print the primary error message
+    Write-Host $ErrorMessage -ForegroundColor $Color
+
+    # Print optional additional data (e.g. table output from Format-Table | Out-String)
     if (-not [string]::IsNullOrWhiteSpace($ErrorData)) {
-        Write-Error -Message $ErrorData -ForegroundColor $Color
+        Write-Host $ErrorData -ForegroundColor $Color
     }
 
-    Write-Error -Message ""
-    Write-Error -Message "$($appinfo.AppName) cannot continue and has to be terminated!" -ForegroundColor $Color
+    if ($Block.IsPresent) { Write-Host "" }
+    Write-Host "$($appinfo.AppName) cannot continue and has to be terminated!" -ForegroundColor $Color
+
     WaitForEnter -Message "Please Press <enter> to exit $($appinfo.AppName) ... " -Color $Color
     
     # Let's clear the console (if requested) and exit the demonstration with the provided exit code
@@ -115,7 +143,7 @@ a short system check. So please wait, while the verification is running ...
 Write-Host $step1msg -ForegroundColor DarkGray
 $CheckReq = CheckModuleRequirements -Export 1
 if ( $CheckReq.code -eq 0) { Write-Host $CheckReq.msg -ForegroundColor DarkGreen }
-else { Write-Error $CheckReq.msg -ForegroundColor DarkRed }
+else { Write-Host $CheckReq.msg -ForegroundColor DarkRed }
 $step1msg = @"
 
 If you want to check the Logfile, it is available at:
@@ -140,10 +168,11 @@ if ($TMPresult.code -eq 0) { Write-Host $TMPresult.msg -ForegroundColor DarkGree
 else {
 $errormsg = @"
 Runtime Error in $($appinfo.AppName) while initializing WinISO Environment!
+$($TMPresult.msg)
 
 "@
 ThrowInternalError -ErrorMessage $errormsg `
-                    -ErrorData ($TMPresult.data | Format-Table StepName, Status, Detail -AutoSize | Out-String) `
+                    -ErrorData $TMPresult.data `
                     -Color DarkRed -ExitCode -1 -Block -CleanupAfterExit
 }
 WaitForEnter -Message "Please Press <enter> to continue ... " -Color DarkGray -Block

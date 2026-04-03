@@ -197,7 +197,9 @@
         $OscdimgPath = $appenv['OscdimgExe']
 
         if (Test-Path -Path $OscdimgPath -PathType Leaf) {
-            $OscdimgVer = (Get-Item -Path $OscdimgPath).VersionInfo.FileVersionRaw
+            # Use .FileVersion (string) — compatible with PS 5.1 / .NET Framework 4.x
+            # .FileVersionRaw (System.Version object) only exists in .NET 5+ / PS 7+
+            $OscdimgVer = (Get-Item -LiteralPath $OscdimgPath).VersionInfo.FileVersion
             & $AddResult 'oscdimg.exe' 'PASS' "Already present: '$OscdimgPath' (v$OscdimgVer)"
         }
         else {
