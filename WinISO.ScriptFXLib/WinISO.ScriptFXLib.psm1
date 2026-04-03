@@ -34,6 +34,7 @@ $script:appinfo = @{
     LastUpdate  = '03.04.2026'
 }
 
+# This var stores important paths and other important environment informations
 $script:appenv = @{
     ISOroot    = 'C:\WinISO'
 }
@@ -51,6 +52,7 @@ $script:appenv['UUPDumpDir'] = Join-Path $script:appenv['ISOroot'] 'uupdump'
 $script:appenv['OscdimgDir'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg'
 $script:appenv['OscdimgExe'] = Join-Path $script:appenv['ISOroot'] 'Oscdimg\oscdimg.exe'
 
+# This var is very important, cause it stores core data for WinISO.ScriptFXLib
 $script:appcore = @{
     Root    = Join-Path $script:appenv['ISOroot'] 'app.core'
     PSmod   = @{
@@ -68,6 +70,20 @@ $script:appcore = @{
     }
 }
 
+$script:appverify = @{
+    checkosversion  = ""
+    checkpowershell = ""
+    checkdotnet     = ""
+    checkisadmin    = ""
+    checkdismpath   = ""
+    checkdismmods   = ""
+    checkrobocopy   = ""
+    checkcmd        = ""
+    checkoscdimg    = ""
+    checkenvdirs    = ""
+    checkinternet   = ""
+}
+
 # Runtime state tracker for offline registry hives loaded via LoadRegistryHive.
 # Stores: HiveName (e.g. 'SOFTWARE') -> RegMountKey (e.g. 'HKLM\WinISO_SOFTWARE')
 # Written by: LoadRegistryHive  (adds entries on successful reg.exe LOAD)
@@ -80,9 +96,10 @@ $script:LoadedHives = @{}
 # Stores: ostype, osvers, osarch, buildno, zipname (after successful download)
 # Written by: DownloadUUPDump
 $script:uupdump = @{
-    ostype  = "Windows11"
-    osvers  = "24H2"
-    osarch  = "amd64"
+    ostype  = "Windows11"           # can be Windows10 | Windows11
+    edition = "Professional"        # can be Home | Professional | Education | Enterprise
+    osvers  = "24H2"                # can be 23H2 | 24H2 | 25H2 (and so on, depending on the latest Windows release)
+    osarch  = "amd64"               # can be amd64 | x86 | arm64
     buildno = ""
     kbsize  = ""
     zipname = ""
