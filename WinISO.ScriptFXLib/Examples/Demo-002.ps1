@@ -46,8 +46,7 @@ function ThrowInternalError {
         [string]$ErrorMessage,
 
         [Parameter(Mandatory = $false,  HelpMessage = "Can contain additional data that will be displayed to the user")]
-        [ValidateNotNullOrEmpty()]
-        [string]$ErrorData,
+        [String]$ErrorData,
 
         [Parameter(Mandatory = $false, HelpMessage = "Text color for the prompt. Uses ConsoleColor enum.")]
         [ConsoleColor]$Color = [ConsoleColor]::White,
