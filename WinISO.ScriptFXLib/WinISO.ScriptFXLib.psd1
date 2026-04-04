@@ -81,7 +81,13 @@ FunctionsToExport = @(
         'RegistryHiveRem',
         'RegistryHiveImport',
         'RegistryHiveExport',
-        'RegistryHiveQuery'
+        'RegistryHiveQuery',
+
+        # Appx / MSIX Package Operations
+        'GetAppxPackages',
+        'RemAppxPackages',
+        'AddAppxPackages',
+        'AppxPackageLookUp'
 )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -133,7 +139,11 @@ FileList = @(
     'Public\RegistryHiveRem.ps1',
     'Public\RegistryHiveImport.ps1',
     'Public\RegistryHiveExport.ps1',
-    'Public\RegistryHiveQuery.ps1'
+    'Public\RegistryHiveQuery.ps1',
+    'Public\GetAppxPackages.ps1',
+    'Public\RemAppxPackages.ps1',
+    'Public\AddAppxPackages.ps1',
+    'Public\AppxPackageLookUp.ps1'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
@@ -142,7 +152,7 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = @('PowerShell', 'DISM', 'Windows11', 'ISO', 'WindowsSetup', 'SkipOOBE', 'Unattended', 'autounattend', 'UnattendedInstallation', 'UnattendedSetup', 'Customization', 'UUPDump', 'WinISO')
+        Tags = @('PowerShell', 'DISM', 'Windows11', 'ISO', 'WindowsSetup', 'SkipOOBE', 'Unattended', 'autounattend', 'UnattendedInstallation', 'UnattendedSetup', 'Customization', 'UUPDump', 'WinISO', 'AppxPackage', 'MSIX', 'ProvisionedPackage')
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/praetoriani/PowerShell.Mods'
@@ -178,6 +188,37 @@ GetUUPDumpPackage:        NEW function for multi-edition / Virtual Editions down
                           Same NetFX/ESD/BuildNo/OSvers/OSarch/Target parameters as DownloadUUPDump.
                           $script:uupdump['multiedition'] stores semicolon-joined display names.
                           $script:uupdump['edition'] is cleared (empty) for multi-edition packages.
+GetAppxPackages:          NEW function. Lists all provisioned Appx packages from a mounted WIM image.
+                          Uses Get-AppxProvisionedPackage (DISM PowerShell module).
+                          Results stored as array of PSCustomObjects in $script:appx['listed'].
+                          Each entry: DisplayName, PackageName, Version, Architecture, PublisherId.
+                          Optional file export via -ExportFile and -Format (TXT | CSV | JSON).
+                          Defaults MountPoint from $script:appenv['MountPoint'].
+RemAppxPackages:          NEW function. Removes provisioned Appx packages from a mounted WIM image.
+                          Processes all entries in $script:appx['remove'] via DISM.exe
+                          /Remove-ProvisionedAppxPackage.
+                          Supports .appx, .appxbundle, .msix, .msixbundle and provisioned PackageNames.
+                          Monitoring: successfully removed packages are deleted from $script:appx['remove'].
+                          Failed packages remain in $script:appx['remove'] for inspection.
+                          -ContinueOnError switch to process all packages despite individual failures.
+                          Returns @{ Succeeded=[array]; Failed=[array] } as .data.
+AddAppxPackages:          NEW function. Injects provisioned Appx packages into a mounted WIM image.
+                          Processes all entries in $script:appx['inject'] via DISM.exe
+                          /Add-ProvisionedAppxPackage.
+                          Supports .appx, .appxbundle, .msix, .msixbundle from $script:appenv['AppxBundle'].
+                          Optional per-entry license file via LicenseFile property; falls back to /SkipLicense.
+                          Monitoring: successfully injected packages are deleted from $script:appx['inject'].
+                          Failed packages remain in $script:appx['inject'] for inspection.
+                          -ContinueOnError switch to process all packages despite individual failures.
+                          -AppxSourceDir override for custom package source directories.
+                          Returns @{ Succeeded=[array]; Failed=[array] } as .data.
+AppxPackageLookUp:        NEW function. Dual-mode Appx package verification helper.
+                          Mode 1 (Image): Substring search in provisioned packages of a mounted WIM.
+                          Uses $script:appx['listed'] cache; bypassed with -ForceRefresh.
+                          Mode 2 (File): Physical file existence check in AppxBundle source directory.
+                          Both modes combinable in a single call via -SearchTerm and -PackageFile.
+                          Supports .appx, .appxbundle, .msix, .msixbundle in FILE mode.
+                          Returns @{ ImageMatches=[array]; FileExists=[bool|null]; SearchTerm; PackageFile }.
 WinISO.ScriptFXLib.psm1:  $script:appverify and $script:appx scopes added and documented.
                           Module version bumped to 1.00.05.
 
@@ -215,17 +256,9 @@ v1.00.02
 v1.00.01
 ‾‾‾‾‾‾‾‾‾‾
 - InitializeEnvironment : Creates the full WinISO working environment directory structure
-- VerifyEnvironment : Verifies all required directories and tools are present
-- GitHubDownload   : Downloads files from public GitHub repositories with completeness verification
-- MountWIMimage    : Mounts the install.wim file for offline customization via DISM
-
-v1.00.00 (Initial Release)
-‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-- WriteLogMessage  : Advanced logging function with timestamp and severity flags
-Additional Notes:
-- Comprehensive error handling with standardized return objects
-- Full English documentation and code comments
-- Compatible with PowerShell 5.1+ and PowerShell Core
+- VerifyEnvironment     : Verifies all required WinISO environment directories exist
+- GitHubDownload        : Generic GitHub asset downloader with version resolution
+- WriteLogMessage       : Structured log writer with timestamp and severity flags
 '@
 
     } # End of PSData hashtable
