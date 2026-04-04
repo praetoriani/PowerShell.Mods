@@ -24,19 +24,19 @@ name: WinISO.ScriptFXLib Release
 # GLOBAL VARIABLES
 # zip_basename  : Base filename WITHOUT version and WITHOUT .zip extension.
 #                 The full ZIP name is assembled dynamically in Step 2.
-# repo_folder   : The module's subdirectory inside the repository.
-# temp_folder   : Staging folder used during ZIP creation (not committed).
+# repo_folder   : The module subfolder inside the repository.
+# temp_folder   : Staging folder used during ZIP creation (never committed).
 # workflow_file : Filename of this workflow (used in log output).
 # version_file  : Path to the plain-text file that holds the version number.
 # release_md    : Path to the Markdown template for the release body.
 # ---------------------------------------------------------------------------
 env:
-  zip_basename:  "WinISO"                                      # Base name for the ZIP archive
-  repo_folder:   "WinISO.ScriptFXLib"                          # Module folder in the repository
-  temp_folder:   "WinISO.ScriptFXLib-Module"                   # Temporary staging folder name
-  workflow_file: "winiso-sfxlib-release.yml"                   # This workflow's own filename
-  version_file:  ".github/workflows/winiso-sfxlib-version.txt" # Version source-of-truth file
-  release_md:    ".github/workflows/winiso-sfxlib-release.md"  # Release body Markdown template
+  zip_basename:  "WinISO"
+  repo_folder:   "WinISO.ScriptFXLib"
+  temp_folder:   "WinISO.ScriptFXLib-Module"
+  workflow_file: "winiso-sfxlib-release.yml"
+  version_file:  ".github/workflows/winiso-sfxlib-version.txt"
+  release_md:    ".github/workflows/winiso-sfxlib-release.md"
 
 # ---------------------------------------------------------------------------
 # TRIGGER CONFIGURATION
@@ -45,13 +45,13 @@ on:
   # AUTOMATIC TRIGGER - fires when a tag starting with "winiso-" is pushed
   push:
     tags:
-      - 'winiso-*'    # Examples: winiso-v1.00.00, winiso-v2.05.01, winiso-beta-1
+      - 'winiso-*'
 
   # MANUAL TRIGGER - exposes a "Run workflow" button in the GitHub Actions UI
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for the release (e.g., winiso-v1.00.00)'
+        description: 'Tag name for the release (e.g. winiso-v1.00.00)'
         required: true
         default: 'winiso-v1.00.00'
         type: string
@@ -73,7 +73,6 @@ on:
 
 # ---------------------------------------------------------------------------
 # PERMISSIONS
-# Explicit write access is required to create tags and releases.
 # ---------------------------------------------------------------------------
 permissions:
   contents: write
@@ -86,7 +85,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
 
-    # Only run when triggered by a matching tag push OR a manual dispatch
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/winiso-')) ||
       github.event_name == 'workflow_dispatch'
@@ -95,7 +93,6 @@ jobs:
 
       # -----------------------------------------------------------------------
       # STEP 1 - Checkout repository
-      # Makes all repository files available on the runner.
       # -----------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -103,22 +100,20 @@ jobs:
       # -----------------------------------------------------------------------
       # STEP 2 - Resolve version and build dynamic variables
       #
-      # Priority order for the version number:
-      #   1. Content of winiso-sfxlib-version.txt  (preferred / source of truth)
-      #   2. Suffix of the pushed / provided tag    (fallback)
+      # Version priority:
+      #   1. winiso-sfxlib-version.txt  (primary source of truth)
+      #   2. Tag suffix                 (fallback)
       #
-      # Outputs exported via $GITHUB_OUTPUT (available in all following steps):
-      #   tag_name      -> Validated tag name
-      #   version       -> Plain version string, e.g. "1.05.03"
-      #   zip_filename  -> Full ZIP filename, e.g. "WinISO-1.05.03-Release.zip"
-      #                    Becomes "WinISO-1.05.03-UNOFFICIAL.zip" when flag is set
-      #   release_title -> Full release title string (used in Step 6)
-      #   unofficial    -> "true" | "false"
+      # Outputs written to $GITHUB_OUTPUT:
+      #   tag_name      - validated tag name
+      #   version       - plain version string  e.g. 1.05.03
+      #   zip_filename  - full ZIP name          e.g. WinISO-1.05.03-Release.zip
+      #   release_title - full release page title
+      #   unofficial    - "true" or "false"
       # -----------------------------------------------------------------------
       - name: Resolve version and build dynamic variables
         id: setup
         run: |
-          # ---- Determine tag name ----
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG_NAME="${{ github.event.inputs.tag_name }}"
             echo "Manual trigger detected"
@@ -126,57 +121,43 @@ jobs:
             TAG_NAME="${{ github.ref_name }}"
             echo "Automatic tag trigger detected"
           fi
-          echo "Raw tag: $TAG_NAME"
+          echo "Tag: $TAG_NAME"
 
-          # ---- Validate tag prefix ----
           if [[ ! $TAG_NAME =~ ^winiso-.*$ ]]; then
-            echo "ERROR: Tag must start with 'winiso-'"
-            echo "Provided: $TAG_NAME"
+            echo "ERROR: Tag must start with 'winiso-' - provided: $TAG_NAME"
             exit 1
           fi
 
-          # ---- Read version from file (primary source) ----
           VERSION_FILE="${{ env.version_file }}"
           if [ -f "$VERSION_FILE" ]; then
             VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
-            echo "Version sourced from $VERSION_FILE: $VERSION"
+            echo "Version from $VERSION_FILE: $VERSION"
           else
             VERSION="${TAG_NAME#winiso-}"
-            echo "WARNING: $VERSION_FILE not found - version derived from tag: $VERSION"
+            echo "WARNING: version file not found - derived from tag: $VERSION"
           fi
 
-          # ---- Unofficial release flag ----
           UNOFFICIAL="${{ github.event.inputs.unofficial_release }}"
           if [ -z "$UNOFFICIAL" ]; then
             UNOFFICIAL="false"
           fi
 
-          # ---- Build full ZIP filename ----
           if [ "$UNOFFICIAL" = "true" ]; then
             FULL_ZIP="${{ env.zip_basename }}-${VERSION}-UNOFFICIAL.zip"
-            echo "UNOFFICIAL RELEASE mode is active"
+            RELEASE_TITLE="UNOFFICIAL - WinISO.ScriptFXLib $TAG_NAME"
+            echo "UNOFFICIAL RELEASE mode active"
           else
             FULL_ZIP="${{ env.zip_basename }}-${VERSION}-Release.zip"
-          fi
-          echo "ZIP filename: $FULL_ZIP"
-
-          # ---- Build release title ----
-          # Done here in shell to avoid YAML expression parsing issues in Step 6.
-          if [ "$UNOFFICIAL" = "true" ]; then
-            RELEASE_TITLE="UNOFFICIAL - WinISO.ScriptFXLib $TAG_NAME"
-          else
             RELEASE_TITLE="WinISO.ScriptFXLib $TAG_NAME"
           fi
-          echo "Release title: $RELEASE_TITLE"
 
-          # ---- Export all outputs ----
           echo "tag_name=$TAG_NAME"           >> $GITHUB_OUTPUT
           echo "version=$VERSION"             >> $GITHUB_OUTPUT
           echo "zip_filename=$FULL_ZIP"       >> $GITHUB_OUTPUT
           echo "unofficial=$UNOFFICIAL"       >> $GITHUB_OUTPUT
           echo "release_title=$RELEASE_TITLE" >> $GITHUB_OUTPUT
 
-          echo "Variable setup complete:"
+          echo "--- Variable summary ---"
           echo "  TAG           : $TAG_NAME"
           echo "  VERSION       : $VERSION"
           echo "  ZIP           : $FULL_ZIP"
@@ -185,8 +166,6 @@ jobs:
 
       # -----------------------------------------------------------------------
       # STEP 3 - Create tag (manual trigger only)
-      # Only runs when workflow_dispatch AND create_tag == true.
-      # Skipped silently for automatic tag pushes.
       # -----------------------------------------------------------------------
       - name: Create tag if requested
         if: |
@@ -194,33 +173,32 @@ jobs:
           github.event.inputs.create_tag == 'true'
         run: |
           TAG_NAME="${{ steps.setup.outputs.tag_name }}"
-
           git config user.name  "GitHub Actions Bot"
           git config user.email "actions@github.com"
-
           if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Tag '$TAG_NAME' already exists - continuing with existing tag"
+            echo "Tag '$TAG_NAME' already exists - continuing"
           else
-            echo "Creating and pushing new tag: $TAG_NAME"
             git tag "$TAG_NAME"
             git push origin "$TAG_NAME"
-            echo "Tag created successfully"
+            echo "Tag '$TAG_NAME' created and pushed"
           fi
 
       # -----------------------------------------------------------------------
       # STEP 4 - Build release body from Markdown template
       #
-      # Reads winiso-sfxlib-release.md and replaces all {{PLACEHOLDER}} tokens
-      # with runtime values via an embedded Python script.
-      # Python is used instead of sed to safely handle special characters,
-      # newlines and unicode in replacement values.
+      # Reads winiso-sfxlib-release.md, replaces all {{PLACEHOLDER}} tokens
+      # with runtime values and writes the result to release-body.md.
       #
-      # The final Markdown is written to release-body.md on the runner and
-      # its path is exported so Step 6 can reference it via body_path.
+      # Python is used for the replacements to safely handle any special
+      # characters, unicode or newlines that may appear in the values.
       #
-      # NOTE: UNOFFICIAL_BANNER is built entirely in shell here.
-      #       It is NOT passed via the env: block to avoid YAML syntax issues
-      #       with multi-line values containing special characters.
+      # IMPORTANT - YAML block scalar rule:
+      #   Every line inside a `run: |` block must be indented at least as
+      #   much as the first content line. Multi-line bash strings whose
+      #   continuation lines start at column 0 would terminate the YAML
+      #   scalar and cause a syntax error.
+      #   Therefore UNOFFICIAL_BANNER is built with printf so the entire
+      #   assignment stays on a single, properly indented line.
       # -----------------------------------------------------------------------
       - name: Build release body from template
         id: build_body
@@ -228,21 +206,18 @@ jobs:
           OUTPUT="release-body.md"
 
           if [ ! -f "${{ env.release_md }}" ]; then
-            echo "ERROR: Release body template not found: ${{ env.release_md }}"
+            echo "ERROR: template not found: ${{ env.release_md }}"
             exit 1
           fi
 
-          # ---- Build unofficial banner in shell (safe, no YAML quoting issues) ----
+          # Build UNOFFICIAL_BANNER with printf - single logical line,
+          # no column-0 continuation that would break the YAML block scalar.
           if [ "${{ steps.setup.outputs.unofficial }}" = "true" ]; then
-            UNOFFICIAL_BANNER="> [!CAUTION]
-> ### UNOFFICIAL RELEASE - FOR TESTING AND DEBUGGING PURPOSES ONLY
-> This release has **NOT** been officially approved. It must **NOT** be used in production environments. Use at your own risk.
-"
+            UNOFFICIAL_BANNER=$(printf '> [!CAUTION]\n> ### UNOFFICIAL RELEASE - FOR TESTING AND DEBUGGING PURPOSES ONLY\n> This release has **NOT** been officially approved. It must **NOT** be used in production environments. Use at your own risk.\n')
           else
             UNOFFICIAL_BANNER=""
           fi
 
-          # ---- Build release notes block ----
           RAW_NOTES="${{ github.event.inputs.release_notes }}"
           if [ -n "$RAW_NOTES" ]; then
             RELEASE_NOTES_VAL="$RAW_NOTES"
@@ -250,38 +225,31 @@ jobs:
             RELEASE_NOTES_VAL="_No additional notes provided for this release._"
           fi
 
-          # ---- Write Python script to a temp file and execute it ----
-          # Writing to a file avoids heredoc indentation conflicts with YAML.
+          # Write the Python renderer to a temp file.
+          # This avoids any heredoc / YAML indentation conflicts.
           cat > /tmp/render_template.py << 'PYEOF'
-import os
+          import os
+          template_path = os.environ['TMPL']
+          output_path   = os.environ['OUT']
+          replacements  = {
+              '{{LOGO_URL}}':          os.environ['LOGO_URL'],
+              '{{ZIP_FILENAME}}':      os.environ['ZIP_FILENAME'],
+              '{{DOWNLOAD_URL}}':      os.environ['DOWNLOAD_URL'],
+              '{{REPO_URL}}':          os.environ['REPO_URL'],
+              '{{VERSION}}':           os.environ['VERSION'],
+              '{{UNOFFICIAL_BANNER}}': os.environ['UNOFFICIAL_BANNER'],
+              '{{RELEASE_NOTES}}':     os.environ['RELEASE_NOTES'],
+          }
+          with open(template_path, 'r', encoding='utf-8') as f:
+              body = f.read()
+          for placeholder, value in replacements.items():
+              body = body.replace(placeholder, value)
+          with open(output_path, 'w', encoding='utf-8') as f:
+              f.write(body)
+          print('Release body written to: ' + output_path)
+          print('Total length: ' + str(len(body)) + ' characters')
+          PYEOF
 
-template_path = os.environ['TMPL']
-output_path   = os.environ['OUT']
-
-replacements = {
-    '{{LOGO_URL}}':          os.environ['LOGO_URL'],
-    '{{ZIP_FILENAME}}':      os.environ['ZIP_FILENAME'],
-    '{{DOWNLOAD_URL}}':      os.environ['DOWNLOAD_URL'],
-    '{{REPO_URL}}':          os.environ['REPO_URL'],
-    '{{VERSION}}':           os.environ['VERSION'],
-    '{{UNOFFICIAL_BANNER}}': os.environ['UNOFFICIAL_BANNER'],
-    '{{RELEASE_NOTES}}':     os.environ['RELEASE_NOTES'],
-}
-
-with open(template_path, 'r', encoding='utf-8') as f:
-    body = f.read()
-
-for placeholder, value in replacements.items():
-    body = body.replace(placeholder, value)
-
-with open(output_path, 'w', encoding='utf-8') as f:
-    f.write(body)
-
-print('Release body written to: ' + output_path)
-print('Total length: ' + str(len(body)) + ' characters')
-PYEOF
-
-          # ---- Run the Python renderer with all values as env vars ----
           TMPL="${{ env.release_md }}" \
           OUT="$OUTPUT" \
           LOGO_URL="https://raw.githubusercontent.com/${{ github.repository }}/main/WinISO.ScriptFXLib/Ressources/WinISO.ScriptFXLib.Logo.png" \
@@ -294,33 +262,23 @@ PYEOF
           python3 /tmp/render_template.py
 
           echo "body_file=$OUTPUT" >> $GITHUB_OUTPUT
-          echo "Release body template processed successfully"
+          echo "Release body built successfully"
 
       # -----------------------------------------------------------------------
       # STEP 5 - Create release ZIP package
       #
-      # Only the explicitly listed files and directories are included.
+      # Only the explicitly listed files and folders are included.
       # Everything else in the repository is strictly excluded.
-      #
-      # Included:
-      #   WinISO.ScriptFXLib.psm1
-      #   README.md
-      #   CHANGELOG.md
-      #   Examples/   (recursive)
-      #   Private/    (recursive)
-      #   Public/     (recursive)
       # -----------------------------------------------------------------------
       - name: Create WinISO.ScriptFXLib release package
         run: |
           ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
-          echo "Building release package: $ZIP_FILENAME"
+          echo "Building: $ZIP_FILENAME"
 
           mkdir -p "release-temp/${{ env.temp_folder }}"
-          echo "Staging folder created"
 
           if [ ! -d "${{ env.repo_folder }}" ]; then
-            echo "ERROR: module folder '${{ env.repo_folder }}' not found in repository root!"
-            echo "Repository root contents:"
+            echo "ERROR: folder '${{ env.repo_folder }}' not found in repository root"
             ls -la
             exit 1
           fi
@@ -328,23 +286,21 @@ PYEOF
           SRC="${{ env.repo_folder }}"
           DEST="release-temp/${{ env.temp_folder }}"
 
-          echo "Copying explicitly allowed files..."
           for FILE in "WinISO.ScriptFXLib.psm1" "README.md" "CHANGELOG.md"; do
             if [ -f "$SRC/$FILE" ]; then
               cp "$SRC/$FILE" "$DEST/"
-              echo "  OK: $FILE"
+              echo "  Copied : $FILE"
             else
-              echo "  SKIP (not found): $FILE"
+              echo "  Skipped (not found): $FILE"
             fi
           done
 
-          echo "Copying explicitly allowed directories (recursive)..."
           for DIR in "Examples" "Private" "Public"; do
             if [ -d "$SRC/$DIR" ]; then
               cp -r "$SRC/$DIR" "$DEST/"
-              echo "  OK: $DIR/"
+              echo "  Copied : $DIR/"
             else
-              echo "  SKIP (not found): $DIR/"
+              echo "  Skipped (not found): $DIR/"
             fi
           done
 
@@ -355,18 +311,13 @@ PYEOF
           zip -r "../${ZIP_FILENAME}" "${{ env.temp_folder }}/"
           cd ..
 
-          echo "ZIP archive created:"
+          echo "ZIP created:"
           ls -lh "${ZIP_FILENAME}"
           echo "ZIP contents:"
           unzip -l "${ZIP_FILENAME}"
 
       # -----------------------------------------------------------------------
       # STEP 6 - Publish GitHub Release
-      #
-      # Uses the pre-rendered release-body.md from Step 4.
-      # Release title comes from the shell-computed output of Step 2
-      # to avoid any YAML expression parsing issues.
-      # Unofficial releases are automatically flagged as pre-releases.
       # -----------------------------------------------------------------------
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
@@ -388,8 +339,6 @@ PYEOF
         run: |
           TAG_NAME="${{ steps.setup.outputs.tag_name }}"
           ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
-          TRIGGER="${{ github.event_name }}"
-          UNOFFICIAL="${{ steps.setup.outputs.unofficial }}"
 
           echo "======================================================"
           echo " ${{ github.workflow }} - Release Summary"
@@ -399,8 +348,8 @@ PYEOF
           echo "  Version    : ${{ steps.setup.outputs.version }}"
           echo "  ZIP        : $ZIP_FILENAME"
           echo "  Title      : ${{ steps.setup.outputs.release_title }}"
-          echo "  Trigger    : $TRIGGER"
-          echo "  Unofficial : $UNOFFICIAL"
+          echo "  Trigger    : ${{ github.event_name }}"
+          echo "  Unofficial : ${{ steps.setup.outputs.unofficial }}"
           echo "  Repository : ${{ github.repository }}"
           echo "  Commit SHA : ${{ github.sha }}"
           echo "  Timestamp  : $(date '+%Y-%m-%d %H:%M:%S UTC')"
@@ -408,10 +357,10 @@ PYEOF
           echo "  Release Page : https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
           echo "  Download URL : https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$ZIP_FILENAME"
           echo "------------------------------------------------------"
-          if [ "$TRIGGER" = "workflow_dispatch" ]; then
-            echo "  Next run: Actions -> ${{ github.workflow }} -> Run workflow"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "  Next run : Actions -> ${{ github.workflow }} -> Run workflow"
           else
-            echo "  Next run: push a new 'winiso-*' tag, or use manual trigger"
+            echo "  Next run : push a new 'winiso-*' tag, or use manual trigger"
           fi
           echo "  Workflow : https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
           echo "======================================================"
