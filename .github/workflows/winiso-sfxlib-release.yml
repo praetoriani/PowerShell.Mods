@@ -1,0 +1,280 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# =============================================================================
+# GITHUB ACTIONS WORKFLOW FOR WinISO.ScriptFXLib RELEASES
+# =============================================================================
+# This file defines an automated workflow that can be triggered in two ways:
+# 1. Automatically when a tag starting with "wsfx-" is created (e.g. wsfx-v1.0.0)
+# 2. Manually through the GitHub Actions interface with custom parameters
+
+name: WinISO.ScriptFXLib Release
+
+# GLOBAL VARIABLES
+env:
+  zip_filename: "WinISO-Release.zip"               # Filename for the ZIP-Archive
+  repo_folder: "WinISO.ScriptFXLib"                # Name of the module folder inside the repository
+  temp_folder: "WinISO.ScriptFXLib-Module"         # Folder name for the temporary staging folder
+  workflow_file: "winiso-sfxlib-release.yml"       # This workflow's filename
+
+# TRIGGER CONFIGURATION
+# Defines when this workflow should be executed
+on:
+  # AUTOMATIC TRIGGER: Tag-based execution
+  push:
+    tags:
+      - 'wsfx-*'    # Workflow starts only for tags beginning with "wsfx-"
+                    # Examples: wsfx-v1.0.0, wsfx-v2.0.0, wsfx-beta-1
+
+  # MANUAL TRIGGER: Allows running workflow from GitHub Actions interface
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g., wsfx-v1.00.00)'
+        required: true
+        default: 'wsfx-v1.00.00'
+        type: string
+      create_tag:
+        description: 'Create the tag if it does not exist'
+        required: true
+        default: true
+        type: boolean
+      release_notes:
+        description: 'Additional release notes (optional)'
+        required: false
+        default: ''
+        type: string
+
+# PERMISSIONS
+# GitHub Actions requires explicit permission to create releases and tags
+permissions:
+  contents: write    # Allows creating and editing repository contents
+  actions: write     # Allows workflow management
+
+# JOB DEFINITION
+jobs:
+  release:
+    runs-on: ubuntu-latest    # The workflow runs on an Ubuntu Linux server
+
+    # CONDITIONAL EXECUTION
+    # Execute for wsfx-tagged pushes OR manual dispatch
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/wsfx-')) ||
+      github.event_name == 'workflow_dispatch'
+
+    # WORKFLOW STEPS
+    steps:
+      # STEP 1: Download repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # STEP 2: Setup variables for different trigger types
+      - name: Setup release variables
+        id: setup
+        run: |
+          # Determine tag name based on trigger type
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.tag_name }}"
+            echo "🔧 Manual trigger detected"
+            echo "📝 Using tag: $TAG_NAME"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+            echo "🏷️ Automatic tag trigger detected"
+            echo "📝 Using tag: $TAG_NAME"
+          fi
+
+          # Validate tag format
+          if [[ ! $TAG_NAME =~ ^wsfx-.*$ ]]; then
+            echo "❌ Error: Tag name must start with 'wsfx-'"
+            echo "❌ Provided: $TAG_NAME"
+            exit 1
+          fi
+
+          # Extract version number from tag (e.g. wsfx-v1.0.0 -> v1.0.0)
+          VERSION="${TAG_NAME#wsfx-}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Tag validation successful: $TAG_NAME (version: $VERSION)"
+
+      # STEP 3: Create tag if manual trigger and tag doesn't exist
+      - name: Create tag if manual trigger
+        if: |
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.create_tag == 'true'
+        run: |
+          TAG_NAME="${{ steps.setup.outputs.tag_name }}"
+
+          # Configure Git with GitHub Actions bot identity
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          # Check if tag already exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "⚠️ Tag $TAG_NAME already exists"
+            echo "ℹ️ Continuing with existing tag..."
+          else
+            echo "🏷️ Creating new tag: $TAG_NAME"
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+            echo "✅ Tag created and pushed successfully"
+          fi
+
+      # STEP 4: Create release package
+      # Only the specified files and folders are packed into the ZIP archive.
+      # All other files and directories in the repository are strictly excluded.
+      - name: Create WinISO.ScriptFXLib release package
+        run: |
+          echo "🚀 Starting release package creation for ${{ env.repo_folder }}"
+
+          # Create temporary staging folder
+          mkdir -p release-temp/${{ env.temp_folder }}
+          echo "📁 Temporary release folder created"
+
+          # Verify source folder exists
+          if [ ! -d "${{ env.repo_folder }}" ]; then
+            echo "❌ Error: '${{ env.repo_folder }}' folder not found!"
+            echo "📂 Available folders:"
+            ls -la
+            exit 1
+          fi
+
+          SRC="${{ env.repo_folder }}"
+          DEST="release-temp/${{ env.temp_folder }}"
+
+          # Copy only allowed files (explicit inclusion, everything else is excluded)
+          echo "📋 Copying allowed files and directories..."
+
+          # Copy single files
+          for FILE in "WinISO.ScriptFXLib.psm1" "README.md" "CHANGELOG.md"; do
+            if [ -f "$SRC/$FILE" ]; then
+              cp "$SRC/$FILE" "$DEST/"
+              echo "  ✅ Copied: $FILE"
+            else
+              echo "  ⚠️ File not found (skipping): $FILE"
+            fi
+          done
+
+          # Copy allowed directories recursively
+          for DIR in "Examples" "Private" "Public"; do
+            if [ -d "$SRC/$DIR" ]; then
+              cp -r "$SRC/$DIR" "$DEST/"
+              echo "  ✅ Copied directory (recursive): $DIR/"
+            else
+              echo "  ⚠️ Directory not found (skipping): $DIR/"
+            fi
+          done
+
+          echo "📦 Staging folder contents:"
+          ls -la "$DEST/"
+
+          # Change to temporary folder and create ZIP
+          cd release-temp
+          zip -r ../${{ env.zip_filename }} ${{ env.temp_folder }}/
+          cd ..
+
+          echo "✅ ZIP file created:"
+          ls -lh ${{ env.zip_filename }}
+
+          echo "📦 ZIP file contents:"
+          unzip -l ${{ env.zip_filename }}
+
+      # STEP 5: Create GitHub release with enhanced release page
+      - name: Create GitHub release with assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.setup.outputs.tag_name }}
+          name: WinISO.ScriptFXLib ${{ steps.setup.outputs.tag_name }}
+          body: |
+            <p align="center">
+              <img src="https://raw.githubusercontent.com/praetoriani/PowerShell.Mods/main/WinISO.ScriptFXLib/Ressources/WinISO.ScriptFXLib.Logo.png" alt="WinISO.ScriptFXLib Logo" width="480" />
+            </p>
+
+            ## 🖥️ **File Download:**
+
+            **📦 [`${{ env.zip_filename }}`](https://github.com/${{ github.repository }}/releases/download/${{ steps.setup.outputs.tag_name }}/${{ env.zip_filename }})**
+            <br>
+
+            ## ℹ️ System Requirements:
+            - Windows 10 / Windows 11
+            - PowerShell 5.1 or higher
+            - No administrator privileges required for standard usage
+            <br>
+
+            ## 🪛 Installation / Usage:
+            1. Download the ZIP archive from the link above.
+            2. Extract the archive to a location of your choice.
+            3. Import the module in PowerShell: `Import-Module .\WinISO.ScriptFXLib.psm1`
+            4. Refer to the included `README.md` and the `Examples\` folder for usage instructions.
+            <br>
+
+            ## 📜 License/Copyright:
+
+            **WinISO.ScriptFXLib** is licensed for **private, non-commercial use only**.
+
+            - ❌ Commercial use of any kind is strictly prohibited.
+            - ❌ Editing, modifying, or manipulating this software in any form or manner without the explicit written consent of the developer is not permitted.
+            - ⚠️ Use of WinISO.ScriptFXLib is entirely at the user's own risk. No liability is assumed for any damage to hardware and/or software that may occur.
+            - ⚠️ Any consequences arising from the use of WinISO.ScriptFXLib are solely the responsibility of the user.
+
+            > **WinISO.ScriptFXLib™** · © 2026 by Praetoriani · All rights reserved.
+            <br>
+
+            ## 🛟 Security Advise:
+
+            > ⚠️ **Important:** The official and only trusted source for WinISO.ScriptFXLib is:
+            >
+            > 🔗 **[https://github.com/praetoriani/PowerShell.Mods/tree/main/WinISO.ScriptFXLib](https://github.com/praetoriani/PowerShell.Mods/tree/main/WinISO.ScriptFXLib)**
+            >
+            > It is **strongly recommended** to download WinISO.ScriptFXLib **exclusively** from this official source. Do not use copies from unknown or untrusted third-party sources, as these may have been tampered with or contain malicious code.
+            <br>
+
+            ## 📝 Additional Notes:
+
+            ${{ github.event.inputs.release_notes != '' && github.event.inputs.release_notes || '_No additional notes provided for this release._' }}
+            <br>
+
+            ---
+            Made with 💖 in Munich (Bavaria, Germany)
+
+          files: ${{ env.zip_filename }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # STEP 6: Confirm success with enhanced logging
+      - name: Confirm release creation and provide usage instructions
+        run: |
+          TAG_NAME="${{ steps.setup.outputs.tag_name }}"
+          TRIGGER_TYPE="${{ github.event_name }}"
+
+          echo "🎉 ${{ github.workflow }} successfully created!"
+          echo ""
+          echo "📊 Release Information:"
+          echo "   👤  Actor: ${{ github.actor }}"
+          echo "   🏷️  Tag: $TAG_NAME"
+          echo "   🔄  Trigger: $TRIGGER_TYPE"
+          echo "   ⚡  Event-Type: ${{ github.event_name }}"
+          echo "   📁  Repository: ${{ github.repository }}"
+          echo "   🔗  Commit: ${{ github.sha }}"
+          echo "   ⏰  Created: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          echo "🌐 Release Links:"
+          echo "   📖  Release Page: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo "   💾  Direct Download: https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/${{ env.zip_filename }}"
+          echo ""
+          echo "🚀 Next Steps for Users:"
+          echo "   1. Visit the release page above"
+          echo "   2. Download '${{ env.zip_filename }}'"
+          echo "   3. Extract and import the module in PowerShell"
+          echo ""
+          echo "🔧 For Developers:"
+          if [ "$TRIGGER_TYPE" = "workflow_dispatch" ]; then
+            echo "   • This release was created manually via GitHub Actions"
+            echo "   • To create another release, go to Actions → ${{ github.workflow }} → Run workflow"
+          else
+            echo "   • This release was created automatically by pushing tag: $TAG_NAME"
+            echo "   • To create another release, push a new wsfx-* tag or use manual trigger"
+          fi
+          echo "   • Manual trigger available at: https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
