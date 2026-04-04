@@ -185,53 +185,53 @@ jobs:
           name: WinISO.ScriptFXLib ${{ steps.setup.outputs.tag_name }}
           body: |
             <p align="center">
-              <img src="https://raw.githubusercontent.com/praetoriani/PowerShell.Mods/main/WinISO.ScriptFXLib/Ressources/WinISO.ScriptFXLib.Logo.png" alt="WinISO.ScriptFXLib Logo" width="480" />
+            <img src="https://raw.githubusercontent.com/praetoriani/PowerShell.Mods/main/WinISO.ScriptFXLib/Ressources/WinISO.ScriptFXLib.Logo.png" alt="WinISO.ScriptFXLib Logo" width="480" />
             </p>
-
+            
             ## 🖥️ **File Download:**
-
+            
             **📦 [`${{ env.zip_filename }}`](https://github.com/${{ github.repository }}/releases/download/${{ steps.setup.outputs.tag_name }}/${{ env.zip_filename }})**
             <br>
-
+            
             ## ℹ️ System Requirements:
             - Windows 10 / Windows 11
             - PowerShell 5.1 or higher
             - No administrator privileges required for standard usage
             <br>
-
+            
             ## 🪛 Installation / Usage:
             1. Download the ZIP archive from the link above.
             2. Extract the archive to a location of your choice.
             3. Import the module in PowerShell: `Import-Module .\WinISO.ScriptFXLib.psm1`
             4. Refer to the included `README.md` and the `Examples\` folder for usage instructions.
             <br>
-
+            
             ## 📜 License/Copyright:
-
+            
             **WinISO.ScriptFXLib** is licensed for **private, non-commercial use only**.
-
+            
             - ❌ Commercial use of any kind is strictly prohibited.
             - ❌ Editing, modifying, or manipulating this software in any form or manner without the explicit written consent of the developer is not permitted.
             - ⚠️ Use of WinISO.ScriptFXLib is entirely at the user's own risk. No liability is assumed for any damage to hardware and/or software that may occur.
             - ⚠️ Any consequences arising from the use of WinISO.ScriptFXLib are solely the responsibility of the user.
-
+            
             > **WinISO.ScriptFXLib™** · © 2026 by Praetoriani · All rights reserved.
             <br>
-
+            
             ## 🛟 Security Advise:
-
+            
             > ⚠️ **Important:** The official and only trusted source for WinISO.ScriptFXLib is:
             >
             > 🔗 **[https://github.com/praetoriani/PowerShell.Mods/tree/main/WinISO.ScriptFXLib](https://github.com/praetoriani/PowerShell.Mods/tree/main/WinISO.ScriptFXLib)**
             >
             > It is **strongly recommended** to download WinISO.ScriptFXLib **exclusively** from this official source. Do not use copies from unknown or untrusted third-party sources, as these may have been tampered with or contain malicious code.
             <br>
-
+            
             ## 📝 Additional Notes:
-
+            
             ${{ github.event.inputs.release_notes != '' && github.event.inputs.release_notes || '_No additional notes provided for this release._' }}
             <br>
-
+            
             ---
             Made with 💖 in Munich (Bavaria, Germany)
 
