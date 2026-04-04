@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     WinISO.ScriptFXLib - Powerfull Module for downloading, customizing and re-building bootable Windows 11 Pro Setup ISO Files
 
@@ -11,8 +11,8 @@
 
 .NOTES
     Creation Date: 28.03.2026
-    Last Update:   03.04.2026
-    Version:       1.00.04
+    Last Update:   04.04.2026
+    Version:       1.00.05
     Author:        Praetoriani (a.k.a. M.Sczepanski)
     Website:       https://github.com/praetoriani/PowerShell.Mods
 
@@ -26,12 +26,12 @@
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:appinfo = @{
     AppName     = 'WinISO.ScriptFXLib'
-    AppVers     = '1.00.04'
+    AppVers     = '1.00.05'
     AppDevName  = 'Praetoriani'
     AppDevMail  = 'mr.praetoriani{at}gmail.com'
     AppWebsite  = 'https://github.com/praetoriani/PowerShell.Mods'
     DateCreate  = '28.03.2026'
-    LastUpdate  = '03.04.2026'
+    LastUpdate  = '04.04.2026'
 }
 
 # This var stores important paths and other important environment informations
@@ -70,6 +70,12 @@ $script:appcore = @{
     }
 }
 
+# Runtime state tracker for CheckModuleRequirements.
+# Stores the result of each individual dependency check (PASS / FAIL / INFO / WARN)
+# so that results are available on global module level after CheckModuleRequirements returns.
+# Written by: CheckModuleRequirements (via WinISOcore write access)
+# Read by:    Any caller, via WinISOcore -GlobalVar 'appverify' -Permission 'read'
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:appverify = @{
     checkosversion  = ""
     checkpowershell = ""
@@ -113,11 +119,12 @@ $script:uupdump = @{
 }
 
 # Runtime state tracker for Appx-Interactions (listing, removing, adding Appx-Packages)
+# Written/Read by: future Appx-related public functions, accessible via WinISOcore
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:appx = @{
-    # This scope is reserved for Appx-Package related data and variables
-    listed = @() # This array will be used to store the list of Appx-Packages that are currently in the image
-    remove = @() # This array is reserved for data about Appx-Packages that should be removed from the image
-    inject = @() # This array is reserved for data about Appx-Packages that should be added from $script:appenv['AppxBundle'] into the image)
+    listed = @() # Stores the list of Appx-Packages currently present in the image
+    remove = @() # Reserved for Appx-Packages to be removed from the image
+    inject = @() # Reserved for Appx-Packages to be added from $script:appenv['AppxBundle'] into the image
 }
 
 $script:exit = @{
@@ -154,9 +161,11 @@ function AppScope {
                 'appinfo'   { return $script:appinfo }
                 'appenv'    { return $script:appenv }
                 'reghive'   { return $script:LoadedHives }
+                'appverify' { return $script:appverify }
+                'appx'      { return $script:appx }
                 default     {
                     $script:exit['code'] = -1
-                    $script:exit['text'] = "Parameter 'KeyID' can only be 'appinfo'  or  'appenv' or 'reghive'."
+                    $script:exit['text'] = "Parameter 'KeyID' can only be 'appinfo', 'appenv', 'reghive', 'appverify', or 'appx'."
                 }
             }
         }
