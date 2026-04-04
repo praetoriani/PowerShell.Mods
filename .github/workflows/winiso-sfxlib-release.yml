@@ -3,40 +3,67 @@
 # =============================================================================
 # GITHUB ACTIONS WORKFLOW FOR WinISO.ScriptFXLib RELEASES
 # =============================================================================
-# This file defines an automated workflow that can be triggered in two ways:
-# 1. Automatically when a tag starting with "wsfx-" is created (e.g. wsfx-v1.0.0)
-# 2. Manually through the GitHub Actions interface with custom parameters
+# Trigger options:
+#   1. Automatically when a tag starting with "winiso-" is pushed
+#      (e.g. winiso-v1.00.00, winiso-v2.05.01)
+#   2. Manually via GitHub Actions UI (workflow_dispatch) with custom inputs
+#
+# Version source of truth:
+#   .github/workflows/winiso-sfxlib-version.txt
+#   The workflow reads the version from this file first.
+#   If the file is missing it falls back to deriving the version from the tag.
+#
+# Release body template:
+#   .github/workflows/winiso-sfxlib-release.md
+#   The workflow reads this Markdown file and replaces all {{PLACEHOLDER}}
+#   tokens at runtime before passing the content to the release action.
 
 name: WinISO.ScriptFXLib Release
 
+# ---------------------------------------------------------------------------
 # GLOBAL VARIABLES
+# zip_basename  : Base filename WITHOUT version and WITHOUT .zip extension.
+#                 The full ZIP name is assembled dynamically in Step 2.
+# repo_folder   : The module's subdirectory inside the repository.
+# temp_folder   : Staging folder used during ZIP creation (not committed).
+# workflow_file : Filename of this workflow (used in log output).
+# version_file  : Path to the plain-text file that holds the version number.
+# release_md    : Path to the Markdown template for the release body.
+# ---------------------------------------------------------------------------
 env:
-  zip_filename: "WinISO-Release.zip"               # Filename for the ZIP-Archive
-  repo_folder: "WinISO.ScriptFXLib"                # Name of the module folder inside the repository
-  temp_folder: "WinISO.ScriptFXLib-Module"         # Folder name for the temporary staging folder
-  workflow_file: "winiso-sfxlib-release.yml"       # This workflow's filename
+  zip_basename:   "WinISO"                                      # Base name for the ZIP archive
+  repo_folder:    "WinISO.ScriptFXLib"                          # Module folder in the repository
+  temp_folder:    "WinISO.ScriptFXLib-Module"                   # Temporary staging folder name
+  workflow_file:  "winiso-sfxlib-release.yml"                   # This workflow's own filename
+  version_file:   ".github/workflows/winiso-sfxlib-version.txt" # Version source-of-truth file
+  release_md:     ".github/workflows/winiso-sfxlib-release.md"  # Release body Markdown template
 
+# ---------------------------------------------------------------------------
 # TRIGGER CONFIGURATION
-# Defines when this workflow should be executed
+# ---------------------------------------------------------------------------
 on:
-  # AUTOMATIC TRIGGER: Tag-based execution
+  # AUTOMATIC TRIGGER — fires when a tag starting with "winiso-" is pushed
   push:
     tags:
-      - 'wsfx-*'    # Workflow starts only for tags beginning with "wsfx-"
-                    # Examples: wsfx-v1.0.0, wsfx-v2.0.0, wsfx-beta-1
+      - 'winiso-*'    # Examples: winiso-v1.00.00, winiso-v2.05.01, winiso-beta-1
 
-  # MANUAL TRIGGER: Allows running workflow from GitHub Actions interface
+  # MANUAL TRIGGER — exposes a "Run workflow" button in the GitHub Actions UI
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for the release (e.g., wsfx-v1.00.00)'
+        description: 'Tag name for the release (e.g., winiso-v1.00.00)'
         required: true
-        default: 'wsfx-v1.00.00'
+        default: 'winiso-v1.00.00'
         type: string
       create_tag:
-        description: 'Create the tag if it does not exist'
+        description: 'Create the tag if it does not exist yet'
         required: true
         default: true
+        type: boolean
+      unofficial_release:
+        description: 'Mark as Unofficial Release (for testing / debugging only)'
+        required: true
+        default: false
         type: boolean
       release_notes:
         description: 'Additional release notes (optional)'
@@ -44,95 +71,256 @@ on:
         default: ''
         type: string
 
+# ---------------------------------------------------------------------------
 # PERMISSIONS
-# GitHub Actions requires explicit permission to create releases and tags
+# Explicit write access is required to create tags and releases.
+# ---------------------------------------------------------------------------
 permissions:
-  contents: write    # Allows creating and editing repository contents
-  actions: write     # Allows workflow management
+  contents: write
+  actions:  write
 
-# JOB DEFINITION
+# ---------------------------------------------------------------------------
+# JOBS
+# ---------------------------------------------------------------------------
 jobs:
   release:
-    runs-on: ubuntu-latest    # The workflow runs on an Ubuntu Linux server
+    runs-on: ubuntu-latest
 
-    # CONDITIONAL EXECUTION
-    # Execute for wsfx-tagged pushes OR manual dispatch
+    # Only run when triggered by a matching tag push OR a manual dispatch
     if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/wsfx-')) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/winiso-')) ||
       github.event_name == 'workflow_dispatch'
 
-    # WORKFLOW STEPS
     steps:
-      # STEP 1: Download repository code
+
+      # -----------------------------------------------------------------------
+      # STEP 1 — Checkout repository
+      # Makes all repository files available on the runner.
+      # -----------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # STEP 2: Setup variables for different trigger types
-      - name: Setup release variables
+      # -----------------------------------------------------------------------
+      # STEP 2 — Resolve version and build dynamic variables
+      #
+      # Priority order for the version number:
+      #   1. Content of winiso-sfxlib-version.txt  (preferred / source of truth)
+      #   2. Suffix of the pushed / provided tag    (fallback)
+      #
+      # Outputs exported via $GITHUB_OUTPUT (available in all following steps):
+      #   tag_name      -> Validated tag name
+      #   version       -> Plain version string, e.g. "1.05.03"
+      #   zip_filename  -> Full ZIP filename, e.g. "WinISO-1.05.03-Release.zip"
+      #                    Becomes "WinISO-1.05.03-UNOFFICIAL.zip" when flag is set
+      #   unofficial    -> "true" | "false"
+      # -----------------------------------------------------------------------
+      - name: Resolve version and build dynamic variables
         id: setup
         run: |
-          # Determine tag name based on trigger type
+          # ---- Determine tag name ----
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG_NAME="${{ github.event.inputs.tag_name }}"
             echo "🔧 Manual trigger detected"
-            echo "📝 Using tag: $TAG_NAME"
           else
             TAG_NAME="${{ github.ref_name }}"
             echo "🏷️ Automatic tag trigger detected"
-            echo "📝 Using tag: $TAG_NAME"
           fi
+          echo "📝 Raw tag: $TAG_NAME"
 
-          # Validate tag format
-          if [[ ! $TAG_NAME =~ ^wsfx-.*$ ]]; then
-            echo "❌ Error: Tag name must start with 'wsfx-'"
+          # ---- Validate tag prefix ----
+          if [[ ! $TAG_NAME =~ ^winiso-.*$ ]]; then
+            echo "❌ Error: Tag must start with 'winiso-'"
             echo "❌ Provided: $TAG_NAME"
             exit 1
           fi
 
-          # Extract version number from tag (e.g. wsfx-v1.0.0 -> v1.0.0)
-          VERSION="${TAG_NAME#wsfx-}"
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "✅ Tag validation successful: $TAG_NAME (version: $VERSION)"
+          # ---- Read version from file (primary source) ----
+          VERSION_FILE="${{ env.version_file }}"
+          if [ -f "$VERSION_FILE" ]; then
+            VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+            echo "📋 Version sourced from $VERSION_FILE: $VERSION"
+          else
+            # Fallback: strip the "winiso-" prefix from the tag
+            VERSION="${TAG_NAME#winiso-}"
+            echo "⚠️ $VERSION_FILE not found — version derived from tag: $VERSION"
+          fi
 
-      # STEP 3: Create tag if manual trigger and tag doesn't exist
-      - name: Create tag if manual trigger
+          # ---- Unofficial release flag ----
+          UNOFFICIAL="${{ github.event.inputs.unofficial_release }}"
+          # For automatic tag pushes the input is empty; treat as false
+          if [ -z "$UNOFFICIAL" ]; then
+            UNOFFICIAL="false"
+          fi
+
+          # ---- Build full ZIP filename ----
+          if [ "$UNOFFICIAL" = "true" ]; then
+            FULL_ZIP="${{ env.zip_basename }}-${VERSION}-UNOFFICIAL.zip"
+            echo "⚠️ UNOFFICIAL RELEASE mode is active"
+          else
+            FULL_ZIP="${{ env.zip_basename }}-${VERSION}-Release.zip"
+          fi
+
+          echo "📦 ZIP filename: $FULL_ZIP"
+
+          # ---- Export all outputs ----
+          echo "tag_name=$TAG_NAME"   >> $GITHUB_OUTPUT
+          echo "version=$VERSION"     >> $GITHUB_OUTPUT
+          echo "zip_filename=$FULL_ZIP" >> $GITHUB_OUTPUT
+          echo "unofficial=$UNOFFICIAL" >> $GITHUB_OUTPUT
+
+          echo "✅ Variable setup complete"
+          echo "   TAG      : $TAG_NAME"
+          echo "   VERSION  : $VERSION"
+          echo "   ZIP      : $FULL_ZIP"
+          echo "   UNOFFICIAL: $UNOFFICIAL"
+
+      # -----------------------------------------------------------------------
+      # STEP 3 — Create tag (manual trigger only)
+      # Only runs when workflow_dispatch AND create_tag == true.
+      # Skipped silently for automatic tag pushes.
+      # -----------------------------------------------------------------------
+      - name: Create tag if requested
         if: |
           github.event_name == 'workflow_dispatch' &&
           github.event.inputs.create_tag == 'true'
         run: |
           TAG_NAME="${{ steps.setup.outputs.tag_name }}"
 
-          # Configure Git with GitHub Actions bot identity
-          git config user.name "GitHub Actions Bot"
+          git config user.name  "GitHub Actions Bot"
           git config user.email "actions@github.com"
 
-          # Check if tag already exists
           if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "⚠️ Tag $TAG_NAME already exists"
-            echo "ℹ️ Continuing with existing tag..."
+            echo "⚠️ Tag '$TAG_NAME' already exists — continuing with existing tag"
           else
-            echo "🏷️ Creating new tag: $TAG_NAME"
+            echo "🏷️ Creating and pushing new tag: $TAG_NAME"
             git tag "$TAG_NAME"
             git push origin "$TAG_NAME"
-            echo "✅ Tag created and pushed successfully"
+            echo "✅ Tag created successfully"
           fi
 
-      # STEP 4: Create release package
-      # Only the specified files and folders are packed into the ZIP archive.
-      # All other files and directories in the repository are strictly excluded.
+      # -----------------------------------------------------------------------
+      # STEP 4 — Build release body from Markdown template
+      #
+      # Reads winiso-sfxlib-release.md and replaces all {{PLACEHOLDER}} tokens
+      # with runtime values. The final Markdown is written to release-body.md
+      # and exported as a step output path for the release action.
+      #
+      # Placeholders replaced:
+      #   {{LOGO_URL}}          Raw URL to the project logo
+      #   {{ZIP_FILENAME}}      Full ZIP filename (from Step 2)
+      #   {{DOWNLOAD_URL}}      Direct download URL for the ZIP
+      #   {{REPO_URL}}          Repository base URL
+      #   {{VERSION}}           Version string
+      #   {{UNOFFICIAL_BANNER}} Empty OR a prominent warning block
+      #   {{RELEASE_NOTES}}     User-provided notes OR default placeholder
+      # -----------------------------------------------------------------------
+      - name: Build release body from template
+        id: build_body
+        run: |
+          TEMPLATE="${{ env.release_md }}"
+          OUTPUT="release-body.md"
+
+          if [ ! -f "$TEMPLATE" ]; then
+            echo "❌ Release body template not found: $TEMPLATE"
+            exit 1
+          fi
+
+          # ---- Define replacement values ----
+          LOGO_URL="https://raw.githubusercontent.com/${{ github.repository }}/main/WinISO.ScriptFXLib/Ressources/WinISO.ScriptFXLib.Logo.png"
+          ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
+          TAG_NAME="${{ steps.setup.outputs.tag_name }}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/${ZIP_FILENAME}"
+          REPO_URL="https://github.com/${{ github.repository }}"
+          VERSION="${{ steps.setup.outputs.version }}"
+          UNOFFICIAL="${{ steps.setup.outputs.unofficial }}"
+
+          # ---- Build unofficial banner (empty string for normal releases) ----
+          if [ "$UNOFFICIAL" = "true" ]; then
+            UNOFFICIAL_BANNER="> [!CAUTION]\n> ### ⚠️ UNOFFICIAL RELEASE — FOR TESTING AND DEBUGGING PURPOSES ONLY\n> This release has **NOT** been officially approved. It must **NOT** be used in production environments. Use at your own risk.\n"
+          else
+            UNOFFICIAL_BANNER=""
+          fi
+
+          # ---- Build release notes block ----
+          RAW_NOTES="${{ github.event.inputs.release_notes }}"
+          if [ -n "$RAW_NOTES" ]; then
+            RELEASE_NOTES="$RAW_NOTES"
+          else
+            RELEASE_NOTES="_No additional notes provided for this release._"
+          fi
+
+          # ---- Apply replacements using a Python helper (handles multiline safely) ----
+          # Using Python avoids sed escaping pitfalls with special chars in values.
+          python3 - <<'PYEOF'
+import os, re
+
+template_path = os.environ.get('TEMPLATE', '.github/workflows/winiso-sfxlib-release.md')
+output_path   = os.environ.get('OUTPUT',   'release-body.md')
+
+replacements = {
+    '{{LOGO_URL}}':          os.environ['LOGO_URL'],
+    '{{ZIP_FILENAME}}':      os.environ['ZIP_FILENAME'],
+    '{{DOWNLOAD_URL}}':      os.environ['DOWNLOAD_URL'],
+    '{{REPO_URL}}':          os.environ['REPO_URL'],
+    '{{VERSION}}':           os.environ['VERSION'],
+    '{{UNOFFICIAL_BANNER}}': os.environ['UNOFFICIAL_BANNER'].replace('\\n', '\n'),
+    '{{RELEASE_NOTES}}':     os.environ['RELEASE_NOTES'],
+}
+
+with open(template_path, 'r', encoding='utf-8') as f:
+    body = f.read()
+
+for placeholder, value in replacements.items():
+    body = body.replace(placeholder, value)
+
+with open(output_path, 'w', encoding='utf-8') as f:
+    f.write(body)
+
+print(f'✅ Release body written to: {output_path}')
+print(f'   Total length: {len(body)} characters')
+PYEOF
+
+          # Export the output file path so the release step can reference it
+          echo "body_file=$OUTPUT" >> $GITHUB_OUTPUT
+          echo "✅ Release body template processed successfully"
+        env:
+          TEMPLATE:           ${{ env.release_md }}
+          OUTPUT:             release-body.md
+          LOGO_URL:           https://raw.githubusercontent.com/${{ github.repository }}/main/WinISO.ScriptFXLib/Ressources/WinISO.ScriptFXLib.Logo.png
+          ZIP_FILENAME:       ${{ steps.setup.outputs.zip_filename }}
+          TAG_NAME:           ${{ steps.setup.outputs.tag_name }}
+          DOWNLOAD_URL:       https://github.com/${{ github.repository }}/releases/download/${{ steps.setup.outputs.tag_name }}/${{ steps.setup.outputs.zip_filename }}
+          REPO_URL:           https://github.com/${{ github.repository }}
+          VERSION:            ${{ steps.setup.outputs.version }}
+          UNOFFICIAL:         ${{ steps.setup.outputs.unofficial }}
+          UNOFFICIAL_BANNER:  ${{ steps.setup.outputs.unofficial == 'true' && '> [!CAUTION]\n> ### \u26a0\ufe0f UNOFFICIAL RELEASE \u2014 FOR TESTING AND DEBUGGING PURPOSES ONLY\n> This release has **NOT** been officially approved. It must **NOT** be used in production environments. Use at your own risk.\n' || '' }}
+          RELEASE_NOTES:      ${{ github.event.inputs.release_notes }}
+
+      # -----------------------------------------------------------------------
+      # STEP 5 — Create release ZIP package
+      #
+      # Only the explicitly listed files and directories are included.
+      # Everything else in the repository is strictly excluded.
+      #
+      # Included:
+      #   WinISO.ScriptFXLib.psm1
+      #   README.md
+      #   CHANGELOG.md
+      #   Examples/   (recursive)
+      #   Private/    (recursive)
+      #   Public/     (recursive)
+      # -----------------------------------------------------------------------
       - name: Create WinISO.ScriptFXLib release package
         run: |
-          echo "🚀 Starting release package creation for ${{ env.repo_folder }}"
+          ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
+          echo "🚀 Building release package: $ZIP_FILENAME"
 
-          # Create temporary staging folder
-          mkdir -p release-temp/${{ env.temp_folder }}
-          echo "📁 Temporary release folder created"
+          mkdir -p "release-temp/${{ env.temp_folder }}"
+          echo "📁 Staging folder created"
 
-          # Verify source folder exists
           if [ ! -d "${{ env.repo_folder }}" ]; then
-            echo "❌ Error: '${{ env.repo_folder }}' folder not found!"
-            echo "📂 Available folders:"
+            echo "❌ Error: module folder '${{ env.repo_folder }}' not found in repository root!"
+            echo "📂 Repository root contents:"
             ls -la
             exit 1
           fi
@@ -140,141 +328,92 @@ jobs:
           SRC="${{ env.repo_folder }}"
           DEST="release-temp/${{ env.temp_folder }}"
 
-          # Copy only allowed files (explicit inclusion, everything else is excluded)
-          echo "📋 Copying allowed files and directories..."
-
-          # Copy single files
+          echo "📋 Copying explicitly allowed files..."
           for FILE in "WinISO.ScriptFXLib.psm1" "README.md" "CHANGELOG.md"; do
             if [ -f "$SRC/$FILE" ]; then
               cp "$SRC/$FILE" "$DEST/"
-              echo "  ✅ Copied: $FILE"
+              echo "  ✅ $FILE"
             else
-              echo "  ⚠️ File not found (skipping): $FILE"
+              echo "  ⚠️ Not found (skipping): $FILE"
             fi
           done
 
-          # Copy allowed directories recursively
+          echo "📋 Copying explicitly allowed directories (recursive)..."
           for DIR in "Examples" "Private" "Public"; do
             if [ -d "$SRC/$DIR" ]; then
               cp -r "$SRC/$DIR" "$DEST/"
-              echo "  ✅ Copied directory (recursive): $DIR/"
+              echo "  ✅ $DIR/"
             else
-              echo "  ⚠️ Directory not found (skipping): $DIR/"
+              echo "  ⚠️ Not found (skipping): $DIR/"
             fi
           done
 
           echo "📦 Staging folder contents:"
           ls -la "$DEST/"
 
-          # Change to temporary folder and create ZIP
           cd release-temp
-          zip -r ../${{ env.zip_filename }} ${{ env.temp_folder }}/
+          zip -r "../${ZIP_FILENAME}" "${{ env.temp_folder }}/"
           cd ..
 
-          echo "✅ ZIP file created:"
-          ls -lh ${{ env.zip_filename }}
+          echo "✅ ZIP archive created:"
+          ls -lh "${ZIP_FILENAME}"
+          echo "📦 ZIP contents:"
+          unzip -l "${ZIP_FILENAME}"
 
-          echo "📦 ZIP file contents:"
-          unzip -l ${{ env.zip_filename }}
-
-      # STEP 5: Create GitHub release with enhanced release page
-      - name: Create GitHub release with assets
+      # -----------------------------------------------------------------------
+      # STEP 6 — Publish GitHub Release
+      #
+      # Uses the pre-rendered release-body.md from Step 4.
+      # The release title is prefixed with "⚠️ UNOFFICIAL —" when the flag is set.
+      # -----------------------------------------------------------------------
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.setup.outputs.tag_name }}
-          name: WinISO.ScriptFXLib ${{ steps.setup.outputs.tag_name }}
-          body: |
-            <p align="center">
-            <img src="https://raw.githubusercontent.com/praetoriani/PowerShell.Mods/main/WinISO.ScriptFXLib/Ressources/WinISO.ScriptFXLib.Logo.png" alt="WinISO.ScriptFXLib Logo" width="480" />
-            </p>
-            
-            ## 🖥️ **File Download:**
-            
-            **📦 [`${{ env.zip_filename }}`](https://github.com/${{ github.repository }}/releases/download/${{ steps.setup.outputs.tag_name }}/${{ env.zip_filename }})**
-            <br>
-            
-            ## ℹ️ System Requirements:
-            - Windows 10 / Windows 11
-            - PowerShell 5.1 or higher
-            - No administrator privileges required for standard usage
-            <br>
-            
-            ## 🪛 Installation / Usage:
-            1. Download the ZIP archive from the link above.
-            2. Extract the archive to a location of your choice.
-            3. Import the module in PowerShell: `Import-Module .\WinISO.ScriptFXLib.psm1`
-            4. Refer to the included `README.md` and the `Examples\` folder for usage instructions.
-            <br>
-            
-            ## 📜 License/Copyright:
-            
-            **WinISO.ScriptFXLib** is licensed for **private, non-commercial use only**.
-            
-            - ❌ Commercial use of any kind is strictly prohibited.
-            - ❌ Editing, modifying, or manipulating this software in any form or manner without the explicit written consent of the developer is not permitted.
-            - ⚠️ Use of WinISO.ScriptFXLib is entirely at the user's own risk. No liability is assumed for any damage to hardware and/or software that may occur.
-            - ⚠️ Any consequences arising from the use of WinISO.ScriptFXLib are solely the responsibility of the user.
-            
-            > **WinISO.ScriptFXLib™** · © 2026 by Praetoriani · All rights reserved.
-            <br>
-            
-            ## 🛟 Security Advise:
-            
-            > ⚠️ **Important:** The official and only trusted source for WinISO.ScriptFXLib is:
-            >
-            > 🔗 **[https://github.com/praetoriani/PowerShell.Mods/tree/main/WinISO.ScriptFXLib](https://github.com/praetoriani/PowerShell.Mods/tree/main/WinISO.ScriptFXLib)**
-            >
-            > It is **strongly recommended** to download WinISO.ScriptFXLib **exclusively** from this official source. Do not use copies from unknown or untrusted third-party sources, as these may have been tampered with or contain malicious code.
-            <br>
-            
-            ## 📝 Additional Notes:
-            
-            ${{ github.event.inputs.release_notes != '' && github.event.inputs.release_notes || '_No additional notes provided for this release._' }}
-            <br>
-            
-            ---
-            Made with 💖 in Munich (Bavaria, Germany)
-
-          files: ${{ env.zip_filename }}
-          draft: false
-          prerelease: false
+          name: >-
+            ${{ steps.setup.outputs.unofficial == 'true' &&
+                format('\u26a0\ufe0f UNOFFICIAL \u2014 WinISO.ScriptFXLib {0}', steps.setup.outputs.tag_name) ||
+                format('WinISO.ScriptFXLib {0}', steps.setup.outputs.tag_name) }}
+          body_path: ${{ steps.build_body.outputs.body_file }}
+          files: ${{ steps.setup.outputs.zip_filename }}
+          draft:      false
+          prerelease: ${{ steps.setup.outputs.unofficial == 'true' }}
           fail_on_unmatched_files: true
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # STEP 6: Confirm success with enhanced logging
-      - name: Confirm release creation and provide usage instructions
+      # -----------------------------------------------------------------------
+      # STEP 7 — Summary log
+      # -----------------------------------------------------------------------
+      - name: Print release summary
         run: |
           TAG_NAME="${{ steps.setup.outputs.tag_name }}"
-          TRIGGER_TYPE="${{ github.event_name }}"
+          ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
+          TRIGGER="${{ github.event_name }}"
+          UNOFFICIAL="${{ steps.setup.outputs.unofficial }}"
 
-          echo "🎉 ${{ github.workflow }} successfully created!"
+          echo "🎉 ${{ github.workflow }} completed successfully!"
           echo ""
-          echo "📊 Release Information:"
-          echo "   👤  Actor: ${{ github.actor }}"
-          echo "   🏷️  Tag: $TAG_NAME"
-          echo "   🔄  Trigger: $TRIGGER_TYPE"
-          echo "   ⚡  Event-Type: ${{ github.event_name }}"
-          echo "   📁  Repository: ${{ github.repository }}"
-          echo "   🔗  Commit: ${{ github.sha }}"
-          echo "   ⏰  Created: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "📊 Release Summary:"
+          echo "   👤  Actor      : ${{ github.actor }}"
+          echo "   🏷️  Tag        : $TAG_NAME"
+          echo "   🔢  Version    : ${{ steps.setup.outputs.version }}"
+          echo "   📦  ZIP        : $ZIP_FILENAME"
+          echo "   🔄  Trigger    : $TRIGGER"
+          echo "   ⚠️  Unofficial : $UNOFFICIAL"
+          echo "   📁  Repository : ${{ github.repository }}"
+          echo "   🔗  Commit SHA : ${{ github.sha }}"
+          echo "   ⏰  Timestamp  : $(date '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "🌐 Release Links:"
-          echo "   📖  Release Page: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
-          echo "   💾  Direct Download: https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/${{ env.zip_filename }}"
+          echo "   📖  Page     : https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo "   💾  Download : https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$ZIP_FILENAME"
           echo ""
-          echo "🚀 Next Steps for Users:"
-          echo "   1. Visit the release page above"
-          echo "   2. Download '${{ env.zip_filename }}'"
-          echo "   3. Extract and import the module in PowerShell"
-          echo ""
-          echo "🔧 For Developers:"
-          if [ "$TRIGGER_TYPE" = "workflow_dispatch" ]; then
-            echo "   • This release was created manually via GitHub Actions"
-            echo "   • To create another release, go to Actions → ${{ github.workflow }} → Run workflow"
+          echo "🔧 Next trigger options:"
+          if [ "$TRIGGER" = "workflow_dispatch" ]; then
+            echo "   • Manual: Actions → ${{ github.workflow }} → Run workflow"
           else
-            echo "   • This release was created automatically by pushing tag: $TAG_NAME"
-            echo "   • To create another release, push a new wsfx-* tag or use manual trigger"
+            echo "   • Automatic: push a new 'winiso-*' tag"
+            echo "   • Manual   : Actions → ${{ github.workflow }} → Run workflow"
           fi
-          echo "   • Manual trigger available at: https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
+          echo "   • Workflow file: https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
