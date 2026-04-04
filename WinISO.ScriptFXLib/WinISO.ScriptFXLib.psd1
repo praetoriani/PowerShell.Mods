@@ -62,6 +62,7 @@ FunctionsToExport = @(
 
         # UUP Dump workflow
         'DownloadUUPDump',
+        'GetUUPDumpPackage',
         'ExtractUUPDump',
         'CreateUUPDiso',
         'CleanupUUPDump',
@@ -117,6 +118,7 @@ FileList = @(
     'Public\GetLatestPowerShellSetup.ps1',
     'Public\GitHubDownload.ps1',
     'Public\DownloadUUPDump.ps1',
+    'Public\GetUUPDumpPackage.ps1',
     'Public\ExtractUUPDump.ps1',
     'Public\CreateUUPDiso.ps1',
     'Public\CleanupUUPDump.ps1',
@@ -160,6 +162,22 @@ CheckModuleRequirements:  Redesigned check status schema: PASS / FAIL / INFO / W
                           Result counters (pass/fail/info/warn) written to $script:appverify['result'].
                           Overall function succeeds (code 0) if no FAIL exists (PASS+INFO+WARN = ok).
                           Export report updated to reflect new 4-state schema.
+DownloadUUPDump:          New -Edition parameter ('Pro'/'Home') with UUPDump ID mapping.
+                          New -IncludeNetFX / -ExcludeNetFX mutually exclusive switches (default: NetFX included).
+                          New -UseESD switch for install.esd instead of install.wim (default: WIM).
+                          BUGFIX: $script:uupdump['buildno'] now stores actual build number (e.g. 26100.3476)
+                          instead of UUID (was incorrect in previous version).
+                          BUGFIX: cleanup POST param corrected to '0' (was incorrectly '1').
+                          Full $script:uupdump write-back on success: ostype/osvers/osarch/edition/
+                          buildno/kbsize/zipname. multiedition field explicitly cleared.
+                          Returns error if any WinISOcore write operation fails (hard guarantee).
+GetUUPDumpPackage:        NEW function for multi-edition / Virtual Editions download (autodl=3).
+                          -Editions array parameter: ProWorkstations, ProEducation, Education,
+                          Enterprise, IoTEnterprise (one or more, deduplicated automatically).
+                          Semicolon-separated UUP edition IDs in GET URL; autodl=3 in POST body.
+                          Same NetFX/ESD/BuildNo/OSvers/OSarch/Target parameters as DownloadUUPDump.
+                          $script:uupdump['multiedition'] stores semicolon-joined display names.
+                          $script:uupdump['edition'] is cleared (empty) for multi-edition packages.
 WinISO.ScriptFXLib.psm1:  $script:appverify and $script:appx scopes added and documented.
                           Module version bumped to 1.00.05.
 

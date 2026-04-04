@@ -1,17 +1,24 @@
-function DownloadUUPDump {
+function GetUUPDumpPackage {
     <#
     .SYNOPSIS
-        Downloads a UUPDump package ZIP file from uupdump.net.
+        Downloads a multi-edition UUPDump package ZIP file from uupdump.net.
 
     .DESCRIPTION
-        DownloadUUPDump queries the UUP Dump API to find the correct build based on the
+        GetUUPDumpPackage queries the UUP Dump API to find the correct build based on the
         provided OS type, version, architecture and optional build number. It then
-        downloads the corresponding ZIP archive (which contains the uup_download_windows.cmd
-        conversion script and all required files) to the specified target path.
+        downloads the corresponding ZIP archive configured to build a multi-edition ISO
+        using the UUPDump Virtual Editions feature
+        (autodl=3 / "Download, add additional editions and convert to ISO").
 
-        This function exclusively supports Windows 11 Pro and Windows 11 Home editions.
-        For all other editions (Pro for Workstations, Education, Enterprise, IoT Enterprise),
-        use the GetUUPDumpPackage function instead.
+        This function is designed for scenarios where you need editions beyond the standard
+        Windows Pro or Home editions covered by DownloadUUPDump. Available editions:
+        - ProWorkstations  : Windows Pro for Workstations
+        - ProEducation     : Windows Pro Education
+        - Education        : Windows Education
+        - Enterprise       : Windows Enterprise
+        - IoTEnterprise    : Windows IoT Enterprise
+
+        At least one edition must be specified. Multiple editions can be combined.
 
         The function ensures:
         - The target directory structure is created automatically if it does not exist
@@ -29,10 +36,14 @@ function DownloadUUPDump {
     .PARAMETER OSarch
         Specifies the target architecture. Valid values: 'amd64' or 'arm64'.
 
-    .PARAMETER Edition
-        Specifies the Windows edition to download.
-        Valid values: 'Pro' (default) or 'Home'.
-        Note: For other editions use GetUUPDumpPackage instead.
+    .PARAMETER Editions
+        Array of Windows editions to include in the multi-edition ISO.
+        At least one edition must be specified. Valid values:
+        - 'ProWorkstations'  : Windows Pro for Workstations
+        - 'ProEducation'     : Windows Pro Education
+        - 'Education'        : Windows Education
+        - 'Enterprise'       : Windows Enterprise
+        - 'IoTEnterprise'    : Windows IoT Enterprise
 
     .PARAMETER BuildNo
         Optional. A specific build number in the format '00000.0000' (digits and exactly one dot).
@@ -42,16 +53,10 @@ function DownloadUUPDump {
         Full path to the target ZIP file including filename.
         The directory structure is created automatically if it does not exist.
 
-    .PARAMETER IncludeNetFX
-        Switch parameter. When specified, .NET Framework 3.5 integration is included in the
-        UUP conversion package (NetFx3=1 in ConvertConfig.ini).
-        Default behavior: .NET Framework 3.5 is included (enabled by default).
-
     .PARAMETER ExcludeNetFX
         Switch parameter. When specified, .NET Framework 3.5 integration is explicitly
         excluded from the UUP conversion package (NetFx3=0 in ConvertConfig.ini).
-        Note: If neither IncludeNetFX nor ExcludeNetFX is specified, .NET FX 3.5 is
-        included by default (matching the standard UUPDump behavior).
+        Default behavior: .NET Framework 3.5 is included (matching standard UUPDump behavior).
 
     .PARAMETER UseESD
         Switch parameter. When specified, the ISO is created with an install.esd file
@@ -65,27 +70,24 @@ function DownloadUUPDump {
         .data  >>  Full path to the downloaded ZIP file on success, $null on failure
 
     .EXAMPLE
-        $result = DownloadUUPDump -OStype 'Windows11' -OSvers '24H2' -OSarch 'amd64' `
-                                  -Edition 'Pro' `
-                                  -Target 'C:\WinISO\uupdump\Win11_Pro_24H2.zip'
+        # Download Windows 11 Enterprise 24H2 amd64
+        $result = GetUUPDumpPackage -OStype 'Windows11' -OSvers '24H2' -OSarch 'amd64' `
+                                    -Editions @('Enterprise') `
+                                    -Target 'C:\WinISO\uupdump\Win11_Enterprise_24H2.zip'
         if ($result.code -eq 0) { Write-Host "Downloaded: $($result.data)" }
 
     .EXAMPLE
-        $result = DownloadUUPDump -OStype 'Windows11' -OSvers '24H2' -OSarch 'amd64' `
-                                  -Edition 'Home' -BuildNo '26100.3476' `
-                                  -Target 'C:\WinISO\uupdump\Win11_Home_24H2_26100.3476.zip'
+        # Download multi-edition ISO: Enterprise + Education + Pro for Workstations
+        $result = GetUUPDumpPackage -OStype 'Windows11' -OSvers '24H2' -OSarch 'amd64' `
+                                    -Editions @('Enterprise', 'Education', 'ProWorkstations') `
+                                    -Target 'C:\WinISO\uupdump\Win11_Multi_24H2.zip'
 
     .EXAMPLE
-        # Download Windows 11 Pro 24H2 with .NET FX 3.5 included and WIM format (default settings)
-        $result = DownloadUUPDump -OStype 'Windows11' -OSvers '24H2' -OSarch 'amd64' `
-                                  -Edition 'Pro' -IncludeNetFX `
-                                  -Target 'C:\WinISO\uupdump\Win11_Pro_24H2.zip'
-
-    .EXAMPLE
-        # Download Windows 11 Pro 25H2, no .NET FX 3.5, with ESD format
-        $result = DownloadUUPDump -OStype 'Windows11' -OSvers '25H2' -OSarch 'amd64' `
-                                  -Edition 'Pro' -ExcludeNetFX -UseESD `
-                                  -Target 'C:\WinISO\uupdump\Win11_Pro_25H2_ESD.zip'
+        # Download Windows 11 Enterprise 25H2, no .NET FX 3.5, with ESD format
+        $result = GetUUPDumpPackage -OStype 'Windows11' -OSvers '25H2' -OSarch 'amd64' `
+                                    -Editions @('Enterprise', 'IoTEnterprise') `
+                                    -ExcludeNetFX -UseESD `
+                                    -Target 'C:\WinISO\uupdump\Win11_Enterprise_IoT_25H2_ESD.zip'
 
     .NOTES
         Version:      1.00.05
@@ -95,6 +97,7 @@ function DownloadUUPDump {
         - Requires internet access to api.uupdump.net and uupdump.net
         - Requires PowerShell 5.1 or higher
         - Requires .NET 4.7.2+ (System.Web.HttpUtility)
+        - See also: DownloadUUPDump for Windows Pro / Home single-edition downloads
     #>
 
     [CmdletBinding()]
@@ -115,10 +118,10 @@ function DownloadUUPDump {
         [ValidateSet('amd64', 'arm64')]
         [string]$OSarch,
 
-        [Parameter(Mandatory = $false, HelpMessage = "Windows edition: 'Pro' (default) or 'Home'. For other editions use GetUUPDumpPackage.")]
+        [Parameter(Mandatory = $true, HelpMessage = "One or more Windows editions. Valid: 'ProWorkstations', 'ProEducation', 'Education', 'Enterprise', 'IoTEnterprise'.")]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet('Pro', 'Home')]
-        [string]$Edition = 'Pro',
+        [ValidateSet('ProWorkstations', 'ProEducation', 'Education', 'Enterprise', 'IoTEnterprise')]
+        [string[]]$Editions,
 
         [Parameter(Mandatory = $false, HelpMessage = "Optional build number in format '00000.0000'.")]
         [AllowEmptyString()]
@@ -127,9 +130,6 @@ function DownloadUUPDump {
         [Parameter(Mandatory = $true, HelpMessage = "Full path to the target ZIP file including filename.")]
         [ValidateNotNullOrEmpty()]
         [string]$Target,
-
-        [Parameter(Mandatory = $false, HelpMessage = "Include .NET Framework 3.5 in the conversion package (default behavior).")]
-        [switch]$IncludeNetFX,
 
         [Parameter(Mandatory = $false, HelpMessage = "Explicitly exclude .NET Framework 3.5 from the conversion package.")]
         [switch]$ExcludeNetFX,
@@ -149,100 +149,86 @@ function DownloadUUPDump {
     $UUP_BASE_URL = 'https://uupdump.net'
 
     # ----------------------------------------------------------------
-    # STEP 1 >> Validate conflicting switch parameters
+    # STEP 1 >> Map edition names to UUPDump internal edition identifiers
     # ----------------------------------------------------------------
-    if ($IncludeNetFX.IsPresent -and $ExcludeNetFX.IsPresent) {
-        return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Parameters 'IncludeNetFX' and 'ExcludeNetFX' are mutually exclusive. Specify only one or neither.")
+    # UUPDump edition IDs used in GET URL (semicolon-separated for multi-edition)
+    # Display names used in $script:uupdump['multiedition'] (semicolon-separated)
+    $EditionIDMap = @{
+        'ProWorkstations' = @{ UUPID = 'professional_workstations'; Display = 'Pro for Workstations' }
+        'ProEducation'    = @{ UUPID = 'professional_education';    Display = 'Pro Education'        }
+        'Education'       = @{ UUPID = 'education';                 Display = 'Education'            }
+        'Enterprise'      = @{ UUPID = 'enterprise';                Display = 'Enterprise'           }
+        'IoTEnterprise'   = @{ UUPID = 'iotenterprise';             Display = 'IoT Enterprise'       }
     }
 
-    # Resolve NetFX setting:
-    # - IncludeNetFX set explicitly -> '1'
-    # - ExcludeNetFX set explicitly -> '0'
-    # - Neither set (default)       -> '1'  (matches standard UUPDump behavior)
-    $NetFXValue = '1'
-    if ($ExcludeNetFX.IsPresent) {
-        $NetFXValue = '0'
-    }
+    # Deduplicate editions array (preserve order)
+    $UniqueEditions = $Editions | Select-Object -Unique
 
-    # Resolve ESD setting
-    $ESDValue = if ($UseESD.IsPresent) { '1' } else { '0' }
+    # Build semicolon-separated UUP edition string for GET URL
+    $UUPEditionIDs   = ($UniqueEditions | ForEach-Object { $EditionIDMap[$_].UUPID }) -join ';'
+    # Human-readable display string for log messages
+    $DisplayEditions = ($UniqueEditions | ForEach-Object { $EditionIDMap[$_].Display }) -join ', '
+    # Semicolon-joined display names stored in $script:uupdump['multiedition']
+    $MultiEditionStr = ($UniqueEditions | ForEach-Object { $EditionIDMap[$_].Display }) -join ';'
 
-    # ----------------------------------------------------------------
-    # STEP 2 >> Map Edition parameter to UUPDump internal edition identifier
-    # ----------------------------------------------------------------
-    # Maps user-friendly edition name to UUPDump internal edition ID (used in GET URL)
-    # and to the human-readable display name (stored in $script:uupdump)
-    switch ($Edition) {
-        'Pro'  {
-            $UUPEditionID    = 'professional'
-            $EditionDisplay  = 'Professional'
-        }
-        'Home' {
-            $UUPEditionID    = 'core'
-            $EditionDisplay  = 'Home'
-        }
-    }
+    # Resolve NetFX and ESD settings
+    $NetFXValue = if ($ExcludeNetFX.IsPresent) { '0' } else { '1' }
+    $ESDValue   = if ($UseESD.IsPresent) { '1' } else { '0' }
 
     # ----------------------------------------------------------------
-    # STEP 3 >> Validate optional BuildNo parameter format (if provided)
+    # STEP 2 >> Validate optional BuildNo parameter format (if provided)
     # ----------------------------------------------------------------
     if (-not [string]::IsNullOrWhiteSpace($BuildNo)) {
-        # BuildNo must match format: digits DOT digits  (e.g. 26100.3476)
         if ($BuildNo -notmatch '^\d{5}\.\d{4}$') {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Parameter 'BuildNo' must be in format '00000.0000' (e.g. '26100.3476'). Provided value: '$BuildNo'")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Parameter 'BuildNo' must be in format '00000.0000' (e.g. '26100.3476'). Provided value: '$BuildNo'")
         }
     }
 
     # ----------------------------------------------------------------
-    # STEP 4 >> Validate and prepare the target path / directory
+    # STEP 3 >> Validate and prepare the target path / directory
     # ----------------------------------------------------------------
     try {
-        # Ensure the target path has a .zip extension
         if ([System.IO.Path]::GetExtension($Target).ToLower() -ne '.zip') {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Parameter 'Target' must point to a .zip file. Provided: '$Target'")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Parameter 'Target' must point to a .zip file. Provided: '$Target'")
         }
 
         $TargetDir = [System.IO.Path]::GetDirectoryName($Target)
 
         if ([string]::IsNullOrWhiteSpace($TargetDir)) {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Could not determine target directory from path: '$Target'")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Could not determine target directory from path: '$Target'")
         }
 
-        # Create directory structure if it does not exist yet
         if (-not (Test-Path -Path $TargetDir -PathType Container)) {
             $null = New-Item -Path $TargetDir -ItemType Directory -Force -ErrorAction Stop
         }
 
-        # Delete pre-existing ZIP at target path to guarantee a fresh download
         if (Test-Path -Path $Target -PathType Leaf) {
             Remove-Item -Path $Target -Force -ErrorAction Stop
         }
     }
     catch {
-        return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Error preparing target path '$Target': $($_.Exception.Message)")
+        return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Error preparing target path '$Target': $($_.Exception.Message)")
     }
 
     # ----------------------------------------------------------------
-    # STEP 5 >> Build the UUP Dump API search query
+    # STEP 4 >> Build the UUP Dump API search query
     # ----------------------------------------------------------------
-    $BuildUUID    = $null
-    $BuildNumber  = $null
+    $BuildUUID   = $null
+    $BuildNumber = $null
 
     try {
-        # Compose search term: e.g. "Windows 11 24H2 amd64"
-        $SearchTerm = "Windows 11 $OSvers $OSarch"
-
+        $SearchTerm   = "Windows 11 $OSvers $OSarch"
         $ApiSearchUrl = "$UUP_API_URL/listid.php"
         $SearchBody   = @{ search = $SearchTerm }
 
         $ApiResponse = Invoke-RestMethod -Uri $ApiSearchUrl -Method Get -Body $SearchBody -ErrorAction Stop
 
         if ($ApiResponse.response.error) {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! UUP Dump API returned error: $($ApiResponse.response.error)")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! UUP Dump API returned error: $($ApiResponse.response.error)")
         }
 
         if (-not $ApiResponse.response.builds) {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! UUP Dump API returned no builds for search term: '$SearchTerm'")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! UUP Dump API returned no builds for search term: '$SearchTerm'")
         }
 
         # Filter builds: retail only (exclude Preview / Insider builds)
@@ -255,15 +241,14 @@ function DownloadUUPDump {
         } | Sort-Object { $_.Value.created } -Descending
 
         if ($Builds.Count -eq 0) {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! No matching retail builds found for: OS='$OStype' Version='$OSvers' Arch='$OSarch'")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! No matching retail builds found for: OS='$OStype' Version='$OSvers' Arch='$OSarch'")
         }
 
-        # If a specific BuildNo was requested, try to find it; otherwise use the latest
         if (-not [string]::IsNullOrWhiteSpace($BuildNo)) {
             $MatchingBuild = $Builds | Where-Object { $_.Value.build -eq $BuildNo } | Select-Object -First 1
 
             if (-not $MatchingBuild) {
-                return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Build number '$BuildNo' was not found for: OS='$OStype' Version='$OSvers' Arch='$OSarch'")
+                return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Build number '$BuildNo' was not found for: OS='$OStype' Version='$OSvers' Arch='$OSarch'")
             }
 
             $BuildUUID   = $MatchingBuild.Value.uuid
@@ -271,40 +256,39 @@ function DownloadUUPDump {
             $BuildNumber = $MatchingBuild.Value.build
         }
         else {
-            # Use the most recent retail build
             $BuildUUID   = $Builds[0].Value.uuid
             $BuildTitle  = $Builds[0].Value.title
             $BuildNumber = $Builds[0].Value.build
         }
     }
     catch {
-        return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Error querying UUP Dump API: $($_.Exception.Message)")
+        return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Error querying UUP Dump API: $($_.Exception.Message)")
     }
 
     # ----------------------------------------------------------------
-    # STEP 6 >> Build the UUP Dump download URL and POST body
+    # STEP 5 >> Build the UUP Dump download URL and POST body
     # ----------------------------------------------------------------
     try {
-        # Ensure HttpUtility is available for URL encoding
         Add-Type -AssemblyName System.Web -ErrorAction SilentlyContinue
 
+        # For multi-edition VE mode, the GET edition parameter contains the semicolon-separated
+        # list of UUP internal edition IDs. This tells UUPDump which editions to prepare.
         $DownloadParams = @{
             id      = $BuildUUID
             pack    = 'de-de'
-            edition = $UUPEditionID
+            edition = $UUPEditionIDs
         }
 
-        # Build query string with URL-encoded values
         $QueryString = ($DownloadParams.GetEnumerator() | ForEach-Object {
             "$($_.Key)=$([System.Web.HttpUtility]::UrlEncode($_.Value))"
         }) -join '&'
 
         $DownloadUrl = "$UUP_BASE_URL/get.php?$QueryString"
 
-        # POST body tells UUP Dump which conversion options to include in the package
-        # autodl=2: Download and convert to ISO (standard single-edition mode)
+        # POST body for Virtual Editions mode:
+        # autodl=3: Download, add additional editions and convert to ISO (StartVirtual=1 in ConvertConfig.ini)
         $PostBody = @{
-            autodl  = '2'           # Download and convert to ISO
+            autodl  = '3'           # Virtual Editions conversion mode
             updates = '0'           # Do not integrate cumulative updates
             cleanup = '0'           # Do not run cleanup after conversion
             netfx   = $NetFXValue   # .NET Framework 3.5 integration (parameterized)
@@ -312,47 +296,42 @@ function DownloadUUPDump {
         }
     }
     catch {
-        return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Error building download URL for build '$BuildTitle' (UUID: $BuildUUID): $($_.Exception.Message)")
+        return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Error building download URL for build '$BuildTitle' (UUID: $BuildUUID): $($_.Exception.Message)")
     }
 
     # ----------------------------------------------------------------
-    # STEP 7 >> Perform the HTTP POST download with completeness verification
+    # STEP 6 >> Perform the HTTP POST download with completeness verification
     # ----------------------------------------------------------------
     try {
-        # Use Invoke-WebRequest to capture both the file and the response headers
         $WebResponse = Invoke-WebRequest -Uri $DownloadUrl -Method Post -Body $PostBody `
                                          -OutFile $Target -UseBasicParsing -PassThru -ErrorAction Stop
 
-        # Verify that the file was actually written to disk
         if (-not (Test-Path -Path $Target -PathType Leaf)) {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Download completed but ZIP file was not found at: '$Target'")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Download completed but ZIP file was not found at: '$Target'")
         }
 
         $WrittenSize = (Get-Item -Path $Target).Length
 
-        # Cross-check file size against Content-Length header if it was provided by the server
         $ContentLength = 0
         if ($WebResponse.Headers['Content-Length']) {
             [long]::TryParse($WebResponse.Headers['Content-Length'], [ref]$ContentLength) | Out-Null
         }
 
         if ($ContentLength -gt 0 -and $WrittenSize -ne $ContentLength) {
-            # Size mismatch - remove the incomplete file and report failure
             Remove-Item -Path $Target -Force -ErrorAction SilentlyContinue
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! ZIP file appears incomplete. Expected=$ContentLength bytes / Written=$WrittenSize bytes. Incomplete file was removed.")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! ZIP file appears incomplete. Expected=$ContentLength bytes / Written=$WrittenSize bytes. Incomplete file was removed.")
         }
 
         if ($WrittenSize -eq 0) {
             Remove-Item -Path $Target -Force -ErrorAction SilentlyContinue
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Downloaded ZIP file has 0 bytes. Incomplete file was removed.")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Downloaded ZIP file has 0 bytes. Incomplete file was removed.")
         }
     }
     catch {
-        # Clean up any partial file that may have been written before the error
         if (Test-Path -Path $Target -PathType Leaf) {
             Remove-Item -Path $Target -Force -ErrorAction SilentlyContinue
         }
-        return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Error during download of build '$BuildTitle' (UUID: $BuildUUID): $($_.Exception.Message)")
+        return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Error during download of build '$BuildTitle' (UUID: $BuildUUID): $($_.Exception.Message)")
     }
 
     # -------------------------------------------------------------------------
@@ -362,33 +341,27 @@ function DownloadUUPDump {
     $ZipFileName = [System.IO.Path]::GetFileName($Target)
 
     # ----------------------------------------------------------------
-    # STEP 8 >> Write all relevant download metadata to module-scope $script:uupdump
+    # STEP 7 >> Write all relevant download metadata to module-scope $script:uupdump
     #           All keys MUST be written successfully for the function to report success.
     # ----------------------------------------------------------------
     $WriteOps = @(
-        @{ VarKeyID = 'ostype';   SetNewVal = $OStype        },
-        @{ VarKeyID = 'osvers';   SetNewVal = $OSvers        },
-        @{ VarKeyID = 'osarch';   SetNewVal = $OSarch        },
-        @{ VarKeyID = 'edition';  SetNewVal = $EditionDisplay },
-        @{ VarKeyID = 'buildno';  SetNewVal = $BuildNumber   },
-        @{ VarKeyID = 'kbsize';   SetNewVal = $FinalSizeKB   },
-        @{ VarKeyID = 'zipname';  SetNewVal = $ZipFileName   }
+        @{ VarKeyID = 'ostype';        SetNewVal = $OStype         },
+        @{ VarKeyID = 'osvers';        SetNewVal = $OSvers         },
+        @{ VarKeyID = 'osarch';        SetNewVal = $OSarch         },
+        @{ VarKeyID = 'edition';       SetNewVal = ''              },
+        @{ VarKeyID = 'multiedition';  SetNewVal = $MultiEditionStr },
+        @{ VarKeyID = 'buildno';       SetNewVal = $BuildNumber    },
+        @{ VarKeyID = 'kbsize';        SetNewVal = $FinalSizeKB    },
+        @{ VarKeyID = 'zipname';       SetNewVal = $ZipFileName    }
     )
 
     foreach ($Op in $WriteOps) {
         $WriteResult = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'write' `
                                   -VarKeyID $Op.VarKeyID -SetNewVal $Op.SetNewVal
         if ($WriteResult.code -ne 0) {
-            return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Download succeeded but could not write '$($Op.VarKeyID)' to `$script:uupdump. Reason: $($WriteResult.msg)")
+            return (OPSreturn -Code -1 -Message "Function GetUUPDumpPackage failed! Download succeeded but could not write '$($Op.VarKeyID)' to `$script:uupdump. Reason: $($WriteResult.msg)")
         }
     }
 
-    # Also clear multiedition field to prevent stale data from a previous GetUUPDumpPackage call
-    $ClearMulti = WinISOcore -Scope 'env' -GlobalVar 'uupdump' -Permission 'write' `
-                              -VarKeyID 'multiedition' -SetNewVal ''
-    if ($ClearMulti.code -ne 0) {
-        return (OPSreturn -Code -1 -Message "Function DownloadUUPDump failed! Download succeeded but could not clear 'multiedition' in `$script:uupdump. Reason: $($ClearMulti.msg)")
-    }
-
-    return (OPSreturn -Code 0 -Message "DownloadUUPDump successfully finished! Edition: '$EditionDisplay' | Build: '$BuildTitle' | BuildNo: $BuildNumber | UUID: $BuildUUID | NetFX: $NetFXValue | ESD: $ESDValue | File: '$Target' ($FinalSizeKB KB)" -Data $Target)
+    return (OPSreturn -Code 0 -Message "GetUUPDumpPackage successfully finished! Editions: '$DisplayEditions' | Build: '$BuildTitle' | BuildNo: $BuildNumber | UUID: $BuildUUID | NetFX: $NetFXValue | ESD: $ESDValue | File: '$Target' ($FinalSizeKB KB)" -Data $Target)
 }
