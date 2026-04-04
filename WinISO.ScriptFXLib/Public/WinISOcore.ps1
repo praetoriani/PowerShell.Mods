@@ -1,4 +1,4 @@
-﻿function WinISOcore {
+function WinISOcore {
     <#
     .SYNOPSIS
         Unified read/write accessor for WinISO module-scope (script-scope) variables.
@@ -27,22 +27,28 @@
 
     .PARAMETER GlobalVar
         Which module-scope variable to access. Required when Scope='env'.
-        Accepted values: 'appinfo' | 'appenv' | 'appexit'
+        Accepted values: 'appinfo' | 'appenv' | 'appcore' | 'appexit' | 'exit' |
+                         'loadedhives' | 'uupdump' | 'appverify' | 'appx'
 
     .PARAMETER Permission
         Access type: 'read' (default, read-only) | 'write' (validated read+write).
 
     .PARAMETER VarKeyID
         Required when Permission='write'. The key inside the GlobalVar hashtable to update.
-        The key MUST already exist — WinISOcore does not create new keys.
+        For 'appverify': use the check-name keys (e.g. 'checkoscdimg') or 'result' to
+        write the entire result sub-hashtable at once.
+        For 'appx': use 'listed', 'remove', or 'inject' to replace the corresponding array.
+        For 'loadedhives': any string key is allowed (dynamic entries).
+        For all other vars: the key MUST already exist.
 
     .PARAMETER SetNewVal
         Required when Permission='write'. The new value to assign to VarKeyID.
         Type MUST match the existing key's value type (implicit conversion is attempted).
+        For 'loadedhives': pass $null to remove an entry.
 
     .PARAMETER Unwrap
-        Switch-Parameter. Wenn angegeben, gibt 'read' direkt die Hashtable zurück
-        statt des OPSreturn-Objekts. Vereinfacht den aufrufenden Code erheblich.
+        Switch-Parameter. When specified, 'read' returns the hashtable directly
+        instead of the OPSreturn wrapper. Simplifies calling code considerably.
 
     .OUTPUTS
         PSCustomObject { .code, .msg, .data }
@@ -61,33 +67,30 @@
         if ($r.code -eq 0) { Write-Host "Updated." }
 
     .EXAMPLE
-        # Type mismatch — will fail gracefully, original value untouched
-        $r = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'write' `
-                        -VarKeyID 'MountPoint' -SetNewVal 42
-        # $r.code -eq -1
+        # Write a check result into appverify
+        $r = WinISOcore -Scope 'env' -GlobalVar 'appverify' -Permission 'write' `
+                        -VarKeyID 'checkoscdimg' -SetNewVal 'INFO'
+
+    .EXAMPLE
+        # Write the result counter sub-hashtable into appverify
+        $r = WinISOcore -Scope 'env' -GlobalVar 'appverify' -Permission 'write' `
+                        -VarKeyID 'result' -SetNewVal @{ pass=8; fail=0; info=2; warn=1 }
+
+    .EXAMPLE
+        # Read the full appverify hashtable (unwrapped)
+        $verify = WinISOcore -Scope 'env' -GlobalVar 'appverify' -Permission 'read' -Unwrap
+
+    .EXAMPLE
+        # Replace the appx 'listed' array
+        $r = WinISOcore -Scope 'env' -GlobalVar 'appx' -Permission 'write' `
+                        -VarKeyID 'listed' -SetNewVal $packageList
 
     .EXAMPLE
         # Read LoadedHives directly (unwrapped)
         $hives = WinISOcore -Scope 'env' -GlobalVar 'LoadedHives' -Permission 'read' -Unwrap
-        $hives | Format-Table   # shows all currently loaded hives
 
-    .EXAMPLE
-        # Add a new hive tracking entry (called internally by LoadRegistryHive)
-        $r = WinISOcore -Scope 'env' -GlobalVar 'LoadedHives' -Permission 'write' `
-                        -VarKeyID 'SOFTWARE' -SetNewVal 'HKLM\WinISO_SOFTWARE'
-
-    .EXAMPLE
-        # Remove a hive tracking entry (called internally by UnloadRegistryHive)
-        $r = WinISOcore -Scope 'env' -GlobalVar 'LoadedHives' -Permission 'write' `
-                        -VarKeyID 'SOFTWARE' -SetNewVal $null
-
-    .EXAMPLE
-        # Write a new string value into appenv
-        $r = WinISOcore -Scope 'env' -GlobalVar 'appenv' -Permission 'write' `
-                        -VarKeyID 'MountPoint' -SetNewVal 'D:\WIMmount'
-        if ($r.code -eq 0) { Write-Host "Updated." }
-    
     .NOTES
+        Version:      1.00.05
         Dependencies: AppScope, OPSreturn (WinISO.ScriptFXLib.psm1), PowerShell 5.1+.
     #>
 
@@ -98,7 +101,7 @@
         [ValidateNotNullOrEmpty()]
         [string]$Scope,
 
-        [Parameter(Mandatory = $false, HelpMessage = "Module variable: 'appinfo' | 'appenv' | 'appcore' | 'exit' | 'LoadedHives' | 'uupdump'")]
+        [Parameter(Mandatory = $false, HelpMessage = "Module variable: 'appinfo' | 'appenv' | 'appcore' | 'exit' | 'appexit' | 'loadedhives' | 'uupdump' | 'appverify' | 'appx'")]
         [string]$GlobalVar = '',
 
         [Parameter(Mandatory = $true,  HelpMessage = "Access type: 'read' (default) | 'write'")]
@@ -137,8 +140,8 @@
     }
 
     # Validate GlobalVar (required for scope 'env')
-    # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-    $ValidVars = @('appinfo', 'appenv', 'appcore', 'exit', 'appexit', 'loadedhives', 'uupdump')
+    # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+    $ValidVars = @('appinfo', 'appenv', 'appcore', 'exit', 'appexit', 'loadedhives', 'uupdump', 'appverify', 'appx')
     if ([string]::IsNullOrWhiteSpace($GlobalVarNorm)) {
         return (OPSreturn -Code -1 -Message "WinISOcore failed! Parameter 'GlobalVar' is required when Scope='env'.")
     }
@@ -150,7 +153,7 @@
     # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
     $ReadOnlyVars = @('appcore', 'exit')
     if ($PermissionNorm -eq 'write' -and $GlobalVarNorm -in $ReadOnlyVars) {
-        return (OPSreturn -Code -1 -Message "WinISOcore failed! '$GlobalVar' is read-only and cannot be modified. Write access is only allowed for: appinfo, appenv, LoadedHives.")
+        return (OPSreturn -Code -1 -Message "WinISOcore failed! '$GlobalVar' is read-only and cannot be modified. Write access is only allowed for: appinfo, appenv, LoadedHives, uupdump, appverify, appx.")
     }
 
     # Resolve the target hashtable
@@ -199,6 +202,20 @@
                     return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:uupdump could not be resolved. Ensure the module was loaded correctly.")
                 }
                 $TargetHashtable = $UUPDumpVar.Value
+            }
+            'appverify' {
+                $AppVerifyVar = Get-Variable -Name 'appverify' -Scope Script -ErrorAction SilentlyContinue
+                if ($null -eq $AppVerifyVar) {
+                    return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:appverify could not be resolved. Ensure the module was loaded correctly.")
+                }
+                $TargetHashtable = $AppVerifyVar.Value
+            }
+            'appx' {
+                $AppXVar = Get-Variable -Name 'appx' -Scope Script -ErrorAction SilentlyContinue
+                if ($null -eq $AppXVar) {
+                    return (OPSreturn -Code -1 -Message "WinISOcore failed! Module-scope variable `$script:appx could not be resolved. Ensure the module was loaded correctly.")
+                }
+                $TargetHashtable = $AppXVar.Value
             }
         }
     }
@@ -250,6 +267,69 @@
             $TargetHashtable[$HiveKey] = $SetNewVal
             return (OPSreturn -Code 0 -Message "WinISOcore: LoadedHives['$HiveKey'] set to '$SetNewVal'." -Data $SetNewVal)
         }
+    }
+
+    # WRITE: appverify — special handling for status strings and nested result hashtable
+    # Valid check-key names and 'result' (for the counter sub-hashtable) are accepted.
+    # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+    if ($GlobalVarNorm -eq 'appverify') {
+        $CheckKey = $VarKeyIDNorm.ToLower()
+
+        # Valid status-string keys
+        $ValidCheckKeys = @(
+            'checkosversion', 'checkpowershell', 'checkdotnet', 'checkisadmin',
+            'checkdismpath', 'checkdismmods', 'checkrobocopy', 'checkcmd',
+            'checkoscdimg', 'checkenvdirs', 'checkinternet'
+        )
+
+        if ($CheckKey -eq 'result') {
+            # Special: replace the entire result sub-hashtable
+            if ($SetNewVal -isnot [hashtable]) {
+                return (OPSreturn -Code -1 -Message "WinISOcore failed! SetNewVal for appverify['result'] must be a hashtable with keys: pass, fail, info, warn.")
+            }
+            $TargetHashtable['result'] = $SetNewVal
+            return (OPSreturn -Code 0 -Message "WinISOcore: appverify['result'] updated." -Data $SetNewVal)
+        }
+        elseif ($CheckKey -in $ValidCheckKeys) {
+            # Validate: must be a recognised status string
+            $ValidStatuses = @('PASS', 'FAIL', 'INFO', 'WARN', '')
+            $StatusUpper   = if ($null -ne $SetNewVal) { [string]$SetNewVal.ToString().ToUpper() } else { '' }
+            if ($StatusUpper -notin $ValidStatuses) {
+                return (OPSreturn -Code -1 -Message "WinISOcore failed! SetNewVal for appverify check-keys must be one of: PASS, FAIL, INFO, WARN (or empty). Got: '$SetNewVal'.")
+            }
+            $TargetHashtable[$CheckKey] = $StatusUpper
+            return (OPSreturn -Code 0 -Message "WinISOcore: appverify['$CheckKey'] set to '$StatusUpper'." -Data $StatusUpper)
+        }
+        else {
+            return (OPSreturn -Code -1 -Message "WinISOcore failed! Key '$VarKeyIDNorm' is not a valid appverify key. Valid keys: $($ValidCheckKeys -join ', '), result.")
+        }
+    }
+
+    # WRITE: appx — special handling for array replacement (listed, remove, inject)
+    # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+    if ($GlobalVarNorm -eq 'appx') {
+        $AppxKey = $VarKeyIDNorm.ToLower()
+        $ValidAppxKeys = @('listed', 'remove', 'inject')
+
+        if ($AppxKey -notin $ValidAppxKeys) {
+            return (OPSreturn -Code -1 -Message "WinISOcore failed! Key '$VarKeyIDNorm' is not a valid appx key. Valid keys: $($ValidAppxKeys -join ', ').")
+        }
+
+        # Accept arrays or single objects (wrap single objects into array for consistency)
+        if ($null -eq $SetNewVal) {
+            # Allow explicit reset to empty array
+            $TargetHashtable[$AppxKey] = @()
+            return (OPSreturn -Code 0 -Message "WinISOcore: appx['$AppxKey'] reset to empty array." -Data @())
+        }
+
+        if ($SetNewVal -is [array] -or $SetNewVal -is [System.Collections.IList]) {
+            $TargetHashtable[$AppxKey] = $SetNewVal
+        }
+        else {
+            # Wrap single value into array
+            $TargetHashtable[$AppxKey] = @($SetNewVal)
+        }
+        return (OPSreturn -Code 0 -Message "WinISOcore: appx['$AppxKey'] updated ($($TargetHashtable[$AppxKey].Count) item(s))." -Data $TargetHashtable[$AppxKey])
     }
 
     # WRITE: appinfo / appenv / uupdump — standard key-must-exist + type-safety logic
