@@ -38,14 +38,20 @@ $script:appinfo = @{
 # simply push new entries to the data array. Every element in this array
 # has the same structure:
 # [dd.MM.yyyy | HH:mm:ss]   [LOGLEVEL]  →  [LOGMESSAGE]
-# Possible log-levels are: INFO, DEBUG, WARNING, ERROR, CRITICAL
+# Possible log-levels are:
+# [dd.MM.yyyy | HH:mm:ss]   [INFO]      →  [LOGMESSAGE]
+# [dd.MM.yyyy | HH:mm:ss]   [DEBUG]     →  [LOGMESSAGE]
+# [dd.MM.yyyy | HH:mm:ss]   [WARNING]   →  [LOGMESSAGE]
+# [dd.MM.yyyy | HH:mm:ss]   [ERROR]     →  [LOGMESSAGE]
+# [dd.MM.yyyy | HH:mm:ss]   [CRITICAL]  →  [LOGMESSAGE]
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:logfile = @{
     name        = ""        # Name of the virtual log file
     data        = @()       # This array will hold the entire log data
     info        = @{
-        created = Get-Date -Format "[dd.MM.yyyy | HH:mm:ss]"    # Stores the Timestamp when vitual logfile is created
+        created = ""        # Stores the Timestamp (in format [dd.MM.yyyy | HH:mm:ss]) when vitual logfile is created
         updated = ""        # Stores the Timestamp when vitual logfile is updated (e.g., new log entry added)
+        entries = 0         # Stores the number of entries in the virtual log file
     }
 }
 
