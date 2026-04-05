@@ -50,13 +50,13 @@ $script:loglevel    = @{
 # The data-key is an array, to make the handling a bit easier. You can
 # simply push new entries to the data array. Every element in this array
 # has the same structure:
-# [dd.MM.yyyy | HH:mm:ss]   [LOGLEVEL]  →  [LOGMESSAGE]
+# [dd.MM.yyyy | HH:mm:ss]   [LOGLEVEL]  →  LOGMESSAGE
 # Possible log-levels are:
-# [dd.MM.yyyy | HH:mm:ss]   [INFO]      →  [LOGMESSAGE]
-# [dd.MM.yyyy | HH:mm:ss]   [DEBUG]     →  [LOGMESSAGE]
-# [dd.MM.yyyy | HH:mm:ss]   [WARNING]   →  [LOGMESSAGE]
-# [dd.MM.yyyy | HH:mm:ss]   [ERROR]     →  [LOGMESSAGE]
-# [dd.MM.yyyy | HH:mm:ss]   [CRITICAL]  →  [LOGMESSAGE]
+# [dd.MM.yyyy | HH:mm:ss]   [INFO]      →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [DEBUG]     →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [WARNING]   →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [ERROR]     →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [CRITICAL]  →  LOGMESSAGE
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $script:logfile = @{
     name        = ""        # Name of the virtual log file
