@@ -29,8 +29,21 @@ $script:appinfo = @{
     appdevname  = 'Praetoriani'
     appdevmail  = 'mr.praetoriani{at}gmail.com'
     appwebsite  = 'https://github.com/praetoriani/PowerShell.Mods'
-    datecreate  = '05.05.2026'
-    lastupdate  = '05.05.2026'
+    datecreate  = '05.04.2026'
+    lastupdate  = '05.04.2026'
+}
+
+# This hash table defines the log levels and their output format
+# used in the virtual logfiles. This hash table is also used to
+# verify if a known loglevel was passed when creating a new log entry.
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$script:loglevel    = @{
+    info        = '  [INFO]      →  '
+    debug       = '  [DEBUG]     →  '
+    warning     = '  [WARNING]   →  '
+    error       = '  [ERROR]     →  '
+    critical    = '  [CRITICAL]  →  '
+    default     = '  [INFO]      →  '
 }
 
 # This is an example of how the structure of a virtual logfile looks like.
