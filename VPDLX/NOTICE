@@ -1,0 +1,69 @@
+================================================================================
+ VPDLX - Virtual PowerShell Data-Logger eXtension
+ NOTICE FILE  |  Apache License, Version 2.0
+================================================================================
+
+Copyright 2026 Praetoriani (a.k.a. M.Sczepanski)
+
+This product is licensed under the Apache License, Version 2.0.
+You may obtain a copy of the License at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+This NOTICE file must be preserved and included in all copies or substantial
+portions of this software, as required by the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+ 📖 ABOUT THIS PROJECT
+--------------------------------------------------------------------------------
+
+VPDLX is a fully class-based, virtual logging system for PowerShell. It allows
+developers and system administrators to create, manage, and query multiple
+in-memory log files simultaneously — without touching the filesystem — and
+export them to disk in multiple formats (TXT, LOG, CSV, JSON) whenever needed.
+
+Designed with clean OOP principles in mind, VPDLX provides both a low-level
+class API ([Logfile], [FileDetails], [FileStorage]) and a high-level Public
+Wrapper layer for everyday scripting use.
+
+--------------------------------------------------------------------------------
+ 🌍 ORIGIN
+--------------------------------------------------------------------------------
+
+First published : 06.04.2026
+Origin          : Munich (Bavaria), Germany
+
+Made with 💖 in Munich, Germany.
+
+--------------------------------------------------------------------------------
+ 🔗 REPOSITORY
+--------------------------------------------------------------------------------
+
+Source code and documentation:
+https://github.com/praetoriani/PowerShell.Mods/tree/main/VPDLX
+
+Project repository:
+https://github.com/praetoriani/PowerShell.Mods
+
+--------------------------------------------------------------------------------
+ ✒️  ACKNOWLEDGEMENTS
+--------------------------------------------------------------------------------
+
+This project is dedicated to my mother — who was always there for me, who
+inspired me to follow my dreams and to never give up. No matter what.
+
+And to my father — who introduced me to the world of computers and supported
+me every step of the way. Thank you both. 🙏
+
+~ ~ ~
+
+Volevo dirti che non ti ho mai dimenticato.
+E anche se le nostre strade non si incroceranno più,
+spero che tu stia ancora volando, mio piccolo colibrì. 🐦
+
+================================================================================
