@@ -14,7 +14,7 @@
           FileDetails.ps1   — metadata companion for each Logfile instance
           FileStorage.ps1   — central registry that tracks all Logfile instances
           Logfile.ps1       — core user-facing class (Write/Print/Read/SoakUp/
-                               Filter/Reset/Destroy + shortcut methods)
+                               FilterByLevel/Reset/Destroy + shortcut methods)
 
       Private/
           VPDLXreturn.ps1   — factory function for standardised return objects
@@ -166,9 +166,9 @@ foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
     $script:* variables that live in the root module scope (VPDLX.psm1).
     VPDLXcore bridges that gap by acting as a controlled getter:
 
-      VPDLXcore -KeyID 'appinfo'   →  $script:appinfo  (module metadata)
-      VPDLXcore -KeyID 'storage'   →  $script:storage  ([FileStorage] instance)
-      VPDLXcore -KeyID 'export'    →  $script:export   (export format definitions)
+      VPDLXcore -KeyID 'appinfo'   ->  $script:appinfo  (module metadata)
+      VPDLXcore -KeyID 'storage'   ->  $script:storage  ([FileStorage] instance)
+      VPDLXcore -KeyID 'export'    ->  $script:export   (export format definitions)
 
     Callers receive a reference, not a copy, so read operations on the returned
     object reflect the current live state. Callers must NOT mutate the returned

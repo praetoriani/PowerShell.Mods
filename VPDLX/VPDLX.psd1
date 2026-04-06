@@ -38,7 +38,7 @@ manage, and query multiple in-memory log files simultaneously without touching
 the filesystem.
 
 v1.01.00 introduces a clean OOP architecture with three exportable classes:
-  [Logfile]     - core user-facing class (Write, Print, Read, SoakUp, Filter, Reset, Destroy)
+  [Logfile]     - core user-facing class (Write, Print, Read, SoakUp, FilterByLevel, Reset, Destroy)
   [FileDetails] - metadata companion (creation time, last update, last access, interaction count)
   [FileStorage] - central registry of all active Logfile instances
 
@@ -106,34 +106,43 @@ class-based OOP architecture.
 
 New classes (all registered as TypeAccelerators):
   [Logfile]
-      .Write(level, message)     - append a single formatted log entry
-      .Print(level, messages[])  - append multiple entries in one call
-      .Read(line)                - retrieve a specific line (1-based, clamped)
-      .SoakUp()                  - retrieve complete log content as string[]
-      .Filter(level)             - retrieve lines matching a specific log level
-      .Reset()                   - clear all log data (irreversible)
-      .Destroy()                 - unregister and dispose the instance
-      .Info/Debug/Warning/Error/Critical(msg)  - shortcut write methods
-      .GetDetails()              - access the [FileDetails] companion object
+      .Write(level, message)          - append a single formatted log entry
+      .Print(level, messages[])       - append multiple entries in one call
+      .Read(line)                     - retrieve a specific line (1-based, clamped)
+      .SoakUp()                       - retrieve complete log content as string[]
+      .FilterByLevel(level)           - retrieve lines matching a specific log level
+      .Reset()                        - clear all log data (irreversible)
+      .Destroy()                      - unregister and dispose the instance
+      .Info/Debug/Verbose/Trace/Warning/Error/Critical/Fatal(msg)  - shortcut write methods
+      .GetDetails()                   - access the [FileDetails] companion object
+      .IsEmpty()                      - returns $true if no entries exist
+      .HasEntries()                   - returns $true if at least one entry exists
+      .EntryCount()                   - returns the current number of entries
 
   [FileDetails]
-      .GetCreated()              - creation timestamp
-      .GetUpdated()              - last write timestamp
-      .GetLastAccessed()         - last read timestamp
-      .GetTotalInteractions()    - total interaction counter since creation
-      .GetTotalEntries()         - current entry count
-      .ToHashtable()             - all metadata as an ordered hashtable
+      .GetCreated()                   - creation timestamp
+      .GetUpdated()                   - last write/reset timestamp
+      .GetLastAccessed()              - last read/filter timestamp
+      .GetLastAccessType()            - type of the most recent interaction
+      .GetEntries()                   - current entry count
+      .GetAxcount()                   - total interaction counter since creation
+      .ToHashtable()                  - all metadata as an ordered hashtable
 
   [FileStorage]
-      .Contains(name)            - check if a logfile name is registered
-      .Get(name)                 - retrieve a Logfile instance by name
-      .Count()                   - number of registered instances
-      .GetNames()                - array of all registered names
+      .Contains(name)                 - check if a logfile name is registered
+      .Get(name)                      - retrieve a Logfile instance by name
+      .Count()                        - number of registered instances
+      .GetNames()                     - array of all registered names
 
 Infrastructure:
-  VPDLXcore -KeyID appinfo      - module metadata
-  VPDLXcore -KeyID storage      - [FileStorage] singleton
-  VPDLXcore -KeyID export       - export format definitions (txt, csv, json, log)
+  VPDLXcore -KeyID appinfo            - module metadata
+  VPDLXcore -KeyID storage            - [FileStorage] singleton
+  VPDLXcore -KeyID export             - export format definitions (txt, csv, json, log)
+
+Bugfix:
+  Renamed Filter() -> FilterByLevel() in [Logfile].
+  'filter' is a reserved PowerShell keyword that caused a parser error
+  preventing the class file from loading.
 
 Removed (replaced by class methods):
   CreateNewLogfile, WriteLogfileEntry, ReadLogfileEntry, ResetLogfile, DeleteLogfile
