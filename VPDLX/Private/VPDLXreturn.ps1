@@ -1,62 +1,84 @@
+<#
+.SYNOPSIS
+    VPDLXreturn — Standardised return object factory for VPDLX.
+
+.DESCRIPTION
+    Every operation inside VPDLX that needs to communicate a result to the
+    caller uses VPDLXreturn to build a consistent [PSCustomObject] with three
+    well-known properties:
+
+        code  [int]     —  0 on success, -1 on failure
+        msg   [string]  —  human-readable status or error description
+        data  [object]  —  optional payload (any type); $null when not applicable
+
+    This contract is stable across all VPDLX versions so that callers can
+    always inspect the 'code' property to branch on success/failure without
+    parsing the 'msg' string.
+
+    Although the current v1.01.00 release exposes only the class-based OOP
+    surface (no exported public functions), VPDLXreturn is retained so that
+    future public wrapper functions can provide a consistent return type
+    without changing the caller contract.
+
+    USAGE (internal, inside any VPDLX function or method):
+        return VPDLXreturn -Code 0  -Message 'Operation completed.' -Data $result
+        return VPDLXreturn -Code -1 -Message 'Something went wrong.'
+
+.PARAMETER Code
+    0 for success, -1 for failure. Validated via [ValidateSet].
+    Default: -1
+
+.PARAMETER Message
+    A human-readable description of the outcome or the error that occurred.
+    Default: empty string
+
+.PARAMETER Data
+    Optional data payload. Accepts any type: string, array, hashtable,
+    PSCustomObject, class instance, etc. Default: $null
+
+.OUTPUTS
+    [PSCustomObject] with properties: code [int], msg [string], data [object]
+
+.EXAMPLE
+    # Success with payload
+    return VPDLXreturn -Code 0 -Message 'Logfile created.' -Data $logInstance
+
+.EXAMPLE
+    # Failure with error message only
+    return VPDLXreturn -Code -1 -Message "Logfile '$name' does not exist."
+
+.NOTES
+    Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
+    Version : 1.01.00
+    Author  : Praetoriani (a.k.a. M.Sczepanski)
+    Created : 05.04.2026
+    Updated : 06.04.2026
+    Scope   : Private — used exclusively by VPDLX internals
+#>
+
 function VPDLXreturn {
-    <#
-    .SYNOPSIS
-    Creates a standardized return object for VPDLX operation status reporting.
-
-    .DESCRIPTION
-    VPDLXreturn creates a consistent PSCustomObject that is returned by every
-    public VPDLX function. It provides a uniform interface for success/failure
-    reporting with an optional data payload, following the same schema used by
-    OPSreturn in WinISO.ScriptFXLib.
-
-    .PARAMETER Code
-    Status code indicating success (0) or failure (-1).
-    Default is -1 (failure).
-
-    .PARAMETER Message
-    Detailed message describing the operation result or the error that occurred.
-    Default is an empty string.
-
-    .PARAMETER Data
-    Optional data payload returned with the status object.
-    Can contain any type: strings, arrays, hashtables, PSCustomObjects, etc.
-    Default is $null.
-
-    .EXAMPLE
-    return VPDLXreturn -Code 0 -Message "Logfile created successfully."
-    Returns a success object with no data payload.
-
-    .EXAMPLE
-    return VPDLXreturn -Code -1 -Message "Logfile 'MyLog' does not exist."
-    Returns a failure object with an error message.
-
-    .EXAMPLE
-    $entry = $script:loginstances[$key]['data'][$index]
-    return VPDLXreturn -Code 0 -Message "Entry read successfully." -Data $entry
-    Returns a success object carrying the requested log entry.
-
-    .NOTES
-    This is an internal (Private) helper function used exclusively by all public
-    VPDLX functions to ensure a consistent return value structure.
-    #>
-
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
     param(
+        # Status code: 0 = success, -1 = failure.
         [Parameter(Mandatory = $false)]
         [ValidateSet(0, -1)]
-        [int]$Code = -1,
+        [int] $Code = -1,
 
+        # Human-readable outcome description.
         [Parameter(Mandatory = $false)]
         [AllowEmptyString()]
-        [string]$Message = '',
+        [string] $Message = '',
 
+        # Optional data payload (any type).
         [Parameter(Mandatory = $false)]
         [AllowNull()]
         $Data = $null
     )
 
-    return [PSCustomObject]@{
+    # Build and return the standardised result object.
+    # [ordered] ensures predictable property order in Format-List / Format-Table.
+    return [PSCustomObject] [ordered] @{
         code = $Code
         msg  = $Message
         data = $Data
