@@ -12,7 +12,7 @@
 RootModule = 'VPDLX.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.01.00'
+ModuleVersion = '1.01.02'
 
 # Supported PSEditions
 CompatiblePSEditions = @('Desktop', 'Core')
@@ -27,7 +27,7 @@ Author = 'Praetoriani (a.k.a. M.Sczepanski)'
 CompanyName = 'Praetoriani'
 
 # Copyright statement for this module
-Copyright = '(c) 2026 Praetoriani. All rights reserved.'
+Copyright = '(c) 2026 Praetoriani (a.k.a. M.Sczepanski). All rights reserved.'
 
 # Description of the functionality provided by this module
 Description = @'
@@ -35,16 +35,34 @@ VPDLX - Virtual PowerShell Data-Logger eXtension.
 
 A fully class-based virtual logging system that allows callers to create,
 manage, and query multiple in-memory log files simultaneously without touching
-the filesystem.
+the filesystem, and export them to disk in multiple formats when needed.
 
-v1.01.00 introduces a clean OOP architecture with three exportable classes:
-  [Logfile]     - core user-facing class (Write, Print, Read, SoakUp, FilterByLevel, Reset, Destroy)
-  [FileDetails] - metadata companion (creation time, last update, last access, interaction count)
-  [FileStorage] - central registry of all active Logfile instances
+Architecture (v1.01.02):
 
-All three classes are registered as TypeAccelerators on module load so that
-  $log = [Logfile]::new('MyLog')
-works immediately after a standard Import-Module call.
+  Classes (type accelerators registered on load):
+    [Logfile]     - core user-facing class
+                    Write, Print, Read, GetAllEntries, FilterByLevel,
+                    Reset, Destroy, Info/Debug/Verbose/Trace/Warning/
+                    Error/Critical/Fatal shortcut methods
+    [FileDetails] - metadata companion per Logfile instance
+                    creation time, last update, last access type, axcount
+    [FileStorage] - central registry for all active Logfile instances
+                    Contains, Get, Count, GetNames
+
+  Public Wrapper Functions (v1.01.02):
+    VPDLXnewlogfile    - create a new virtual log file
+    VPDLXislogfile     - check whether a named log file exists
+    VPDLXdroplogfile   - permanently delete a named log file
+    VPDLXreadlogfile   - read a specific line from a log file
+    VPDLXwritelogfile  - append a new entry to a log file
+    VPDLXexportlogfile - export a virtual log file to disk (txt/log/csv/json)
+
+  Infrastructure:
+    VPDLXcore          - controlled read-only accessor for module-scope vars
+
+All three classes are registered as TypeAccelerators on module load, so:
+    $log = [Logfile]::new(''MyLog'')
+works immediately after a standard Import-Module call without ''using module''.
 '@
 
 # Minimum version of the Windows PowerShell engine required by this module
@@ -59,11 +77,23 @@ RequiredAssemblies = @()
 
 # Functions to export from this module.
 # Note: PowerShell classes are NOT exported here — they are made globally available
-# via TypeAccelerators registered in VPDLX.psm1. See the module description above.
+# via TypeAccelerators registered in VPDLX.psm1 at load time.
 FunctionsToExport = @(
-    # Infrastructure accessor (read-only access to module-scoped variables)
+    # Infrastructure accessor (controlled read-only access to module-scoped variables)
     'VPDLXcore'
-    # Public wrapper functions will be listed here in future releases
+
+    # ── Public Wrapper Layer (v1.01.02) ─────────────────────────────────────
+    # Logfile lifecycle management
+    'VPDLXnewlogfile'      # Create a new virtual log file
+    'VPDLXislogfile'       # Check whether a named log file exists
+    'VPDLXdroplogfile'     # Permanently delete a named log file and all its data
+
+    # Logfile I/O
+    'VPDLXreadlogfile'     # Read a specific line from a log file (1-based, clamped)
+    'VPDLXwritelogfile'    # Append a new formatted entry to a log file
+
+    # Logfile export
+    'VPDLXexportlogfile'   # Export a virtual log file to disk (txt / log / csv / json)
 )
 
 # Cmdlets to export from this module
@@ -82,7 +112,13 @@ FileList = @(
     'Classes\FileDetails.ps1',
     'Classes\FileStorage.ps1',
     'Classes\Logfile.ps1',
-    'Private\VPDLXreturn.ps1'
+    'Private\VPDLXreturn.ps1',
+    'Public\VPDLXnewlogfile.ps1',
+    'Public\VPDLXislogfile.ps1',
+    'Public\VPDLXdroplogfile.ps1',
+    'Public\VPDLXreadlogfile.ps1',
+    'Public\VPDLXwritelogfile.ps1',
+    'Public\VPDLXexportlogfile.ps1'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess.
@@ -92,13 +128,46 @@ PrivateData = @{
 
         # Tags applied to this module.
         Tags = @('PowerShell', 'Windows', 'Logging', 'DataLogging', 'DataLog',
-                 'VirtualLog', 'OOP', 'Classes', 'VPDLX')
+                 'VirtualLog', 'OOP', 'Classes', 'VPDLX', 'Export')
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/praetoriani/PowerShell.Mods'
 
         # ReleaseNotes of this module
         ReleaseNotes = @'
+v1.01.02  (06.04.2026)
+----------------------
+Public Wrapper Layer introduced + Export functionality added.
+
+New Public Wrapper functions (dot-sourced from Public\):
+  VPDLXnewlogfile
+      Creates a new virtual Logfile instance and registers it in FileStorage.
+      Returns: VPDLXreturn object { code, msg, data }
+
+  VPDLXislogfile
+      Checks whether a named log file exists in FileStorage (analog Contains).
+      Returns: [bool] directly (not a result object)
+
+  VPDLXdroplogfile
+      Calls .Destroy() on the Logfile instance and removes it from storage.
+      Returns: VPDLXreturn object { code, msg, data }
+
+  VPDLXreadlogfile
+      Reads one entry by 1-based line index (clamped on out-of-range input).
+      Returns: VPDLXreturn object { code, msg, data }
+
+  VPDLXwritelogfile
+      Appends a new formatted entry to an existing log file.
+      Returns: VPDLXreturn object { code, msg, data }
+
+  VPDLXexportlogfile
+      Writes a virtual log file as a physical file on disk.
+      Parameters: Logfile (mandatory), LogPath (mandatory), ExportAs (mandatory),
+                  Override (optional switch — overwrites existing file).
+      Supported formats: txt, log, csv, json.
+      Auto-creates the target directory if it does not exist.
+      Returns: VPDLXreturn object { code, msg, data }
+
 v1.01.00  (06.04.2026)
 ----------------------
 Full architectural rewrite: function-based design replaced by a clean
@@ -109,7 +178,7 @@ New classes (all registered as TypeAccelerators):
       .Write(level, message)          - append a single formatted log entry
       .Print(level, messages[])       - append multiple entries in one call
       .Read(line)                     - retrieve a specific line (1-based, clamped)
-      .SoakUp()                       - retrieve complete log content as string[]
+      .GetAllEntries()                - retrieve complete log content as string[]
       .FilterByLevel(level)           - retrieve lines matching a specific log level
       .Reset()                        - clear all log data (irreversible)
       .Destroy()                      - unregister and dispose the instance
@@ -135,13 +204,13 @@ New classes (all registered as TypeAccelerators):
       .GetNames()                     - array of all registered names
 
 Infrastructure:
-  VPDLXcore -KeyID appinfo            - module metadata
+  VPDLXcore -KeyID appinfo            - module metadata hashtable
   VPDLXcore -KeyID storage            - [FileStorage] singleton
   VPDLXcore -KeyID export             - export format definitions (txt, csv, json, log)
 
 Bugfix:
   Renamed Filter() -> FilterByLevel() in [Logfile].
-  'filter' is a reserved PowerShell keyword that caused a parser error
+  ''filter'' is a reserved PowerShell keyword that caused a parser error
   preventing the class file from loading.
 
 Removed (replaced by class methods):
