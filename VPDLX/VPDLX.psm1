@@ -1,110 +1,198 @@
 <#
 .SYNOPSIS
     VPDLX - Virtual PowerShell Data-Logger eXtension
-    This PowerShell module provides a virtual logging system that makes it possible
-    to create, manage, and export multiple virtual log files simultaneously.
+    Root module file: initialises the module, loads all class and function files,
+    registers TypeAccelerators, and exposes the VPDLXcore accessor.
 
 .DESCRIPTION
-    Virtual PowerShell Data-Logger eXtension is designed to provide a professional,
-    stable, fast, and secure solution for easily creating and managing multiple virtual
-    log files. After successful import into an existing PowerShell script, the system
-    is available immediately at runtime. From then on, you can create, read, filter,
-    and analyze your own virtual log files, as well as export them in various file
-    formats (e.g., *.txt, *.csv, *.json).
-    Only minimal configuration is required before VPDLX can be used.
+    VPDLX provides a fully class-based virtual logging system that allows callers
+    to create, manage, and query multiple in-memory log files simultaneously.
+
+    Architecture overview (v1.01.00):
+
+      Classes/
+          FileDetails.ps1   — metadata companion for each Logfile instance
+          FileStorage.ps1   — central registry that tracks all Logfile instances
+          Logfile.ps1       — core user-facing class (Write/Print/Read/SoakUp/
+                               Filter/Reset/Destroy + shortcut methods)
+
+      Private/
+          VPDLXreturn.ps1   — factory function for standardised return objects
+
+      (Public/ directory reserved for future wrapper functions)
+
+    TypeAccelerators:
+        [FileDetails], [FileStorage], and [Logfile] are registered as
+        TypeAccelerators on module load so that callers can use the class
+        syntax directly after a normal 'Import-Module VPDLX':
+
+            $log = [Logfile]::new('MyLog')
+            $log.Info('Application started.')
+
+        TypeAccelerators are removed cleanly when the module is unloaded
+        (OnRemove handler at the bottom of this file).
+
+    Module-scope variables:
+        $script:appinfo  — read-only module metadata hashtable
+        $script:storage  — the single [FileStorage] instance; managed by
+                           VPDLX internals; not directly exposed to callers
+        $script:export   — supported file extension definitions for future
+                           export functionality
+
+    VPDLXcore:
+        A thin accessor function that returns module-scope variables in a
+        controlled, read-only fashion. Primarily used by future public
+        functions that are dot-sourced and therefore cannot directly access
+        $script:* variables from this root module scope.
 
 .NOTES
-    Creation Date: 05.04.2026
-    Last Update:   05.04.2026
-    Version:       1.00.00
-    Author:        Praetoriani (a.k.a. M.Sczepanski)
-    Website:       https://github.com/praetoriani/PowerShell.Mods
+    Creation Date : 05.04.2026
+    Last Update   : 06.04.2026
+    Version       : 1.01.00
+    Author        : Praetoriani (a.k.a. M.Sczepanski)
+    Website       : https://github.com/praetoriani/PowerShell.Mods
 
-    REQUIREMENTS & DEPENDENCIES:
+    REQUIREMENTS:
     - PowerShell 5.1 or higher
+    - No external dependencies
 #>
 
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# Module-level meta information
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 1 — Module-scope metadata and configuration
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+# Read-only module metadata. Accessible externally via VPDLXcore -KeyID 'appinfo'.
 $script:appinfo = @{
-    appname     = 'VPDLX'
-    appvers     = '1.00.00'
-    appdevname  = 'Praetoriani'
-    appdevmail  = 'mr.praetoriani{at}gmail.com'
-    appwebsite  = 'https://github.com/praetoriani/PowerShell.Mods'
-    datecreate  = '05.04.2026'
-    lastupdate  = '05.04.2026'
+    appname    = 'VPDLX'
+    appvers    = '1.01.00'
+    appdevname = 'Praetoriani'
+    appdevmail = 'mr.praetoriani{at}gmail.com'
+    appwebsite = 'https://github.com/praetoriani/PowerShell.Mods'
+    datecreate = '05.04.2026'
+    lastupdate = '06.04.2026'
 }
 
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# Defines the supported log levels and their formatted output prefix.
-# Each key is the normalized (lowercase) log level identifier used when calling
-# WriteLogfileEntry. The value is the formatted prefix that appears in the log line.
-# This hash table is also used to validate the 'loglevel' parameter at runtime.
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-$script:loglevel = @{
-    info        = '  [INFO]      ->  '
-    debug       = '  [DEBUG]     ->  '
-    warning     = '  [WARNING]   ->  '
-    error       = '  [ERROR]     ->  '
-    critical    = '  [CRITICAL]  ->  '
-    default     = '  [INFO]      ->  '
+# Supported file extensions for future export functionality.
+# Keys are human-readable format names; values are the dot-prefixed extensions
+# that VPDLX will use when writing files to disk in a future release.
+# This table is intentionally defined here (module scope) so export functions
+# can retrieve it via VPDLXcore -KeyID 'export' without hardcoding strings.
+$script:export = @{
+    txt  = '.txt'
+    csv  = '.csv'
+    json = '.json'
+    log  = '.log'
 }
 
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# Global file storage registry.
-# Stores the names of all currently active virtual log files.
-# Written by : CreateNewLogfile (on successful creation)
-# Modified by: DeleteLogfile    (on successful deletion)
-# Read by    : WriteLogfileEntry, ReadLogfileEntry, ResetLogfile, DeleteLogfile
-#
-# Each element in this array is the plain filename string (without extension)
-# that was passed to CreateNewLogfile. This array provides a simple overview
-# of all virtual log files managed by the current VPDLX instance.
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-$script:filestorage = @()
 
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# Runtime storage for all virtual log file instances.
-# Key   : normalized filename (lowercase) used as the unique identifier.
-# Value : hashtable with the same structure as the logfile template below.
-#
-# Structure of each instance:
-#   name  -> [string]  original filename as provided by the caller
-#   data  -> [array]   all log lines in order; each element is one formatted line
-#   info  -> [hashtable]
-#       created -> [string]  timestamp of creation  ([dd.MM.yyyy | HH:mm:ss])
-#       updated -> [string]  timestamp of last write ([dd.MM.yyyy | HH:mm:ss])
-#       entries -> [int]     total number of data lines currently in the log
-#
-# Log line format:
-#   [dd.MM.yyyy | HH:mm:ss]   [LOGLEVEL]  ->  MESSAGE
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-$script:loginstances = @{}
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 2 — Class loading (order is critical)
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# Shared exit/status carrier used by the VPDLXcore accessor.
-# code : -1 on failure, 0 on success
-# text : human-readable error or status message
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-$script:exit = @{
-    code = -1
-    text = [string]::Empty
+# PowerShell requires classes to be defined before they are referenced.
+# [FileDetails] and [FileStorage] must be dot-sourced before [Logfile] because
+# [Logfile] declares a [FileDetails] typed property and calls $script:storage
+# (a [FileStorage] instance) in its constructor.
+#
+# IMPORTANT: Do NOT change this load order without carefully verifying that
+# no forward-reference would break class resolution on PowerShell 5.1.
+$script:ClassFiles = @(
+    "$PSScriptRoot\Classes\FileDetails.ps1",
+    "$PSScriptRoot\Classes\FileStorage.ps1",
+    "$PSScriptRoot\Classes\Logfile.ps1"
+)
+
+foreach ($ClassFile in $script:ClassFiles) {
+    if (-not (Test-Path -LiteralPath $ClassFile)) {
+        Write-Error "VPDLX: Required class file not found: $ClassFile"
+        return
+    }
+    try {
+        . $ClassFile
+        Write-Verbose "VPDLX: Loaded class file: $($ClassFile | Split-Path -Leaf)"
+    }
+    catch {
+        Write-Error "VPDLX: Failed to load class file '$ClassFile': $($_.Exception.Message)"
+        return
+    }
 }
 
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# VPDLXcore - Accessor for script-scoped module variables.
-# Dot-sourced scripts cannot directly access $script:* variables from the root
-# module scope. This getter function bridges that gap by returning the requested
-# variable by its key identifier.
-#
-# Accessible keys:
-#   'appinfo'      -> $script:appinfo
-#   'loglevel'     -> $script:loglevel
-#   'filestorage'  -> $script:filestorage
-#   'loginstances' -> $script:loginstances
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 3 — Module-level FileStorage singleton
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+# This singleton is the single source of truth for all active Logfile instances.
+# It is initialised here (after the class files are loaded) so that the
+# [Logfile] constructor can call $script:storage.Add() / Contains() immediately.
+# Future public functions access this via VPDLXcore -KeyID 'storage'.
+$script:storage = [FileStorage]::new()
+
+
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 4 — Private and Public function loading
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+# Load all Private helper functions (not exported to the caller).
+$PrivateFunctions = @(Get-ChildItem -Path "$PSScriptRoot\Private\*.ps1" -ErrorAction SilentlyContinue)
+
+# Load all Public functions (exported to the caller via Export-ModuleMember).
+# The Public/ directory is currently empty in v1.01.00 and is reserved for
+# future wrapper functions. It is scanned here so that adding a new .ps1 file
+# to Public/ is sufficient to expose it — no changes to this file required.
+$PublicFunctions  = @(Get-ChildItem -Path "$PSScriptRoot\Public\*.ps1"  -ErrorAction SilentlyContinue)
+
+foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
+    try {
+        . $FuncFile.FullName
+        Write-Verbose "VPDLX: Loaded function file: $($FuncFile.Name)"
+    }
+    catch {
+        Write-Error "VPDLX: Failed to load function file '$($FuncFile.FullName)': $($_.Exception.Message)"
+    }
+}
+
+
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 5 — VPDLXcore accessor
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+<#
+.SYNOPSIS
+    VPDLXcore — Read-only accessor for module-scoped VPDLX variables.
+
+.DESCRIPTION
+    Dot-sourced scripts in the Public/ directory cannot directly access
+    $script:* variables that live in the root module scope (VPDLX.psm1).
+    VPDLXcore bridges that gap by acting as a controlled getter:
+
+      VPDLXcore -KeyID 'appinfo'   →  $script:appinfo  (module metadata)
+      VPDLXcore -KeyID 'storage'   →  $script:storage  ([FileStorage] instance)
+      VPDLXcore -KeyID 'export'    →  $script:export   (export format definitions)
+
+    Callers receive a reference, not a copy, so read operations on the returned
+    object reflect the current live state. Callers must NOT mutate the returned
+    object directly; all mutations must go through the appropriate class methods.
+
+.PARAMETER KeyID
+    One of: 'appinfo', 'storage', 'export'  (case-insensitive)
+
+.OUTPUTS
+    The requested module-scoped object, or a [PSCustomObject] error carrier
+    (code = -1, msg = <description>, data = $null) on failure.
+
+.EXAMPLE
+    $meta = VPDLXcore -KeyID 'appinfo'
+    Write-Host "VPDLX version: $($meta.appvers)"
+
+.EXAMPLE
+    $store = VPDLXcore -KeyID 'storage'
+    $store.GetNames()   # lists all registered logfile names
+
+.EXAMPLE
+    $formats = VPDLXcore -KeyID 'export'
+    $formats.Keys       # txt, csv, json, log
+#>
 function VPDLXcore {
     [CmdletBinding()]
     param (
@@ -113,53 +201,91 @@ function VPDLXcore {
         [string] $KeyID
     )
 
-    $script:exit['code'] = -1
-    $script:exit['text'] = [string]::Empty
-
     try {
-        if ([string]::IsNullOrWhiteSpace($KeyID)) {
-            $script:exit['code'] = -1
-            $script:exit['text'] = "Parameter 'KeyID' is required and must not be null, empty, or whitespace-only."
-            return $script:exit
-        }
-
-        switch ($KeyID.ToLower()) {
-            'appinfo'      { return $script:appinfo }
-            'loglevel'     { return $script:loglevel }
-            'filestorage'  { return $script:filestorage }
-            'loginstances' { return $script:loginstances }
+        switch ($KeyID.Trim().ToLower()) {
+            'appinfo' { return $script:appinfo }
+            'storage' { return $script:storage }
+            'export'  { return $script:export  }
             default {
-                $script:exit['code'] = -1
-                $script:exit['text'] = "Unknown KeyID '$KeyID'. Valid keys: 'appinfo', 'loglevel', 'filestorage', 'loginstances'."
-                return $script:exit
+                return VPDLXreturn -Code -1 -Message (
+                    "Unknown KeyID '$KeyID'. " +
+                    "Valid keys: 'appinfo', 'storage', 'export'."
+                )
             }
         }
     }
     catch {
-        $script:exit['code'] = -1
-        $script:exit['text'] = "Unexpected error in VPDLXcore: $($_.Exception.Message)"
-        return $script:exit
+        return VPDLXreturn -Code -1 -Message (
+            "Unexpected error in VPDLXcore: $($_.Exception.Message)"
+        )
     }
 }
 
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# Auto-import all Public and Private function files
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-$PublicFunctions  = @(Get-ChildItem -Path $PSScriptRoot\Public\*.ps1  -ErrorAction SilentlyContinue)
-$PrivateFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue)
 
-foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
-    try {
-        Write-Verbose "Importing function from file: $($ImportFile.FullName)"
-        . $ImportFile.FullName
-    }
-    catch {
-        Write-Error "Failed to import function $($ImportFile.FullName): $($_.Exception.Message)"
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 6 — TypeAccelerator registration
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+# PowerShell classes defined inside a module are NOT automatically available
+# via [ClassName]::new() after a plain 'Import-Module' call.
+# Registering the types as TypeAccelerators makes them globally accessible
+# in the caller's session without requiring 'using module' syntax.
+#
+# The TypeAccelerators class is an internal .NET type. We access it via
+# reflection on [psobject] (a type that is always loaded in any PS session).
+
+$script:ExportableTypes = @(
+    [FileDetails],
+    [FileStorage],
+    [Logfile]
+)
+
+$script:TypeAcceleratorsClass = [psobject].Assembly.GetType(
+    'System.Management.Automation.TypeAccelerators'
+)
+
+foreach ($Type in $script:ExportableTypes) {
+    # Guard against duplicate registration (e.g. if the module is re-imported
+    # in the same session without Remove-Module first).
+    if (-not $script:TypeAcceleratorsClass::Get.ContainsKey($Type.FullName)) {
+        $script:TypeAcceleratorsClass::Add($Type.FullName, $Type)
+        Write-Verbose "VPDLX: Registered TypeAccelerator: [$($Type.Name)]"
     }
 }
 
-if ($PublicFunctions) {
-    Export-ModuleMember -Function ($PublicFunctions.BaseName + @('VPDLXcore'))
+
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 7 — Module export declarations
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+# Export VPDLXcore (infrastructure accessor) plus all discovered Public functions.
+# Exporting by explicit base-name array prevents accidental exposure of Private helpers.
+# Classes are exposed via TypeAccelerators (Section 6) — not via Export-ModuleMember.
+[string[]] $FunctionsToExport = @('VPDLXcore')
+if ($PublicFunctions.Count -gt 0) {
+    $FunctionsToExport += $PublicFunctions.BaseName
 }
 
-Write-Verbose "VPDLX module loaded successfully. Available functions: $(($PublicFunctions.BaseName) -join ', ')"
+Export-ModuleMember -Function $FunctionsToExport
+
+
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+# SECTION 8 — Module OnRemove handler (cleanup)
+# ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+# Executed automatically when 'Remove-Module VPDLX' is called.
+# Removes the TypeAccelerators that were registered at load time.
+# Without this handler the types would persist in the session even after
+# the module is unloaded, which could cause confusion or type conflicts
+# if the module is later re-imported with a different version.
+$MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
+    foreach ($Type in $script:ExportableTypes) {
+        if ($script:TypeAcceleratorsClass::Get.ContainsKey($Type.FullName)) {
+            $script:TypeAcceleratorsClass::Remove($Type.FullName) | Out-Null
+            Write-Verbose "VPDLX: Removed TypeAccelerator: [$($Type.Name)]"
+        }
+    }
+}.GetNewClosure()
+
+
+Write-Verbose "VPDLX v$($script:appinfo.appvers) loaded. Classes available: [FileDetails], [FileStorage], [Logfile]."
