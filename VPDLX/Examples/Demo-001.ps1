@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Demo-001 — Annotated walkthrough of VPDLX v1.01.00
+    Demo-001 - Annotated walkthrough of VPDLX v1.01.00
 
 .DESCRIPTION
     This script demonstrates the core capabilities of the VPDLX module
@@ -16,8 +16,8 @@
         7.  Metadata inspection via GetDetails() / FileDetails
         8.  Working with multiple simultaneous Logfile instances
         9.  Accessing the module-level FileStorage
-        10. Reset() — clearing a log while preserving metadata
-        11. Destroy() — permanent removal from storage
+        10. Reset() - clearing a log while preserving metadata
+        11. Destroy() - permanent removal from storage
         12. Error handling examples
 
 .NOTES
@@ -30,39 +30,40 @@
         .\VPDLX\Examples\Demo-001.ps1
 #>
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # Helper: print a section banner to the console
-# ─────────────────────────────────────────────────────────────────────────────
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 function Show-Banner {
     param([string] $Title)
     Write-Host ''
-    Write-Host ('─' * 70) -ForegroundColor DarkCyan
+    Write-Host ('-' * 70) -ForegroundColor DarkCyan
     Write-Host "  $Title" -ForegroundColor Cyan
-    Write-Host ('─' * 70) -ForegroundColor DarkCyan
+    Write-Host ('-' * 70) -ForegroundColor DarkCyan
 }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 1. Import the VPDLX module
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '1. Import the VPDLX module'
 
 # Resolve the path relative to this script file so the demo works from any
 # working directory.
-$modulePath = Join-Path $PSScriptRoot '..\VPDLX.psd1'
+$modulePath = '..\VPDLX.psd1'
 
 if (-not (Test-Path $modulePath)) {
     Write-Error "Module manifest not found at: $modulePath"
-    return
+    #return
+    exit -1
 }
 
 Import-Module $modulePath -Force
 Write-Host 'Module imported. Classes [Logfile], [FileDetails], [FileStorage] are now available.' -ForegroundColor Green
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 2. Create a Logfile instance
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '2. Create a Logfile instance'
 
 # The constructor validates the name, creates a [FileDetails] companion, and
@@ -73,40 +74,40 @@ Write-Host "Created : $appLog" -ForegroundColor Green
 Write-Host "Type    : $($appLog.GetType().FullName)" -ForegroundColor Green
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 3. Write single entries with Write()
-# ═════════════════════════════════════════════════════════════════════════════
-Show-Banner '3. Write() — single entries'
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+Show-Banner '3. Write() - single entries'
 
 $appLog.Write('info',    'Application started successfully.')
 $appLog.Write('debug',   'Configuration loaded from default path.')
-$appLog.Write('warning', 'No custom configuration file found — using defaults.')
+$appLog.Write('warning', 'No custom configuration file found - using defaults.')
 $appLog.Write('error',   'Primary database connection failed on attempt 1.')
 
 Write-Host "Entries after Write() calls: $($appLog.EntryCount())" -ForegroundColor Yellow
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 4. All 8 log levels via shortcut methods
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '4. All 8 log levels via shortcut methods'
 
-$appLog.Info('INFO    — general informational message.')
-$appLog.Debug('DEBUG   — developer diagnostics.')
-$appLog.Verbose('VERBOSE — detailed execution tracing.')
-$appLog.Trace('TRACE   — fine-grained step-by-step trace.')
-$appLog.Warning('WARNING — non-fatal unexpected condition.')
-$appLog.Error('ERROR   — recoverable error.')
-$appLog.Critical('CRITICAL — severe error, degraded functionality.')
-$appLog.Fatal('FATAL   — unrecoverable error, process will terminate.')
+$appLog.Info('INFO    - general informational message.')
+$appLog.Debug('DEBUG   - developer diagnostics.')
+$appLog.Verbose('VERBOSE - detailed execution tracing.')
+$appLog.Trace('TRACE   - fine-grained step-by-step trace.')
+$appLog.Warning('WARNING - non-fatal unexpected condition.')
+$appLog.Error('ERROR   - recoverable error.')
+$appLog.Critical('CRITICAL - severe error, degraded functionality.')
+$appLog.Fatal('FATAL   - unrecoverable error, process will terminate.')
 
 Write-Host "Entries after shortcut calls: $($appLog.EntryCount())" -ForegroundColor Yellow
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 5. Batch write with Print()
-# ═════════════════════════════════════════════════════════════════════════════
-Show-Banner '5. Print() — batch write'
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+Show-Banner '5. Print() - batch write'
 
 # All messages are pre-validated before any are written (transactional).
 # A failure on any single message leaves the log unchanged.
@@ -120,26 +121,26 @@ $appLog.Print('info', $batchMessages)
 Write-Host "Entries after Print() batch: $($appLog.EntryCount())" -ForegroundColor Yellow
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 6. Read entries
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '6. Read(), SoakUp(), Filter()'
 
-# Read() — 1-based index; out-of-range values are clamped automatically.
+# Read() - 1-based index; out-of-range values are clamped automatically.
 Write-Host 'Read(1):' -ForegroundColor Cyan
 Write-Host $appLog.Read(1)
 
 Write-Host ''
-Write-Host 'Read(999) — clamped to last entry:' -ForegroundColor Cyan
+Write-Host 'Read(999) - clamped to last entry:' -ForegroundColor Cyan
 Write-Host $appLog.Read(999)
 
-# SoakUp() — returns the entire log as string[].
+# SoakUp() - returns the entire log as string[].
 Write-Host ''
-Write-Host 'SoakUp() — first 5 lines:' -ForegroundColor Cyan
+Write-Host 'SoakUp() - first 5 lines:' -ForegroundColor Cyan
 $allLines = $appLog.SoakUp()
 $allLines | Select-Object -First 5 | ForEach-Object { Write-Host $_ }
 
-# Filter() — returns only lines whose level tag matches.
+# Filter() - returns only lines whose level tag matches.
 Write-Host ''
 Write-Host 'Filter("error"):' -ForegroundColor Cyan
 $errorLines = $appLog.Filter('error')
@@ -151,13 +152,13 @@ $fatalLines = $appLog.Filter('fatal')
 $fatalLines | ForEach-Object { Write-Host $_ }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 7. Guard helpers
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '7. IsEmpty(), HasEntries(), EntryCount()'
 
 if ($appLog.HasEntries()) {
-    Write-Host ("HasEntries() = true  — entry count: " + $appLog.EntryCount()) -ForegroundColor Green
+    Write-Host ("HasEntries() = true - entry count: " + $appLog.EntryCount()) -ForegroundColor Green
 }
 
 if (-not $appLog.IsEmpty()) {
@@ -165,9 +166,9 @@ if (-not $appLog.IsEmpty()) {
 }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 8. Inspect metadata with GetDetails()
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '8. Metadata via GetDetails()'
 
 $details = $appLog.GetDetails()
@@ -184,9 +185,9 @@ Write-Host 'ToHashtable():' -ForegroundColor Cyan
 $details.ToHashtable() | Format-List
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 9. Multiple simultaneous Logfile instances
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '9. Multiple simultaneous Logfile instances'
 
 $authLog = [Logfile]::new('AuthLog')
@@ -204,9 +205,9 @@ Write-Host "AuthLog entries        : $($authLog.EntryCount())" -ForegroundColor 
 Write-Host "PerfLog entries        : $($perfLog.EntryCount())" -ForegroundColor Yellow
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 10. Access the FileStorage singleton
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '10. FileStorage via VPDLXcore'
 
 $store = VPDLXcore -KeyID 'storage'
@@ -216,12 +217,12 @@ Write-Host ("Registered names      : " + ($store.GetNames() -join ', '))
 
 # Retrieve a specific log by name from the registry.
 $retrieved = $store.Get('AuthLog')
-Write-Host ("Retrieved AuthLog — entries: " + $retrieved.EntryCount())
+Write-Host ("Retrieved AuthLog - entries: " + $retrieved.EntryCount())
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# 11. Reset() — clear data while preserving creation time and axcount
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+# 11. Reset() - clear data while preserving creation time and axcount
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '11. Reset()'
 
 $beforeReset = $appLog.EntryCount()
@@ -238,9 +239,9 @@ Write-Host ("Axcount after reset   : " + $appLog.GetDetails().GetAxcount()) -For
 Write-Host ("Acc type after reset  : " + $appLog.GetDetails().GetLastAccessType()) -ForegroundColor Yellow
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# 12. Destroy() — remove from registry, free memory
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+# 12. Destroy() - remove from registry, free memory
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '12. Destroy()'
 
 Write-Host ("Registered before destroy: " + $store.GetNames() -join ', ') -ForegroundColor White
@@ -257,19 +258,19 @@ $perfLog = $null
 Write-Host ("Registered after destroy : " + $store.Count() + " instance(s)") -ForegroundColor Green
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 13. Error handling examples
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '13. Error handling'
 
-# 13a — Invalid name (too short)
+# 13a - Invalid name (too short)
 try {
     $bad = [Logfile]::new('AB')   # only 2 characters
 } catch [System.ArgumentException] {
     Write-Host ("Caught (name too short) : " + $_.Exception.Message) -ForegroundColor Red
 }
 
-# 13b — Duplicate name
+# 13b - Duplicate name
 try {
     $dup1 = [Logfile]::new('DuplicateTest')
     $dup2 = [Logfile]::new('DuplicateTest')   # duplicate
@@ -279,7 +280,7 @@ try {
     $dup1 = $null
 }
 
-# 13c — Unknown log level
+# 13c - Unknown log level
 try {
     $tmp = [Logfile]::new('TempLog')
     $tmp.Write('notice', 'This level does not exist.')   # 'notice' is not valid
@@ -289,7 +290,7 @@ try {
     $tmp = $null
 }
 
-# 13d — Reading from an empty log
+# 13d - Reading from an empty log
 try {
     $empty = [Logfile]::new('EmptyLog')
     $empty.Read(1)
@@ -299,7 +300,7 @@ try {
     $empty = $null
 }
 
-# 13e — Call after Destroy()
+# 13e - Call after Destroy()
 try {
     $ghost = [Logfile]::new('GhostLog')
     $ghost.Destroy()
@@ -309,7 +310,7 @@ try {
     $ghost = $null
 }
 
-# 13f — Message containing a newline (log-injection attempt)
+# 13f - Message containing a newline (log-injection attempt)
 try {
     $inj = [Logfile]::new('InjectionTest')
     $inj.Write('info', "Normal message`nFake entry injected")
@@ -320,11 +321,11 @@ try {
 }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # Done
-# ═════════════════════════════════════════════════════════════════════════════
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Write-Host ''
-Write-Host ('─' * 70) -ForegroundColor DarkGreen
+Write-Host ('-' * 70) -ForegroundColor DarkGreen
 Write-Host '  Demo-001 completed successfully.' -ForegroundColor Green
-Write-Host ('─' * 70) -ForegroundColor DarkGreen
+Write-Host ('-' * 70) -ForegroundColor DarkGreen
 Write-Host ''
