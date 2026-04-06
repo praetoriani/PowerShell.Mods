@@ -1,2 +1,3 @@
 # EXCLUDE SPECIFIC FILE(S)
 **/.backup/
+PROMPT.TXT
