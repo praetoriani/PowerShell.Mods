@@ -11,7 +11,7 @@
         2.  Creating a Logfile instance
         3.  Writing entries: Write(), Print(), and shortcut methods
         4.  All 8 supported log levels
-        5.  Reading entries: Read(), SoakUp(), Filter()
+        5.  Reading entries: Read(), SoakUp(), FilterByLevel()
         6.  Guard helpers: IsEmpty(), HasEntries(), EntryCount()
         7.  Metadata inspection via GetDetails() / FileDetails
         8.  Working with multiple simultaneous Logfile instances
@@ -20,14 +20,26 @@
         11. Destroy() - permanent removal from storage
         12. Error handling examples
 
+    BUGFIXES applied in this version (06.04.2026):
+        - Module path now uses $PSScriptRoot for reliable resolution regardless
+          of the caller's working directory.
+        - All Filter() calls updated to FilterByLevel() to match the corrected
+          class method name. 'filter' is a reserved PowerShell keyword and
+          cannot be used as a class method name.
+        - Fixed operator-precedence issue in Section 12 (Destroy) where
+          -join was applied to the entire Write-Host expression instead of
+          only to the names array.
+
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
     Version : 1.01.00
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Updated : 06.04.2026
 
-    Run this script from the repository root:
+    Run this script from any directory — the module path is resolved
+    automatically via $PSScriptRoot:
         .\VPDLX\Examples\Demo-001.ps1
+        & 'C:\full\path\to\VPDLX\Examples\Demo-001.ps1'
 #>
 
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
@@ -47,13 +59,16 @@ function Show-Banner {
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '1. Import the VPDLX module'
 
-# Resolve the path relative to this script file so the demo works from any
-# working directory.
-$modulePath = '..\VPDLX.psd1'
+# $PSScriptRoot always points to the directory containing THIS script file,
+# regardless of where PowerShell was started from. This makes the demo
+# runnable from any working directory without path errors.
+#
+# Script location : VPDLX\Examples\Demo-001.ps1
+# Module manifest : VPDLX\VPDLX.psd1  (one level up from Examples\)
+$modulePath = Join-Path $PSScriptRoot '..\VPDLX.psd1'
 
 if (-not (Test-Path $modulePath)) {
     Write-Error "Module manifest not found at: $modulePath"
-    #return
     exit -1
 }
 
@@ -124,7 +139,7 @@ Write-Host "Entries after Print() batch: $($appLog.EntryCount())" -ForegroundCol
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # 6. Read entries
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-Show-Banner '6. Read(), SoakUp(), Filter()'
+Show-Banner '6. Read(), SoakUp(), FilterByLevel()'
 
 # Read() - 1-based index; out-of-range values are clamped automatically.
 Write-Host 'Read(1):' -ForegroundColor Cyan
@@ -140,15 +155,17 @@ Write-Host 'SoakUp() - first 5 lines:' -ForegroundColor Cyan
 $allLines = $appLog.SoakUp()
 $allLines | Select-Object -First 5 | ForEach-Object { Write-Host $_ }
 
-# Filter() - returns only lines whose level tag matches.
+# FilterByLevel() - returns only lines whose level tag matches.
+# NOTE: The method is named FilterByLevel() (not Filter()) because 'filter'
+# is a reserved keyword in PowerShell and cannot be used as a method name.
 Write-Host ''
-Write-Host 'Filter("error"):' -ForegroundColor Cyan
-$errorLines = $appLog.Filter('error')
+Write-Host 'FilterByLevel("error"):' -ForegroundColor Cyan
+$errorLines = $appLog.FilterByLevel('error')
 $errorLines | ForEach-Object { Write-Host $_ }
 
 Write-Host ''
-Write-Host 'Filter("fatal"):' -ForegroundColor Cyan
-$fatalLines = $appLog.Filter('fatal')
+Write-Host 'FilterByLevel("fatal"):' -ForegroundColor Cyan
+$fatalLines = $appLog.FilterByLevel('fatal')
 $fatalLines | ForEach-Object { Write-Host $_ }
 
 
@@ -225,18 +242,18 @@ Write-Host ("Retrieved AuthLog - entries: " + $retrieved.EntryCount())
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '11. Reset()'
 
-$beforeReset = $appLog.EntryCount()
+$beforeReset   = $appLog.EntryCount()
 $createdBefore = $appLog.GetDetails().GetCreated()
 $axcountBefore = $appLog.GetDetails().GetAxcount()
 
 $appLog.Reset()
 
-Write-Host ("Entries before reset  : $beforeReset")                        -ForegroundColor White
-Write-Host ("Entries after reset   : " + $appLog.EntryCount())             -ForegroundColor Green
-Write-Host ("Created (preserved)   : $createdBefore")                      -ForegroundColor White
-Write-Host ("Axcount before reset  : $axcountBefore")                      -ForegroundColor White
-Write-Host ("Axcount after reset   : " + $appLog.GetDetails().GetAxcount()) -ForegroundColor Yellow
-Write-Host ("Acc type after reset  : " + $appLog.GetDetails().GetLastAccessType()) -ForegroundColor Yellow
+Write-Host ("Entries before reset  : $beforeReset")                                    -ForegroundColor White
+Write-Host ("Entries after reset   : " + $appLog.EntryCount())                         -ForegroundColor Green
+Write-Host ("Created (preserved)   : $createdBefore")                                  -ForegroundColor White
+Write-Host ("Axcount before reset  : $axcountBefore")                                  -ForegroundColor White
+Write-Host ("Axcount after reset   : " + $appLog.GetDetails().GetAxcount())             -ForegroundColor Yellow
+Write-Host ("Acc type after reset  : " + $appLog.GetDetails().GetLastAccessType())      -ForegroundColor Yellow
 
 
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
@@ -244,7 +261,12 @@ Write-Host ("Acc type after reset  : " + $appLog.GetDetails().GetLastAccessType(
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 Show-Banner '12. Destroy()'
 
-Write-Host ("Registered before destroy: " + $store.GetNames() -join ', ') -ForegroundColor White
+# BUGFIX: The original code had an operator-precedence issue:
+#   Write-Host ("text" + $store.GetNames() -join ', ') -ForegroundColor White
+# The -join operator was applied to the entire Write-Host expression instead
+# of only to the GetNames() array. Fixed by evaluating the join in a
+# sub-expression first: ($store.GetNames() -join ', ')
+Write-Host ("Registered before destroy: " + ($store.GetNames() -join ', ')) -ForegroundColor White
 
 $appLog.Destroy()
 $appLog = $null   # Always null the variable after Destroy()

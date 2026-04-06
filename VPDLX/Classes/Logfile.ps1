@@ -22,9 +22,9 @@
     Print(level, messages[])  — Appends an array of messages in one call.
 
     ── Public read methods ───────────────────────────────────────────────────
-    Read(line)    — Returns the formatted log line at the given 1-based index.
-    SoakUp()      — Returns the complete log content as a string array.
-    Filter(level) — Returns only lines that match the specified log level.
+    Read(line)          — Returns the formatted log line at the given 1-based index.
+    SoakUp()            — Returns the complete log content as a string array.
+    FilterByLevel(level)— Returns only lines that match the specified log level.
 
     ── Public utility methods ────────────────────────────────────────────────
     IsEmpty()     — Returns $true if the log contains no entries.
@@ -47,6 +47,13 @@
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
     Updated : 06.04.2026
+
+    BUGFIX (06.04.2026):
+      Renamed method Filter() -> FilterByLevel().
+      'filter' is a reserved keyword in PowerShell (pipeline filter construct).
+      Using it as a class method name caused a parser error that prevented the
+      entire Classes/Logfile.ps1 file from loading, which in turn prevented the
+      VPDLX module from importing. All internal references updated accordingly.
 
     KNOWN LIMITATIONS:
       - VPDLX is NOT designed for parallel execution.
@@ -349,9 +356,16 @@ class Logfile {
     }
 
 
-    # ── Filter ───────────────────────────────────────────────────────────────
+    # ── FilterByLevel ────────────────────────────────────────────────────────
 
     # Returns only the log lines whose level marker matches the given level.
+    #
+    # IMPORTANT NAMING NOTE:
+    #   This method is intentionally named FilterByLevel() and NOT Filter().
+    #   'filter' is a reserved keyword in PowerShell (it defines a special
+    #   pipeline filter function, similar to 'function'). Using 'filter' as a
+    #   class method name causes a parser error that prevents the entire class
+    #   file from loading. FilterByLevel() is the safe, unambiguous name.
     #
     # Matching strategy:
     #   - The normalised level is converted to its uppercase bracket notation
@@ -367,7 +381,7 @@ class Logfile {
     #
     # Side-effects:
     #   - _details.RecordFilter() is called  -> updates 'lastacc', 'acctype', 'axcount'
-    [string[]] Filter([string] $level) {
+    [string[]] FilterByLevel([string] $level) {
         $this.GuardDestroyed()
         [string] $normalizedLevel = $this.ValidateLevel($level)
         [string] $marker          = "[$($normalizedLevel.ToUpper())]"
