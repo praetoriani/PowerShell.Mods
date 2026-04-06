@@ -1,0 +1,135 @@
+﻿<#
+.SYNOPSIS
+    VPDLX - Virtual PowerShell Data-Logger eXtension
+    This PowerShell module provides a type of virtual logging system that makes it possible
+    to create, manage, and export multiple virtual log files simultaneously.
+
+.DESCRIPTION
+    Virtual PowerShell Data-Logger eXtension is designed to provide a professional, stable, fast, and secure solution
+    for easily creating and managing multiple virtual log files. After successful import into an existing PowerShell
+    script, the system is available immediately at runtime. From then on, you can create, read, filter, and analyze
+    your own virtual log files, as well as export them in various file formats (e.g., *.txt, *.csv, *.json, *.xlsx).
+    Only minimal configuration is required before VPDLX can be used.
+.NOTES
+    Creation Date: 05.04.2026
+    Last Update:   05.04.2026
+    Version:       1.00.00
+    Author:        Praetoriani (a.k.a. M.Sczepanski)
+    Website:       https://github.com/praetoriani/PowerShell.Mods
+
+    REQUIREMENTS & DEPENDENCIES:
+    - PowerShell 5.1 or higher
+#>
+
+# define vars on module-level (script scope = module scope)
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$script:appinfo = @{
+    appname     = 'VPDLX'
+    appvers     = '1.00.05'
+    appdevname  = 'Praetoriani'
+    appdevmail  = 'mr.praetoriani{at}gmail.com'
+    appwebsite  = 'https://github.com/praetoriani/PowerShell.Mods'
+    datecreate  = '05.04.2026'
+    lastupdate  = '05.04.2026'
+}
+
+# This hash table not onlydefines the supported file formats available
+# for exporting the virtually created log files. It mainly is used
+# to set the file extensions during the export process. It also will
+# be used to verify that a known file format was passed when requesting
+# an export of a virtual log file. 
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$script:export  = @{
+    text        = '.txt'
+    csv         = '.csv'
+    excel       = '.xlsx'
+    json        = '.json'
+    html        = '.html'
+    xml         = '.xml'
+}
+
+# This hash table defines the log levels and their output format
+# used in the virtual logfiles. This hash table is also used to
+# verify if a known loglevel was passed when creating a new log entry.
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$script:loglevel    = @{
+    info        = '  [INFO]      →  '
+    debug       = '  [DEBUG]     →  '
+    warning     = '  [WARNING]   →  '
+    error       = '  [ERROR]     →  '
+    critical    = '  [CRITICAL]  →  '
+    default     = '  [INFO]      →  '
+}
+
+# This global array is used to provide a centralized storage for all
+# virtual log files created during runtime. Each time a new virtual
+# log file is created, its name will automatically be added to this
+# (global available) array. This allows to easily keep track of all
+# virtual log files and their content.
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$script:filestorage = @()
+
+# This is an example of how the structure of a virtual logfile looks like.
+# The data-key is an array, to make the handling a bit easier. You can
+# simply push new entries to the data array. Every element in this array
+# has the same structure:
+# [dd.MM.yyyy | HH:mm:ss]   [LOGLEVEL]  →  LOGMESSAGE
+# Possible log-levels are:
+# [dd.MM.yyyy | HH:mm:ss]   [INFO]      →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [DEBUG]     →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [WARNING]   →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [ERROR]     →  LOGMESSAGE
+# [dd.MM.yyyy | HH:mm:ss]   [CRITICAL]  →  LOGMESSAGE
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+$script:logfile = @{
+    name        = ""        # Name of the virtual log file
+    data        = @()       # This array will hold the entire log data
+    info        = @{
+        created = ""        # Stores the Timestamp (in format [dd.MM.yyyy | HH:mm:ss]) when vitual logfile is created
+        updated = ""        # Stores the Timestamp when vitual logfile is updated (e.g., new log entry added)
+        entries = 0         # Stores the number of entries in the virtual log file
+    }
+}
+
+class Logfile {
+
+    [string]    $name
+    [array]     $data
+    [hashtable] $info = {
+        [string]    $created
+        [string]    $updated
+        [int]       $entries
+    }
+
+    Lofgile([string]$name) {
+        $this.name  = $name
+        $this.data  = @()
+        $this.info.created  = (Get-Date).ToString("[dd.MM.yyyy | HH:mm:ss]")
+        $this.info.updated  = (Get-Date).ToString("[dd.MM.yyyy | HH:mm:ss]")
+        $this.info.entries  = 0
+    }
+}
+
+# Get public and private function definition files
+$PublicFunctions = @(Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction SilentlyContinue)
+$PrivateFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue)
+
+# Import all functions
+foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
+    try {
+        Write-Verbose "Importing function from file: $($ImportFile.FullName)"
+        . $ImportFile.FullName
+    }
+    catch {
+        Write-Error "Failed to import function $($ImportFile.FullName): $($_.Exception.Message)"
+    }
+}
+
+# Export public functions only
+if ($PublicFunctions) {
+    #Export-ModuleMember -Function ($PublicFunctions.BaseName + @('AppScope'))
+    Export-ModuleMember -Function ($PublicFunctions.BaseName)
+}
+
+# Module initialization message
+Write-Verbose "WinISOScriptFXLib module loaded successfully. Available functions: $(($PublicFunctions.BaseName) -join ', ')"
