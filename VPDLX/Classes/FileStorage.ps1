@@ -7,21 +7,23 @@
     that have been created during the current PowerShell session. It maintains
     two internal data structures:
 
-      _registry  — A Dictionary<string, Logfile> that maps the normalized
-                   (lowercase) filename key to its [Logfile] instance.
-                   This enables O(1) lookups by name.
+      _registry  — A Dictionary<string, object> that maps the name (case-
+                   insensitive via OrdinalIgnoreCase comparer) to its [Logfile]
+                   instance. This enables O(1) lookups by name.
 
       _names     — A List<string> that preserves the original (case-preserved)
                    filenames in creation order. Used for listing and iteration.
 
-    Like [FileDetails], all mutating members are marked 'hidden'. The public
-    surface exposes only safe read operations and the controlled Add/Remove
-    methods that enforce business rules (duplicate prevention, existence checks).
+    Like [FileDetails], the fields are hidden from IntelliSense/Get-Member.
+    However, the Add() and Remove() management methods are intentionally NOT
+    marked hidden: [Logfile] calls them directly from its constructor and
+    Destroy() method. In PowerShell 5.1, 'hidden' prevents cross-class method
+    calls, so management methods must be public.
 
     A single instance of FileStorage is held in the module-scoped variable
     $script:storage inside VPDLX.psm1 and is never exposed directly to callers.
     External consumers interact with it only through [Logfile] class methods or
-    future public functions, never by touching $script:storage directly.
+    the VPDLXcore accessor, never by touching $script:storage directly.
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
@@ -29,40 +31,55 @@
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
     Updated : 06.04.2026
+
+    BUGFIX (06.04.2026):
+      Add() and Remove() were previously marked 'hidden'. In PowerShell 5.1,
+      hidden members cannot be called from outside the declaring class — this
+      includes calls from [Logfile]'s constructor and Destroy() method.
+      Removing 'hidden' from these two methods fixes the cross-class
+      accessibility issue while preserving all other design goals.
+      The remove-by-name case-insensitive search in _names was also corrected
+      to use a manual loop so the original (case-preserved) entry is found
+      reliably regardless of how the caller spelled the name.
 #>
 
 class FileStorage {
 
     # ── Hidden (internal) fields ──────────────────────────────────────────────
 
-    # Maps normalized (lowercase) name → [Logfile] instance.
-    # Hidden to prevent callers from bypassing the Add/Remove business rules.
+    # Maps name (case-insensitive) -> [Logfile] instance.
+    # OrdinalIgnoreCase comparer means 'MyLog' and 'mylog' refer to the same slot.
     hidden [System.Collections.Generic.Dictionary[string, object]] $_registry
 
     # Preserves original (case-as-provided) filenames in insertion order.
-    # Used by GetNames() so the caller sees the names they chose, not lowercase.
+    # Used by GetNames() so the caller sees the names they chose, not normalised.
     hidden [System.Collections.Generic.List[string]] $_names
 
 
     # ── Constructor ───────────────────────────────────────────────────────────
-    # Initializes both internal collections as empty.
     FileStorage() {
         $this._registry = [System.Collections.Generic.Dictionary[string, object]]::new(
             [System.StringComparer]::OrdinalIgnoreCase
         )
-        $this._names    = [System.Collections.Generic.List[string]]::new()
+        $this._names = [System.Collections.Generic.List[string]]::new()
     }
 
 
-    # ── Internal management methods (called by VPDLX internals only) ──────────
+    # ── Management methods ────────────────────────────────────────────────────
+    # NOTE: These methods are intentionally NOT marked 'hidden'.
+    # [Logfile] calls Add() from its constructor and Remove() from Destroy().
+    # In PowerShell 5.1, hidden methods are inaccessible from other classes,
+    # which would cause a 'method not found' runtime error.
 
     # Registers a new [Logfile] instance in the storage.
     # Throws if a logfile with the same name already exists (case-insensitive).
     # Called by [Logfile]::new() as its final constructor step.
-    hidden [void] Add([string] $name, [object] $instance) {
+    [void] Add([string] $name, [object] $instance) {
         if ($this._registry.ContainsKey($name)) {
-            throw "FileStorage: A logfile named '$name' already exists. " +
-                  "Remove the existing instance before creating a new one."
+            throw [System.InvalidOperationException]::new(
+                "FileStorage: A logfile named '$name' already exists. " +
+                'Remove the existing instance before creating a new one.'
+            )
         }
         $this._registry[$name] = $instance
         $this._names.Add($name)
@@ -71,12 +88,27 @@ class FileStorage {
     # Removes a [Logfile] instance from the storage by name.
     # Throws if the specified name does not exist.
     # Called by the [Logfile] class's own Destroy() method.
-    hidden [void] Remove([string] $name) {
+    [void] Remove([string] $name) {
         if (-not $this._registry.ContainsKey($name)) {
-            throw "FileStorage: No logfile named '$name' found in storage."
+            throw [System.InvalidOperationException]::new(
+                "FileStorage: No logfile named '$name' found in storage."
+            )
         }
-        $this._registry.Remove($name)  | Out-Null
-        $this._names.Remove($name)     | Out-Null
+        $this._registry.Remove($name) | Out-Null
+
+        # Remove from the names list using a case-insensitive search.
+        # List<T>.Remove() uses Equals() which is case-sensitive for strings,
+        # so we locate the matching entry manually and remove by index.
+        [int] $indexToRemove = -1
+        for ([int] $i = 0; $i -lt $this._names.Count; $i++) {
+            if ([string]::Equals($this._names[$i], $name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $indexToRemove = $i
+                break
+            }
+        }
+        if ($indexToRemove -ge 0) {
+            $this._names.RemoveAt($indexToRemove)
+        }
     }
 
 
@@ -88,8 +120,9 @@ class FileStorage {
     }
 
     # Returns the [Logfile] instance for the given name, or $null if not found.
-    # The return type is [object] because [Logfile] is defined in a later dot-source
-    # step; using [object] avoids a forward-reference resolution error in PS 5.1.
+    # The return type is [object] because [Logfile] is defined in a later
+    # dot-source step; using [object] avoids a forward-reference resolution
+    # error in PowerShell 5.1.
     [object] Get([string] $name) {
         if (-not $this._registry.ContainsKey($name)) {
             return $null

@@ -22,9 +22,9 @@
     Print(level, messages[])  — Appends an array of messages in one call.
 
     ── Public read methods ───────────────────────────────────────────────────
-    Read(line)          — Returns the formatted log line at the given 1-based index.
-    SoakUp()            — Returns the complete log content as a string array.
-    FilterByLevel(level)— Returns only lines that match the specified log level.
+    Read(line)           — Returns the formatted log line at the given 1-based index.
+    SoakUp()             — Returns the complete log content as a string array.
+    FilterByLevel(level) — Returns only lines that match the specified log level.
 
     ── Public utility methods ────────────────────────────────────────────────
     IsEmpty()     — Returns $true if the log contains no entries.
@@ -48,12 +48,18 @@
     Created : 05.04.2026
     Updated : 06.04.2026
 
-    BUGFIX (06.04.2026):
-      Renamed method Filter() -> FilterByLevel().
-      'filter' is a reserved keyword in PowerShell (pipeline filter construct).
-      Using it as a class method name caused a parser error that prevented the
-      entire Classes/Logfile.ps1 file from loading, which in turn prevented the
-      VPDLX module from importing. All internal references updated accordingly.
+    BUGFIXES (06.04.2026):
+      1. Constructor parameter $name is no longer reassigned directly.
+         PowerShell 5.1 does not allow reassigning a constructor/method
+         parameter variable inside the same scope. A new local variable
+         $trimmedName is used instead, which resolves the parser error:
+         'The property cannot be set. Use "$this.Name"'.
+      2. Renamed method Filter() -> FilterByLevel().
+         'filter' is a reserved keyword in PowerShell (pipeline filter
+         construct). Using it as a class method name caused a parser error
+         that prevented the entire Classes/Logfile.ps1 file from loading,
+         which in turn prevented the VPDLX module from importing.
+         All internal references updated accordingly.
 
     KNOWN LIMITATIONS:
       - VPDLX is NOT designed for parallel execution.
@@ -117,20 +123,25 @@ class Logfile {
             )
         }
 
-        $name = $name.Trim()
+        # BUGFIX: PowerShell 5.1 does not allow direct reassignment of a
+        # constructor parameter variable ($name = $name.Trim()) — the parser
+        # misinterprets this as a property-set attempt and raises:
+        #   'The property cannot be set. Use "$this.Name"'
+        # Solution: assign the trimmed value to a new local variable.
+        [string] $trimmedName = $name.Trim()
 
         # ── Validate: length 3–64 characters ────────────────────────────────
-        if ($name.Length -lt 3 -or $name.Length -gt 64) {
+        if ($trimmedName.Length -lt 3 -or $trimmedName.Length -gt 64) {
             throw [System.ArgumentException]::new(
                 "Parameter 'name' must be between 3 and 64 characters. " +
-                "Provided length: $($name.Length).",
+                "Provided length: $($trimmedName.Length).",
                 'name'
             )
         }
 
         # ── Validate: allowed characters only ────────────────────────────────
         # Only alphanumeric characters plus underscore, hyphen, and dot are allowed.
-        if ($name -notmatch '^[a-zA-Z0-9_\-\.]+$') {
+        if ($trimmedName -notmatch '^[a-zA-Z0-9_\-\.]+$') {
             throw [System.ArgumentException]::new(
                 "Parameter 'name' contains invalid characters. " +
                 'Only alphanumeric characters and the symbols _ - . are allowed.',
@@ -142,20 +153,20 @@ class Logfile {
         # $script:storage is the module-level [FileStorage] singleton.
         # It is accessible here because this file is dot-sourced into the
         # VPDLX.psm1 module scope.
-        if ($script:storage.Contains($name)) {
+        if ($script:storage.Contains($trimmedName)) {
             throw [System.InvalidOperationException]::new(
-                "A Logfile named '$name' already exists. " +
+                "A Logfile named '$trimmedName' already exists. " +
                 "Call .Destroy() on the existing instance before creating a new one."
             )
         }
 
         # ── Initialise internal fields ────────────────────────────────────────
-        $this.Name     = $name
+        $this.Name     = $trimmedName
         $this._data    = [System.Collections.Generic.List[string]]::new()
         $this._details = [FileDetails]::new()
 
         # ── Register in the module-level FileStorage ──────────────────────────
-        $script:storage.Add($name, $this)
+        $script:storage.Add($trimmedName, $this)
     }
 
 
@@ -328,11 +339,12 @@ class Logfile {
         }
 
         # Clamp to valid 1-based range.
-        if ($line -lt 1)                     { $line = 1 }
-        if ($line -gt $this._data.Count)     { $line = $this._data.Count }
+        [int] $clampedLine = $line
+        if ($clampedLine -lt 1)                  { $clampedLine = 1 }
+        if ($clampedLine -gt $this._data.Count)  { $clampedLine = $this._data.Count }
 
         # Convert to 0-based index and retrieve the entry.
-        [string] $entry = $this._data[$line - 1]
+        [string] $entry = $this._data[$clampedLine - 1]
         $this._details.RecordRead()
         return $entry
     }

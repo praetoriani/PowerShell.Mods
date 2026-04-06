@@ -32,6 +32,11 @@
         TypeAccelerators are removed cleanly when the module is unloaded
         (OnRemove handler at the bottom of this file).
 
+        IMPORTANT: TypeAccelerators must be registered using the short class
+        name (e.g. 'Logfile'), NOT the fully-qualified name. Using the
+        FullName (e.g. 'VPDLX.Logfile') would require callers to write
+        [VPDLX.Logfile]::new(), not [Logfile]::new().
+
     Module-scope variables:
         $script:appinfo  — read-only module metadata hashtable
         $script:storage  — the single [FileStorage] instance; managed by
@@ -55,6 +60,13 @@
     REQUIREMENTS:
     - PowerShell 5.1 or higher
     - No external dependencies
+
+    BUGFIXES (06.04.2026):
+      TypeAccelerators are now registered using the short class Name
+      (e.g. 'Logfile') instead of the FullName (e.g. 'VPDLX.Logfile').
+      Using FullName required callers to write [VPDLX.Logfile]::new()
+      rather than the documented [Logfile]::new(), causing TypeNotFound
+      errors in the demo and any real caller code.
 #>
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
@@ -73,10 +85,6 @@ $script:appinfo = @{
 }
 
 # Supported file extensions for future export functionality.
-# Keys are human-readable format names; values are the dot-prefixed extensions
-# that VPDLX will use when writing files to disk in a future release.
-# This table is intentionally defined here (module scope) so export functions
-# can retrieve it via VPDLXcore -KeyID 'export' without hardcoding strings.
 $script:export = @{
     txt  = '.txt'
     csv  = '.csv'
@@ -123,9 +131,8 @@ foreach ($ClassFile in $script:ClassFiles) {
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # This singleton is the single source of truth for all active Logfile instances.
-# It is initialised here (after the class files are loaded) so that the
-# [Logfile] constructor can call $script:storage.Add() / Contains() immediately.
-# Future public functions access this via VPDLXcore -KeyID 'storage'.
+# Initialised here (after the class files are loaded) so that the [Logfile]
+# constructor can call $script:storage.Add() / Contains() immediately.
 $script:storage = [FileStorage]::new()
 
 
@@ -133,13 +140,7 @@ $script:storage = [FileStorage]::new()
 # SECTION 4 — Private and Public function loading
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
-# Load all Private helper functions (not exported to the caller).
 $PrivateFunctions = @(Get-ChildItem -Path "$PSScriptRoot\Private\*.ps1" -ErrorAction SilentlyContinue)
-
-# Load all Public functions (exported to the caller via Export-ModuleMember).
-# The Public/ directory is currently empty in v1.01.00 and is reserved for
-# future wrapper functions. It is scanned here so that adding a new .ps1 file
-# to Public/ is sufficient to expose it — no changes to this file required.
 $PublicFunctions  = @(Get-ChildItem -Path "$PSScriptRoot\Public\*.ps1"  -ErrorAction SilentlyContinue)
 
 foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
@@ -231,8 +232,9 @@ function VPDLXcore {
 # Registering the types as TypeAccelerators makes them globally accessible
 # in the caller's session without requiring 'using module' syntax.
 #
-# The TypeAccelerators class is an internal .NET type. We access it via
-# reflection on [psobject] (a type that is always loaded in any PS session).
+# CRITICAL: Register the SHORT class name (e.g. 'Logfile'), NOT the fully-
+# qualified name (e.g. 'VPDLX.Logfile'). Registering FullName would require
+# callers to write [VPDLX.Logfile]::new() instead of [Logfile]::new().
 
 $script:ExportableTypes = @(
     [FileDetails],
@@ -245,10 +247,11 @@ $script:TypeAcceleratorsClass = [psobject].Assembly.GetType(
 )
 
 foreach ($Type in $script:ExportableTypes) {
-    # Guard against duplicate registration (e.g. if the module is re-imported
-    # in the same session without Remove-Module first).
-    if (-not $script:TypeAcceleratorsClass::Get.ContainsKey($Type.FullName)) {
-        $script:TypeAcceleratorsClass::Add($Type.FullName, $Type)
+    # Use the short Name as the accelerator key so callers write [Logfile],
+    # not [VPDLX.Logfile]. Guard against duplicate registration (e.g. if the
+    # module is re-imported in the same session without Remove-Module first).
+    if (-not $script:TypeAcceleratorsClass::Get.ContainsKey($Type.Name)) {
+        $script:TypeAcceleratorsClass::Add($Type.Name, $Type)
         Write-Verbose "VPDLX: Registered TypeAccelerator: [$($Type.Name)]"
     }
 }
@@ -258,9 +261,6 @@ foreach ($Type in $script:ExportableTypes) {
 # SECTION 7 — Module export declarations
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
-# Export VPDLXcore (infrastructure accessor) plus all discovered Public functions.
-# Exporting by explicit base-name array prevents accidental exposure of Private helpers.
-# Classes are exposed via TypeAccelerators (Section 6) — not via Export-ModuleMember.
 [string[]] $FunctionsToExport = @('VPDLXcore')
 if ($PublicFunctions.Count -gt 0) {
     $FunctionsToExport += $PublicFunctions.BaseName
@@ -274,14 +274,12 @@ Export-ModuleMember -Function $FunctionsToExport
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # Executed automatically when 'Remove-Module VPDLX' is called.
-# Removes the TypeAccelerators that were registered at load time.
-# Without this handler the types would persist in the session even after
-# the module is unloaded, which could cause confusion or type conflicts
-# if the module is later re-imported with a different version.
+# Removes the TypeAccelerators that were registered at load time so they
+# do not persist after unload and cannot cause type conflicts on re-import.
 $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
     foreach ($Type in $script:ExportableTypes) {
-        if ($script:TypeAcceleratorsClass::Get.ContainsKey($Type.FullName)) {
-            $script:TypeAcceleratorsClass::Remove($Type.FullName) | Out-Null
+        if ($script:TypeAcceleratorsClass::Get.ContainsKey($Type.Name)) {
+            $script:TypeAcceleratorsClass::Remove($Type.Name) | Out-Null
             Write-Verbose "VPDLX: Removed TypeAccelerator: [$($Type.Name)]"
         }
     }
