@@ -1,189 +1,214 @@
-# VPDLX — Quick-Start Guide
+# VPDLX — Quick Start Guide
 
-> Get up and running with **VPDLX** (Virtual PowerShell Data-Logger eXtension) in under
-> five minutes.
+> **Module version:** 1.01.00  
+> **Prerequisites:** PowerShell 5.1 or PowerShell 7.x
 
----
-
-## 1. Installation
-
-```powershell
-# Clone the repository
-git clone https://github.com/praetoriani/PowerShell.Mods.git
-
-# Copy VPDLX to your personal module directory
-Copy-Item -Path '.\PowerShell.Mods\VPDLX' `
-          -Destination "$env:UserProfile\Documents\PowerShell\Modules\VPDLX" `
-          -Recurse -Force
-
-# Import and verify
-Import-Module VPDLX -Verbose
-Get-Module VPDLX | Select-Object Name, Version
-```
+This guide takes you from zero to a working virtual log file in five steps.
 
 ---
 
-## 2. Core Concept
-
-VPDLX manages **virtual log file instances** entirely in memory.
-Think of each instance as a named, structured text file that lives inside your
-PowerShell session — no disk I/O until you decide to export.
-
-Every public function follows the same return schema:
+## Step 1 — Import the module
 
 ```powershell
-$result = SomeVPDLXFunction -Param 'value'
-
-if ($result.code -eq 0) {
-    # Success — use $result.data
-} else {
-    # Failure — read $result.msg for the reason
-}
+Import-Module .\VPDLX.psd1
 ```
 
-| Field | Type | Meaning |
-|---|---|---|
-| `.code` | `int` | `0` = success · `-1` = failure |
-| `.msg` | `string` | Human-readable status or error |
-| `.data` | any | Return payload (`$null` on failure) |
+After import, the three classes `[Logfile]`, `[FileDetails]`, and `[FileStorage]` are
+available as type accelerators — no `using module` statement required.
 
 ---
 
-## 3. Step-by-Step Walkthrough
-
-### Step 1 — Create a virtual log file
+## Step 2 — Create a virtual log file
 
 ```powershell
-$r = CreateNewLogfile -FileName 'AppLog'
-
-if ($r.code -eq 0) {
-    Write-Host "[OK]  $($r.msg)"     # "Virtual log file 'AppLog' created successfully."
-} else {
-    Write-Error "[ERR] $($r.msg)"
-}
+$log = [Logfile]::new('MyFirstLog')
 ```
 
-**Filename rules:**
+Name rules:
+- 3–64 characters
 - Allowed characters: `a-z A-Z 0-9 _ - .`
-- Minimum length: **3** characters
-- Maximum length: **64** characters
-- Names are **case-insensitive** internally (stored as lowercase key)
+- Names are case-insensitive for uniqueness (you cannot have both `MyLog` and `mylog`)
 
 ---
 
-### Step 2 — Write log entries
+## Step 3 — Write log entries
+
+### Single entry — `Write()`
 
 ```powershell
-WriteLogfileEntry -FileName 'AppLog' -LogLevel 'INFO'    -Message 'Application started'
-WriteLogfileEntry -FileName 'AppLog' -LogLevel 'DEBUG'   -Message 'Loading configuration file'
-WriteLogfileEntry -FileName 'AppLog' -LogLevel 'WARNING' -Message 'Config value missing, using default'
-WriteLogfileEntry -FileName 'AppLog' -LogLevel 'ERROR'   -Message 'Failed to connect to remote host'
+$log.Write('info',    'Application started successfully.')
+$log.Write('debug',   'Configuration file loaded from C:\App\config.json.')
+$log.Write('warning', 'Retry limit is set to 0 — retries are disabled.')
+$log.Write('error',   'Failed to connect to the database on first attempt.')
 ```
 
-**Available log levels:**
+### Shortcut methods — one method per level
 
-| Level | Typical use |
-|---|---|
-| `DEBUG` | Detailed diagnostic information |
-| `INFO` | General operational messages |
-| `VERBOSE` | Extended tracing output |
-| `TRACE` | Granular step-by-step tracing |
-| `WARNING` | Non-critical issues, degraded state |
-| `ERROR` | Recoverable error conditions |
-| `CRITICAL` | Severe errors, partial functionality loss |
-| `FATAL` | Unrecoverable errors, immediate abort |
+```powershell
+$log.Info('User authentication succeeded.')
+$log.Debug('Token expiry: 3600 seconds.')
+$log.Verbose('Entering function Initialize-DataStore.')
+$log.Trace('Variable $count = 42 at line 87.')
+$log.Warning('Disk usage has exceeded 80 percent.')
+$log.Error('HTTP request returned status 503.')
+$log.Critical('Primary database cluster is unreachable.')
+$log.Fatal('Unrecoverable exception — process will terminate.')
+```
 
-Each entry is stored in the format:
+### Batch write — `Print()`
+
+```powershell
+$messages = @(
+    'Service A initialised.',
+    'Service B initialised.',
+    'Service C initialised.'
+)
+$log.Print('info', $messages)
 ```
-[yyyy-MM-dd HH:mm:ss] [LOGLEVEL] Message
-```
+
+> All messages are validated **before** any are written.  
+> A validation failure on one message leaves the log unchanged.
+
+### Supported log levels
+
+| Level      | Shortcut          | Output tag    |
+|------------|-------------------|---------------|
+| `info`     | `.Info()`         | `[INFO]`      |
+| `debug`    | `.Debug()`        | `[DEBUG]`     |
+| `verbose`  | `.Verbose()`      | `[VERBOSE]`   |
+| `trace`    | `.Trace()`        | `[TRACE]`     |
+| `warning`  | `.Warning()`      | `[WARNING]`   |
+| `error`    | `.Error()`        | `[ERROR]`     |
+| `critical` | `.Critical()`     | `[CRITICAL]`  |
+| `fatal`    | `.Fatal()`        | `[FATAL]`     |
+
+Level identifiers are **case-insensitive** (`'INFO'`, `'Info'`, `'info'` all work).
 
 ---
 
-### Step 3 — Read a specific entry
+## Step 4 — Read log entries
+
+### Read a specific line — `Read()`
 
 ```powershell
-# Read line 1 (first entry) — line numbers are 1-based
-$r = ReadLogfileEntry -FileName 'AppLog' -Line 1
-Write-Host $r.data
-# Output: [2026-04-05 23:00:00] [INFO] Application started
-
-# Line number exceeding entry count auto-clamps to the last entry
-$r = ReadLogfileEntry -FileName 'AppLog' -Line 999
-Write-Host $r.data   # Returns the last available entry, no error raised
+# Read line 1 (1-based index; out-of-range values are clamped automatically)
+$log.Read(1)
 ```
 
----
-
-### Step 4 — Inspect the registry
+### Read everything — `SoakUp()`
 
 ```powershell
-# List all currently registered virtual log file names
-$r = VPDLXcore -Scope 'storage' -GlobalVar 'filestorage' -Permission 'read'
-Write-Host "Registered log files: $($r.data -join ', ')"
-
-# Read the full instance data for 'AppLog'
-$r = VPDLXcore -Scope 'instances' -GlobalVar 'loginstances' -Permission 'read'
-$instance = $r.data['applog']   # Keys are always lowercase
-Write-Host "Entries in AppLog: $($instance.info.entries)"
+$allLines = $log.SoakUp()
+$allLines | ForEach-Object { Write-Host $_ }
 ```
 
----
-
-### Step 5 — Reset a log file
+### Filter by level — `Filter()`
 
 ```powershell
-# Clears all entries — the instance itself remains active and reusable
-$r = ResetLogfile -FileName 'AppLog'
-if ($r.code -eq 0) {
-    Write-Host "[OK]  $($r.msg)"     # "Virtual log file 'AppLog' has been reset."
+$errors = $log.Filter('error')
+$errors | ForEach-Object { Write-Host $_ }
+```
+
+### Guard helpers
+
+```powershell
+if ($log.HasEntries()) {
+    Write-Host ('Total entries: ' + $log.EntryCount())
+}
+
+if ($log.IsEmpty()) {
+    Write-Host 'Log is empty — nothing to display.'
 }
 ```
 
 ---
 
-### Step 6 — Delete a log file instance
+## Step 5 — Inspect metadata
 
 ```powershell
-# Removes the instance and unregisters it from filestorage
-$r = DeleteLogfile -FileName 'AppLog'
-if ($r.code -eq 0) {
-    Write-Host "[OK]  $($r.msg)"     # "Virtual log file 'AppLog' has been deleted."
-}
+$details = $log.GetDetails()
+
+Write-Host ('Created   : ' + $details.GetCreated())
+Write-Host ('Updated   : ' + $details.GetUpdated())
+Write-Host ('Last acc  : ' + $details.GetLastAccessed())
+Write-Host ('Acc type  : ' + $details.GetLastAccessType())
+Write-Host ('Entries   : ' + $details.GetEntries())
+Write-Host ('Axcount   : ' + $details.GetAxcount())
+
+# Or as an ordered dictionary:
+$details.ToHashtable()
+```
+
+Field reference:
+
+| Key       | Getter                  | Updated by                     |
+|-----------|-------------------------|--------------------------------|
+| `created` | `GetCreated()`          | Set once at construction       |
+| `updated` | `GetUpdated()`          | `Write`, `Print`, `Reset`      |
+| `lastacc` | `GetLastAccessed()`     | `Read`, `SoakUp`, `Filter`     |
+| `acctype` | `GetLastAccessType()`   | Every interaction              |
+| `entries` | `GetEntries()`          | Every write or reset           |
+| `axcount` | `GetAxcount()`          | Every interaction (never reset unless Destroy) |
+
+---
+
+## Additional operations
+
+### Reset a log (clears data, keeps metadata skeleton)
+
+```powershell
+$log.Reset()
+# _data is now empty; _created and _axcount are preserved
+```
+
+### Destroy a log (removes from registry, frees memory)
+
+```powershell
+$log.Destroy()
+$log = $null   # Always set the variable to $null after Destroy()
+```
+
+### Access the module-level storage
+
+```powershell
+# List all registered logfile names
+$store = VPDLXcore -KeyID 'storage'
+$store.GetNames()
+
+# Get a logfile by name
+$myLog = $store.Get('MyFirstLog')
+$myLog.EntryCount()
+```
+
+### Retrieve module info
+
+```powershell
+$info = VPDLXcore -KeyID 'appinfo'
+$info   # displays Name, Version, Author, ReleaseDate
 ```
 
 ---
 
-## 4. Working with Multiple Log Files
+## Entry format
 
-VPDLX is designed to manage **multiple simultaneous instances**.
-A common pattern is to maintain separate logs for different concerns:
+Every log line written by VPDLX follows this fixed format:
 
-```powershell
-CreateNewLogfile -FileName 'SetupLog'
-CreateNewLogfile -FileName 'ErrorLog'
-CreateNewLogfile -FileName 'AuditLog'
+```
+[dd.MM.yyyy | HH:mm:ss]  [LEVEL]     ->  MESSAGE
+```
 
-# Route entries to the appropriate log
-WriteLogfileEntry -FileName 'SetupLog' -LogLevel 'INFO'  -Message 'Phase 1 complete'
-WriteLogfileEntry -FileName 'ErrorLog' -LogLevel 'ERROR' -Message 'Registry write failed'
-WriteLogfileEntry -FileName 'AuditLog' -LogLevel 'INFO'  -Message 'User action: install confirmed'
+Example output:
 
-# Check all registered files at once
-$r = VPDLXcore -Scope 'storage' -GlobalVar 'filestorage' -Permission 'read'
-$r.data | ForEach-Object { Write-Host " - $_" }
+```
+[06.04.2026 | 10:15:42]  [INFO]      ->  Application started successfully.
+[06.04.2026 | 10:15:43]  [WARNING]   ->  Retry limit is set to 0.
+[06.04.2026 | 10:15:44]  [ERROR]     ->  Failed to connect to the database.
 ```
 
 ---
 
-## 5. Next Steps
+## Known limitations
 
-| Resource | Description |
-|---|---|
-| **[demo-001.ps1](demo-001.ps1)** | Full working demonstration script |
-| **[README.md](README.md)** | Complete module reference |
-| **[CHANGELOG.md](CHANGELOG.md)** | Version history |
-
----
-
-*VPDLX by [Praetoriani](https://github.com/praetoriani)*
+- **No parallel execution support.** VPDLX is not thread-safe. Do not use `[Logfile]` instances inside `ForEach-Object -Parallel` or `Start-ThreadJob` without external synchronisation. See README.md for the full list of known limitations.
+- After calling `.Destroy()`, always set the variable to `$null`. Subsequent method calls on a destroyed instance throw `ObjectDisposedException`.
+- There is no built-in entry limit. Very large logs accumulate in RAM for the duration of the session.

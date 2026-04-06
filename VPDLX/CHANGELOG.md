@@ -1,96 +1,98 @@
-# CHANGELOG — VPDLX
+# VPDLX — Changelog
 
-All notable changes to this module are documented in this file.
-Versions follow the `Major.Minor.Patch` scheme used in the module manifest.
-
----
-
-## [1.00.00] — 2026-04-05
-
-### Project Bootstrap
-
-- Repository structure created: `VPDLX/`, `Public/`, `Private/`.
-- Module skeleton (`VPDLX.psm1`, `VPDLX.psd1`) committed.
-- Module-scope variables initialised:
-  `$script:loginstances`, `$script:filestorage`, `$script:loglevel`, `$script:exit`.
-
-### New Functions
-
-#### `VPDLXreturn` *(Private)*
-- Creates standardised `PSCustomObject { .code, .msg, .data }` return objects.
-- Used internally by all public functions to guarantee a uniform return schema.
-- `.code = 0` signals success; `.code = -1` signals failure.
-- `.data` carries the return payload or `$null` on failure.
-
-#### `VPDLXcore` *(Public)*
-- Type-safe read/write accessor for all `$script:` module-scope variables.
-- Exposes four scopes via `-Scope`: `'instances'`, `'storage'`, `'loglevel'`, `'exit'`.
-- Read access (`-Permission 'read'`) returns the current value via `.data`.
-- Write access (`-Permission 'write'`) validates the type before assignment;
-  type mismatches are rejected and the original value is left unchanged.
-- Returns a standardised `VPDLXreturn` object.
-
-#### `CreateNewLogfile` *(Public)*
-- Creates a new named virtual log file instance in `$script:loginstances`.
-- **Filename validation**: only alphanumeric characters plus `_`, `-`, `.` are permitted;
-  minimum 3 characters, maximum 64 characters.
-- Duplicate detection: returns `.code = -1` if a log file with the same name already exists.
-- On success, the normalised (lowercase) key is stored in `$script:filestorage` and a
-  fully initialised instance hashtable is written to `$script:loginstances`.
-- Instance schema on creation:
-  ```
-  name    = <original filename string>
-  data    = [System.Collections.Generic.List[string]] (empty)
-  info    = @{ created = <timestamp>; updated = <timestamp>; entries = 0 }
-  ```
-- Returns the new instance name as `.data` on success.
-
-#### `WriteLogfileEntry` *(Public)*
-- Appends a formatted, timestamped log entry to the specified virtual log file.
-- **Existence check**: validates `$script:filestorage` before writing.
-- **Log level check**: validates that `-LogLevel` exists in `$script:loglevel`.
-- **Message check**: `-Message` must contain at least 3 non-whitespace characters.
-- Entry format: `[yyyy-MM-dd HH:mm:ss] [LOGLEVEL] Message`
-- Increments `$script:loginstances[key]['info']['entries']` after every successful write.
-- Updates `$script:loginstances[key]['info']['updated']` timestamp.
-- Returns the formatted entry string as `.data` on success.
-
-#### `ReadLogfileEntry` *(Public)*
-- Returns a single entry string from the specified virtual log file by 1-based line number.
-- **Existence check**: validates `$script:filestorage` before reading.
-- **Empty log guard**: returns `.code = -1` if the log file has zero entries.
-- **Auto-clamp**: if `-Line` exceeds the total entry count, the last entry is returned
-  automatically (no error is raised).
-- Returns the entry string as `.data` on success.
-
-#### `ResetLogfile` *(Public)*
-- Clears all log entries from the specified virtual log file.
-- **Existence check**: validates `$script:filestorage` before resetting.
-- Replaces `data` with a new empty `List[string]`; sets `entries` to `0`.
-- Preserves the original `created` timestamp.
-- Updates the `updated` timestamp to the moment of the reset.
-- Returns the log file name as `.data` on success.
-
-#### `DeleteLogfile` *(Public)*
-- Removes a virtual log file instance entirely from module scope.
-- **Existence check**: validates `$script:filestorage` before deleting.
-- Removes the instance from `$script:loginstances` via `Remove()`.
-- Rebuilds `$script:filestorage` via `Where-Object` to exclude the deleted entry.
-- Returns the deleted log file name as `.data` on success.
-
-### Module Manifest (`VPDLX.psd1`)
-- `ModuleVersion` set to `'1.00.00'`.
-- `FunctionsToExport`: `VPDLXcore`, `CreateNewLogfile`, `WriteLogfileEntry`,
-  `ReadLogfileEntry`, `ResetLogfile`, `DeleteLogfile`.
-- `FileList` fully populated with all module files.
-- `Tags`: `Logging`, `VirtualLog`, `DataLogger`, `PowerShell`, `Automation`.
-
-### Documentation
-- `README.md`: created — full module reference.
-- `QUICKSTART.md`: created — hands-on quick-start guide.
-- `CHANGELOG.md`: created — this file.
-- `demo-001.ps1`: created — working demonstration script.
+All notable changes to the **VPDLX** module are documented here.
 
 ---
 
-*Maintained by [Praetoriani](https://github.com/praetoriani)*
+## [1.01.00] — 06.04.2026
+
+### Overview
+Complete architectural rewrite. The previous function-based API (v1.00.00) has been replaced by a class-based OOP architecture. **This is a breaking change** — all v1.00.00 functions have been removed.
+
+### Breaking Changes
+- All public functions from v1.00.00 have been removed:
+  `CreateNewLogfile`, `WriteLogfileEntry`, `ReadLogfileEntry`,
+  `ResetLogfile`, `DeleteLogfile` and related helpers no longer exist.
+- Log levels changed from 8 levels (DEBUG, INFO, VERBOSE, TRACE, WARNING, ERROR, CRITICAL, FATAL) with uppercase identifiers to 8 levels with **lowercase** identifiers. See *Added* below.
+
+### Added — Architecture
+- Class `[Logfile]` — central user-facing class; replaces all v1.00 functions.
+- Class `[FileStorage]` — module-level singleton registry for all active `[Logfile]` instances.
+- Class `[FileDetails]` — metadata companion for each `[Logfile]` instance.
+- Private function `VPDLXreturn` — standardised return-object factory `{ code, msg, data }`.
+- Public function `VPDLXcore` — controlled read-only accessor for module-scope variables (`appinfo`, `storage`, `export`).
+- TypeAccelerator registration on module load — all three classes are available as `[Logfile]`, `[FileDetails]`, `[FileStorage]` after `Import-Module` (no `using module` required).
+- TypeAccelerator cleanup in `OnRemove` handler.
+
+### Added — Log Levels (v1.01.00)
+| Identifier | Shortcut method | Output prefix          |
+|------------|-----------------|------------------------|
+| `info`     | `.Info()`       | `[INFO]`               |
+| `debug`    | `.Debug()`      | `[DEBUG]`              |
+| `verbose`  | `.Verbose()`    | `[VERBOSE]`            |
+| `trace`    | `.Trace()`      | `[TRACE]`              |
+| `warning`  | `.Warning()`    | `[WARNING]`            |
+| `error`    | `.Error()`      | `[ERROR]`              |
+| `critical` | `.Critical()`   | `[CRITICAL]`           |
+| `fatal`    | `.Fatal()`      | `[FATAL]`              |
+
+### Added — Logfile Methods
+- `Write(level, message)` — single entry
+- `Print(level, messages[])` — batch write with transactional pre-validation
+- `Read(line)` — 1-based, auto-clamped
+- `SoakUp()` — returns all entries as `string[]`
+- `Filter(level)` — returns matching lines (optimised `foreach` + `.Contains()`, no `Where-Object` pipeline)
+- `IsEmpty()` / `HasEntries()` — guard helpers
+- `EntryCount()` — direct entry count without accessor chain
+- `Reset()` — clears data, preserves creation timestamp and axcount
+- `Destroy()` — removes from storage, nulls data; subsequent calls throw `ObjectDisposedException`
+- Shortcut methods: `Info`, `Debug`, `Verbose`, `Trace`, `Warning`, `Error`, `Critical`, `Fatal`
+- `GetDetails()` — returns the `[FileDetails]` companion
+- `ToString()` — one-line summary
+- `GuardDestroyed()` — internal safety guard on all methods
+
+### Added — FileDetails Fields
+| Field key  | Getter method         | Description                                   |
+|------------|-----------------------|-----------------------------------------------|
+| `created`  | `GetCreated()`        | Timestamp of instance creation                |
+| `updated`  | `GetUpdated()`        | Timestamp of last Write / Print / Reset call  |
+| `lastacc`  | `GetLastAccessed()`   | Timestamp of last Read / SoakUp / Filter call |
+| `acctype`  | `GetLastAccessType()` | Type of most recent interaction               |
+| `entries`  | `GetEntries()`        | Current number of log entries                 |
+| `axcount`  | `GetAxcount()`        | Total interactions since creation (never reset unless Destroy is called) |
+
+### Added — Logfile Entry Format
+```
+[dd.MM.yyyy | HH:mm:ss]  [LEVEL]     ->  MESSAGE
+```
+
+### Changed
+- `FileDetails.RecordWrite()` now only records Write-type interactions.
+  A new `RecordPrint()` method records Print-type interactions separately,
+  so `acctype` accurately reflects whether the last write was a single Write or a batch Print.
+- `Filter()` rewritten: replaced `Where-Object` pipeline with a
+  `foreach` loop using `String.Contains()` — no regex overhead, lower pipeline cost.
+- Newline characters (`\r`, `\n`) are now explicitly rejected in message validation
+  to prevent log-injection into exported files.
+
+### Known Limitations
+- **Not designed for parallel execution.** See README.md for details.
+- `hidden` members are not truly private in PowerShell — disciplined callers should use public getters only.
+- Timestamps are stored as formatted strings; direct time arithmetic requires parsing.
+
+---
+
+## [1.00.00] — 05.04.2026
+
+### Overview
+Initial release of the VPDLX module. Function-based architecture.
+
+### Added
+- Public function `CreateNewLogfile([string] $Name)` — creates a new in-memory log file.
+- Public function `WriteLogfileEntry([string] $Name, [string] $Level, [string] $Message)` — writes a single log entry.
+- Public function `ReadLogfileEntry([string] $Name, [int] $Line)` — reads a specific line.
+- Public function `ResetLogfile([string] $Name)` — clears all entries.
+- Public function `DeleteLogfile([string] $Name)` — removes the log file from memory.
+- 8 log levels: `DEBUG`, `INFO`, `VERBOSE`, `TRACE`, `WARNING`, `ERROR`, `CRITICAL`, `FATAL` (uppercase identifiers, case-sensitive).
+- In-memory storage via `$script:LogfileRegistry` hashtable.
+- Standardised return objects `{ code, msg, data }` for all public functions.

@@ -1,239 +1,284 @@
-# VPDLX
+# VPDLX — Virtual PowerShell Data-Logger eXtension
 
-> **Virtual PowerShell Data-Logger eXtension**
-> A lightweight, purely in-memory PowerShell module for creating, managing, and exporting multiple virtual log files within a single script session.
+![Version](https://img.shields.io/badge/Version-1.01.00-blue)
+![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
+![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-[![Module Version](https://img.shields.io/badge/version-1.00.00-blue)](CHANGELOG.md)
-[![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)](https://github.com/PowerShell/PowerShell)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey)](https://www.microsoft.com/windows)
-[![License](https://img.shields.io/badge/license-Personal%20%26%20Corporate%20Use-green)](LICENSE)
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Requirements](#requirements)
-3. [Installation](#installation)
-4. [Module Architecture](#module-architecture)
-5. [Public Functions](#public-functions)
-6. [Private Helpers](#private-helpers)
-7. [Module Scope Variables](#module-scope-variables)
-8. [Return Value Convention](#return-value-convention)
-9. [Typical Workflow](#typical-workflow)
-10. [Further Reading](#further-reading)
+VPDLX is a PowerShell module that provides a fully class-based, **in-memory** virtual logging system. Instead of writing log entries to disk immediately, VPDLX keeps any number of named log instances alive in RAM for the duration of the current PowerShell session — enabling fast, structured, and reversible logging without any file-system I/O.
 
 ---
 
-## Overview
+## Table of contents
 
-**VPDLX** (Virtual PowerShell Data-Logger eXtension) is a PowerShell module that provides
-a purely in-memory virtual log file system. Instead of writing every log entry immediately
-to disk, VPDLX lets you:
-
-- **Create** multiple named virtual log file instances inside a running script session
-- **Write** structured, timestamped log entries with configurable log levels into any instance
-- **Read** individual entries from any instance by line number
-- **Reset** the content of a virtual log file without destroying the instance
-- **Delete** an instance entirely, including its removal from the central file registry
-- **Export** virtual log files to real `.log` files on disk when you need persistence
-
-All public functions return a uniform `PSCustomObject { .code, .msg, .data }` result so
-VPDLX integrates cleanly into larger automation pipelines.
-
-> For a quick hands-on introduction see **[QUICKSTART.md](QUICKSTART.md)**.
-> For a full version history see **[CHANGELOG.md](CHANGELOG.md)**.
-> For a working code example see **[demo-001.ps1](demo-001.ps1)**.
+1. [Requirements](#requirements)
+2. [Installation](#installation)
+3. [Architecture](#architecture)
+4. [Class reference](#class-reference)
+   - [Logfile](#logfile)
+   - [FileDetails](#filedetails)
+   - [FileStorage](#filestorage)
+5. [VPDLXcore](#vpdlxcore)
+6. [Log levels](#log-levels)
+7. [Entry format](#entry-format)
+8. [Quick examples](#quick-examples)
+9. [Known limitations](#known-limitations)
 
 ---
 
 ## Requirements
 
-| Requirement | Details |
-|---|---|
-| **PowerShell** | 5.1 (Windows Desktop) or 7.x+ (Core) |
-| **OS** | Windows 10 / Windows 11 |
-| **.NET Framework** | 4.7.2+ (PS 5.x) — ships with Windows 10/11 |
-| **Privileges** | Standard user — no elevation required |
-| **External tools** | None — zero dependencies outside PowerShell itself |
+| Requirement          | Value                          |
+|----------------------|--------------------------------|
+| PowerShell           | 5.1 (Desktop) or 7.x (Core)   |
+| Compatible editions  | `Desktop`, `Core`              |
+| External dependencies| None                           |
+| Required privileges  | Standard user (no elevation)   |
+| Platform             | Windows 10 / Windows 11        |
 
 ---
 
 ## Installation
 
+Clone or copy the `VPDLX` folder to any location, then import:
+
 ```powershell
-# 1. Clone the repository
-git clone https://github.com/praetoriani/PowerShell.Mods.git
-
-# 2. Copy the VPDLX folder to a module path
-Copy-Item -Path '.\PowerShell.Mods\VPDLX' `
-          -Destination "$env:UserProfile\Documents\PowerShell\Modules\VPDLX" `
-          -Recurse -Force
-
-# 3. Import the module
-Import-Module VPDLX -Verbose
-
-# 4. Verify
-Get-Module VPDLX | Select-Object Name, Version
+Import-Module .\VPDLX\VPDLX.psd1
 ```
 
-> The module does **not** require administrator privileges and works equally well when
-> dot-sourced directly from a script:
-> ```powershell
-> Import-Module '.\VPDLX\VPDLX.psd1'
-> ```
+After import, the three classes `[Logfile]`, `[FileDetails]`, and `[FileStorage]` are
+registered as TypeAccelerators and are immediately usable — no `using module` required.
 
 ---
 
-## Module Architecture
+## Architecture
 
 ```
-VPDLX\
-├── VPDLX.psm1                     <- Module root: scope initialisation + dot-source loader
-├── VPDLX.psd1                     <- Module manifest (version, exports, file list)
-├── CHANGELOG.md                   <- Full version history
-├── QUICKSTART.md                  <- Hands-on quick-start guide
-├── README.md                      <- This file
-├── demo-001.ps1                   <- Working demonstration script
+VPDLX/
+├── VPDLX.psm1          # Root module: class loading, TypeAccelerators, module init
+├── VPDLX.psd1          # Module manifest
+├── CHANGELOG.md
+├── QUICKSTART.md
+├── README.md
 │
-├── Public\                        <- All exported functions (one file per function)
-│   ├── VPDLXcore.ps1              <- Type-safe read/write accessor for module-scope variables
-│   ├── CreateNewLogfile.ps1       <- Create a new virtual log file instance
-│   ├── WriteLogfileEntry.ps1      <- Write a log entry into a virtual log file
-│   ├── ReadLogfileEntry.ps1       <- Read a single entry from a virtual log file
-│   ├── ResetLogfile.ps1           <- Reset (clear) a virtual log file
-│   └── DeleteLogfile.ps1          <- Delete a virtual log file instance entirely
+├── Classes/
+│   ├── FileDetails.ps1 # Metadata companion for each Logfile instance
+│   ├── FileStorage.ps1 # Module-level singleton registry
+│   └── Logfile.ps1     # Core user-facing class
 │
-└── Private\                       <- Internal helpers (not exported)
-    └── VPDLXreturn.ps1            <- Standardised { .code, .msg, .data } return object factory
+├── Private/
+│   └── VPDLXreturn.ps1 # Standardised return-object factory
+│
+├── Public/             # Reserved for future wrapper functions
+│
+└── Examples/
+    └── Demo-001.ps1    # Annotated demonstration script
 ```
 
-The `.psm1` dot-sources **all** `Public\*.ps1` and `Private\*.ps1` files automatically.
-No edits to `.psm1` are needed when adding new functions — place the `.ps1` in the correct
-subfolder and add the function name to `FunctionsToExport` in `.psd1`.
+Classes are dot-sourced in strict dependency order: `FileDetails` → `FileStorage` → `Logfile`. A load-order guard in `VPDLX.psm1` verifies each file exists before dot-sourcing and aborts with a descriptive error if any file is missing.
 
 ---
 
-## Public Functions
+## Class reference
 
-### Core
+### Logfile
 
-| Function | Description |
-|---|---|
-| `VPDLXcore` | Type-safe read/write accessor for all module-scope variables (`loginstances`, `filestorage`, `loglevel`, `exit`) |
-
-### Virtual Log File Management
-
-| Function | Mandatory Parameters | Description |
-|---|---|---|
-| `CreateNewLogfile` | `-FileName` | Creates a new named virtual log file instance and registers it in `$script:filestorage` |
-| `WriteLogfileEntry` | `-FileName`, `-LogLevel`, `-Message` | Appends a formatted, timestamped entry to the specified virtual log file |
-| `ReadLogfileEntry` | `-FileName`, `-Line` | Returns a single entry by line number; auto-clamps to last entry when `Line` exceeds entry count |
-| `ResetLogfile` | `-FileName` | Clears all entries from the specified virtual log file without removing the instance |
-| `DeleteLogfile` | `-FileName` | Removes a virtual log file instance completely, including its entry in `$script:filestorage` |
-
----
-
-## Private Helpers
-
-| Function | Description |
-|---|---|
-| `VPDLXreturn` | Creates standardised `{ .code, .msg, .data }` return objects used by all public functions |
-
----
-
-## Module Scope Variables
-
-All module-scope variables are accessible read-only via `VPDLXcore` (Permission `'read'`)
-and with type-safe write access via `VPDLXcore` (Permission `'write'`).
-
-| Variable | Key(s) | Type | Purpose |
-|---|---|---|---|
-| `$script:loginstances` | `<normalizedName>` | `[hashtable]` | Dictionary of all active virtual log file instances, keyed by lowercase filename |
-| `$script:filestorage` | — | `[array]` | Flat string array of all registered log file names; used for fast existence checks |
-| `$script:loglevel` | — | `[array]` | Permitted log level strings (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, `VERBOSE`, `TRACE`, `FATAL`) |
-| `$script:exit` | `code`, `msg` | `[hashtable]` | Last module exit state |
-
-### Log Instance Schema
-
-Each entry in `$script:loginstances` is a hashtable with three keys:
+The central, user-facing class. Each instance is one named virtual log file.
 
 ```powershell
-$script:loginstances['mylog'] = @{
-    name = 'MyLog'                  # Original filename (preserves casing)
-    data = [System.Collections.Generic.List[string]]::new()  # One string per log entry
-    info = @{
-        created = '2026-04-05 23:00:00'  # Timestamp of CreateNewLogfile call
-        updated = '2026-04-05 23:05:00'  # Timestamp of last WriteLogfileEntry call
-        entries = 0                       # Current entry count
-    }
+$log = [Logfile]::new('MyAppLog')
+```
+
+**Name rules:** 3–64 characters; allowed: `a-z A-Z 0-9 _ - .`; case-insensitive uniqueness.
+
+#### Write methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `Write` | `Write([string] $level, [string] $message)` | Appends a single entry |
+| `Print` | `Print([string] $level, [string[]] $messages)` | Appends a batch; transactional pre-validation |
+| `Info` | `Info([string] $message)` | Shortcut for `Write('info', ...)` |
+| `Debug` | `Debug([string] $message)` | Shortcut for `Write('debug', ...)` |
+| `Verbose` | `Verbose([string] $message)` | Shortcut for `Write('verbose', ...)` |
+| `Trace` | `Trace([string] $message)` | Shortcut for `Write('trace', ...)` |
+| `Warning` | `Warning([string] $message)` | Shortcut for `Write('warning', ...)` |
+| `Error` | `Error([string] $message)` | Shortcut for `Write('error', ...)` |
+| `Critical` | `Critical([string] $message)` | Shortcut for `Write('critical', ...)` |
+| `Fatal` | `Fatal([string] $message)` | Shortcut for `Write('fatal', ...)` |
+
+#### Read methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `Read` | `Read([int] $line) → string` | 1-based; auto-clamped to valid range |
+| `SoakUp` | `SoakUp() → string[]` | Returns all entries as an array |
+| `Filter` | `Filter([string] $level) → string[]` | Returns only entries matching the level |
+
+#### Utility methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `IsEmpty` | `IsEmpty() → bool` | `$true` if no entries |
+| `HasEntries` | `HasEntries() → bool` | `$true` if at least one entry |
+| `EntryCount` | `EntryCount() → int` | Current entry count |
+| `Reset` | `Reset() → void` | Clears all data (irreversible) |
+| `Destroy` | `Destroy() → void` | Removes from registry, frees memory |
+| `GetDetails` | `GetDetails() → [FileDetails]` | Returns the metadata companion |
+| `ToString` | `ToString() → string` | One-line summary |
+
+---
+
+### FileDetails
+
+Read-only metadata companion for each `[Logfile]` instance. Obtain via `$log.GetDetails()`.
+
+#### Public getter methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `GetCreated()` | `string` | Timestamp of instance creation |
+| `GetUpdated()` | `string` | Timestamp of last Write / Print / Reset |
+| `GetLastAccessed()` | `string` | Timestamp of last Read / SoakUp / Filter |
+| `GetLastAccessType()` | `string` | Type of the most recent interaction |
+| `GetEntries()` | `int` | Current number of log entries |
+| `GetAxcount()` | `int` | Total interactions since creation |
+| `ToString()` | `string` | One-line summary of all fields |
+| `ToHashtable()` | `OrderedDictionary` | All fields as ordered key-value pairs |
+
+**Axcount** is never reset during the lifetime of the instance — only zeroed when `Destroy()` is called.
+
+---
+
+### FileStorage
+
+Module-level singleton registry. Access via `VPDLXcore -KeyID 'storage'`.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `Contains` | `Contains([string] $name) → bool` | O(1) name lookup |
+| `Get` | `Get([string] $name) → object` | Returns instance or `$null` |
+| `Count` | `Count() → int` | Number of registered instances |
+| `GetNames` | `GetNames() → string[]` | All names in insertion order |
+| `ToString` | `ToString() → string` | Summary string |
+
+---
+
+## VPDLXcore
+
+The only exported public function. Provides controlled read-only access to module-scope variables.
+
+```powershell
+VPDLXcore -KeyID 'appinfo'   # Module metadata hashtable
+VPDLXcore -KeyID 'storage'   # [FileStorage] singleton
+VPDLXcore -KeyID 'export'    # Export format definitions (reserved)
+```
+
+Return type: `PSCustomObject { code, msg, data }` where `code` is `0` (success) or `-1` (error).
+
+---
+
+## Log levels
+
+| Identifier | Shortcut method | Output tag    | Typical use                            |
+|------------|-----------------|---------------|----------------------------------------|
+| `info`     | `.Info()`       | `[INFO]`      | General informational messages         |
+| `debug`    | `.Debug()`      | `[DEBUG]`     | Developer diagnostics                  |
+| `verbose`  | `.Verbose()`    | `[VERBOSE]`   | Detailed execution tracing             |
+| `trace`    | `.Trace()`      | `[TRACE]`     | Fine-grained step-by-step tracing      |
+| `warning`  | `.Warning()`    | `[WARNING]`   | Non-fatal unexpected conditions        |
+| `error`    | `.Error()`      | `[ERROR]`     | Recoverable errors                     |
+| `critical` | `.Critical()`   | `[CRITICAL]`  | Severe errors, degraded functionality  |
+| `fatal`    | `.Fatal()`      | `[FATAL]`     | Unrecoverable errors, imminent failure |
+
+Level identifiers are **case-insensitive**.
+
+---
+
+## Entry format
+
+```
+[dd.MM.yyyy | HH:mm:ss]  [LEVEL]     ->  MESSAGE
+```
+
+Example:
+
+```
+[06.04.2026 | 09:00:01]  [INFO]      ->  Application started.
+[06.04.2026 | 09:00:02]  [DEBUG]     ->  Config loaded from C:\App\config.json.
+[06.04.2026 | 09:00:03]  [WARNING]   ->  Disk usage at 81 percent.
+[06.04.2026 | 09:00:04]  [ERROR]     ->  Database connection failed on attempt 1.
+[06.04.2026 | 09:00:05]  [FATAL]     ->  Unrecoverable exception — terminating.
+```
+
+---
+
+## Quick examples
+
+```powershell
+# ── Import ───────────────────────────────────────────────────────────
+Import-Module .\VPDLX\VPDLX.psd1
+
+# ── Create ───────────────────────────────────────────────────────────
+$log = [Logfile]::new('AppLog')
+
+# ── Write ────────────────────────────────────────────────────────────
+$log.Info('Service started.')
+$log.Debug('Reading configuration...')
+$log.Verbose('Entering Initialize-DataStore.')
+$log.Warning('Retry count is 0.')
+$log.Error('Connection attempt 1 failed.')
+$log.Fatal('Unrecoverable state — aborting.')
+
+$log.Print('info', @('Step 1 complete.', 'Step 2 complete.', 'Step 3 complete.'))
+
+# ── Read ─────────────────────────────────────────────────────────────
+$log.Read(1)               # First entry
+$log.SoakUp()              # All entries as string[]
+$log.Filter('error')       # Only [ERROR] entries
+
+# ── Guard helpers ────────────────────────────────────────────────────
+if ($log.HasEntries()) {
+    Write-Host "Entries: $($log.EntryCount())"
 }
+
+# ── Metadata ─────────────────────────────────────────────────────────
+$d = $log.GetDetails()
+Write-Host "Created : $($d.GetCreated())"
+Write-Host "Updated : $($d.GetUpdated())"
+Write-Host "AccType : $($d.GetLastAccessType())"
+Write-Host "Axcount : $($d.GetAxcount())"
+
+# ── Reset / Destroy ───────────────────────────────────────────────────
+$log.Reset()
+$log.Destroy()
+$log = $null
 ```
 
 ---
 
-## Return Value Convention
+## Known limitations
 
-Every public function returns a `PSCustomObject` with three fields:
+### No parallel execution support ⚠️
 
-| Field | Type | Meaning |
-|---|---|---|
-| `.code` | `int` | `0` = success, `-1` = failure |
-| `.msg` | `string` | Human-readable result or error description |
-| `.data` | any | Return payload — `$null` on failure |
+VPDLX is **not designed for parallel execution** and is **not thread-safe**.
 
-```powershell
-$r = CreateNewLogfile -FileName 'AppLog'
-if ($r.code -eq 0) {
-    Write-Host "Created: $($r.msg)"
-} else {
-    Write-Error "Failed:  $($r.msg)"
-}
-```
+The internal data structures (`List<string>` for log entries, `Dictionary` for the storage registry) are not synchronised. Using `[Logfile]` instances inside `ForEach-Object -Parallel`, `Start-ThreadJob`, or any other multi-runspace construct **without external synchronisation** may lead to:
+- Race conditions on `_data.Add()` causing lost or corrupted entries
+- Registry corruption in `FileStorage`
+- Unpredictable `ObjectDisposedException` behaviour
 
----
+This is a **known limitation** of the current version. For single-threaded, sequential PowerShell scripts VPDLX is fully reliable.
 
-## Typical Workflow
+> If parallel logging is required, each parallel worker should maintain its own
+> independent `[Logfile]` instance and the results should be merged after the
+> parallel block completes.
 
-```powershell
-Import-Module VPDLX
+### Other known limitations
 
-# 1. Create two virtual log files
-$r1 = CreateNewLogfile -FileName 'SetupLog'
-$r2 = CreateNewLogfile -FileName 'ErrorLog'
-
-# 2. Write entries
-WriteLogfileEntry -FileName 'SetupLog' -LogLevel 'INFO'    -Message 'Installation started'
-WriteLogfileEntry -FileName 'SetupLog' -LogLevel 'DEBUG'   -Message 'Verifying prerequisites'
-WriteLogfileEntry -FileName 'ErrorLog' -LogLevel 'WARNING' -Message 'Disk space below threshold'
-
-# 3. Read a specific entry (line 1 = first entry)
-$entry = ReadLogfileEntry -FileName 'SetupLog' -Line 1
-Write-Host $entry.data
-
-# 4. List all registered log files
-$files = VPDLXcore -Scope 'storage' -GlobalVar 'filestorage' -Permission 'read'
-Write-Host "Active log files: $($files.data -join ', ')"
-
-# 5. Reset a log file
-ResetLogfile -FileName 'SetupLog'
-
-# 6. Delete a log file instance
-DeleteLogfile -FileName 'ErrorLog'
-```
-
----
-
-## Further Reading
-
-| Resource | Link |
-|---|---|
-| **Quick-Start Guide** | [QUICKSTART.md](QUICKSTART.md) |
-| **Changelog** | [CHANGELOG.md](CHANGELOG.md) |
-| **Demo Script** | [demo-001.ps1](demo-001.ps1) |
-| **PowerShell Releases** | [github.com/PowerShell/PowerShell/releases](https://github.com/PowerShell/PowerShell/releases) |
-| **VPDLX on GitHub** | [github.com/praetoriani/PowerShell.Mods/tree/main/VPDLX](https://github.com/praetoriani/PowerShell.Mods/tree/main/VPDLX) |
-
----
-
-*Module by [Praetoriani](https://github.com/praetoriani) — Licensed for personal and corporate use.*
+| Limitation | Detail |
+|------------|--------|
+| `hidden` ≠ `private` | PowerShell does not enforce true access control. `hidden` suppresses IntelliSense/Get-Member visibility only. |
+| No entry limit | Logs grow unboundedly in RAM. Very long-running scripts may consume significant memory. |
+| String timestamps | Timestamps are stored as formatted strings. Direct time arithmetic requires additional parsing. |
+| No export in v1.01.00 | Export to `.txt`, `.csv`, `.json`, `.log` is planned for a future version. Use `SoakUp()` as an interim workaround. |
+| After `Destroy()` | Set the variable to `$null` manually. Subsequent calls on the old reference throw `ObjectDisposedException`. |
