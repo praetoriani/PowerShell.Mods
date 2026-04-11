@@ -9,7 +9,7 @@
     to create, manage, and query multiple in-memory log files simultaneously,
     and export them to disk in multiple formats when needed.
 
-    Architecture overview (v1.02.03):
+    Architecture overview (v1.02.05):
 
       Classes/
           VPDLXClasses.ps1  — consolidated class file containing all three classes:
@@ -22,12 +22,15 @@
                                return objects used by all Public Wrapper functions
 
       Public/
-          VPDLXnewlogfile.ps1    — create a new virtual log file
-          VPDLXislogfile.ps1     — check whether a named log file exists
-          VPDLXdroplogfile.ps1   — permanently delete a named log file
-          VPDLXreadlogfile.ps1   — read a specific line from a log file
-          VPDLXwritelogfile.ps1  — append a new entry to a log file
-          VPDLXexportlogfile.ps1 — export a virtual log file to disk (txt/log/csv/json)
+          VPDLXnewlogfile.ps1      — create a new virtual log file
+          VPDLXislogfile.ps1       — check whether a named log file exists
+          VPDLXdroplogfile.ps1     — permanently delete a named log file
+          VPDLXreadlogfile.ps1     — read a specific line from a log file
+          VPDLXwritelogfile.ps1    — append a new entry to a log file
+          VPDLXexportlogfile.ps1   — export a virtual log file to disk (txt/log/csv/json)
+          VPDLXgetalllogfiles.ps1  — list all active log files with metadata (v1.02.05)
+          VPDLXresetlogfile.ps1    — clear all entries from a log file (v1.02.05)
+          VPDLXfilterlogfile.ps1   — filter log entries by level (v1.02.05)
 
     TypeAccelerators:
         [FileDetails], [FileStorage], and [Logfile] are registered as
@@ -69,6 +72,16 @@
     - No external dependencies
 
     CHANGELOG:
+    v1.02.05 (11.04.2026):
+      New Public Wrapper functions (Priorität 10 der Developer ToDo-Liste):
+        - VPDLXgetalllogfiles  : lists all active log files with metadata summary
+        - VPDLXresetlogfile    : clears all entries from a log file (keeps it alive)
+        - VPDLXfilterlogfile   : filters log entries by level, returns structured result
+      New VPDLXcore key:
+        - VPDLXcore -KeyID 'stats' : returns module-wide statistics (active logfiles,
+          total entries, max/min entry counts, module version)
+      Updated: VPDLX.psd1 (FunctionsToExport, FileList, ReleaseNotes, Version)
+
     v1.02.04 (11.04.2026):
       Performance & Quality improvements (Priorität 9).
       - Added VPDLX.Precheck.ps1 — validates PS >= 5.1 before module load.
@@ -121,12 +134,12 @@
 # Read-only module metadata. Accessible externally via: VPDLXcore -KeyID 'appinfo'
 $script:appinfo = @{
     appname    = 'VPDLX'
-    appvers    = '1.02.04'
+    appvers    = '1.02.05'
     appdevname = 'Praetoriani'
     appdevmail = 'mr.praetoriani{at}gmail.com'
     appwebsite = 'https://github.com/praetoriani/PowerShell.Mods'
     datecreate = '05.04.2026'
-    lastupdate = '11.04.2026'
+    lastupdate = '11.04.2026'  # v1.02.05
 }
 
 # Supported file formats for VPDLXexportlogfile.
@@ -225,6 +238,7 @@ foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
       VPDLXcore -KeyID 'storage'      ->  $script:storage  ([FileStorage] singleton)
       VPDLXcore -KeyID 'export'       ->  $script:export   (export format definitions)
       VPDLXcore -KeyID 'destroyall'   ->  calls $script:storage.DestroyAll()
+      VPDLXcore -KeyID 'stats'        ->  module-wide statistics (v1.02.05)
 
     Callers receive a reference, not a copy, so operations on the returned
     object reflect the current live state at all times.
@@ -234,7 +248,7 @@ foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
     functions to preserve internal consistency.
 
 .PARAMETER KeyID
-    The variable to access. One of: 'appinfo', 'storage', 'export', 'destroyall'
+    The variable to access. One of: 'appinfo', 'storage', 'export', 'destroyall', 'stats'
     (case-insensitive)
 
 .OUTPUTS
@@ -280,10 +294,58 @@ function VPDLXcore {
                 )
             }
 
+            # NEW v1.02.05 (Priorität 10):
+            # Returns module-wide statistics as a structured PSCustomObject.
+            # Collects: total active log files, sum of all entries across all
+            # log files, maximum and minimum entry counts, and the module version.
+            # This is a read-only operation — no log file state is modified.
+            'stats' {
+                [int] $logfileCount   = $script:storage.Count()
+                [int] $totalEntries   = 0
+                [int] $maxEntries     = 0
+                [int] $minEntries     = [int]::MaxValue
+                [string] $largestLog  = ''
+                [string] $smallestLog = ''
+
+                if ($logfileCount -gt 0) {
+                    foreach ($logName in $script:storage.GetNames()) {
+                        $logInst = $script:storage.Get($logName)
+                        if ($null -ne $logInst) {
+                            [int] $ec = $logInst.EntryCount()
+                            $totalEntries += $ec
+                            if ($ec -gt $maxEntries) {
+                                $maxEntries  = $ec
+                                $largestLog  = $logInst.Name
+                            }
+                            if ($ec -lt $minEntries) {
+                                $minEntries  = $ec
+                                $smallestLog = $logInst.Name
+                            }
+                        }
+                    }
+                } else {
+                    $minEntries = 0
+                }
+
+                $statsPayload = [PSCustomObject] [ordered] @{
+                    ActiveLogfiles = $logfileCount
+                    TotalEntries   = $totalEntries
+                    MaxEntries     = $maxEntries
+                    MaxEntriesLog  = $largestLog
+                    MinEntries     = $minEntries
+                    MinEntriesLog  = $smallestLog
+                    ModuleVersion  = $script:appinfo.appvers
+                }
+
+                return VPDLXreturn -Code 0 `
+                    -Message "Module stats: $logfileCount logfile(s), $totalEntries total entries." `
+                    -Data $statsPayload
+            }
+
             default {
                 return VPDLXreturn -Code -1 -Message (
                     "Unknown KeyID '$KeyID'. " +
-                    "Valid keys: 'appinfo', 'storage', 'export', 'destroyall'."
+                    "Valid keys: 'appinfo', 'storage', 'export', 'destroyall', 'stats'."
                 )
             }
         }

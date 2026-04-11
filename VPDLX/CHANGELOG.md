@@ -5,6 +5,186 @@ This file follows a *reverse-chronological* order — the newest version is alwa
 
 ---
 
+## [1.02.05] — 11.04.2026
+
+### Overview
+New Wrapper Functions & Module Statistics release. Implements four features from
+**Priorität 10** of the Developer ToDo-Liste: three new public wrapper functions
+(`VPDLXgetalllogfiles`, `VPDLXresetlogfile`, `VPDLXfilterlogfile`) and a new
+`VPDLXcore -KeyID 'stats'` accessor for module-wide statistics. These additions
+complete the public wrapper API, giving callers standardised, safe access to
+every major log file operation without needing to interact with the class API
+directly.
+
+### Added — `VPDLXgetalllogfiles` (List All Active Log Files)
+
+- **New file: `Public\VPDLXgetalllogfiles.ps1`** — a parameterless public wrapper
+  that returns a summary of every virtual log file currently registered in the
+  module’s in-memory storage.
+- Iterates all registered names via `FileStorage.GetNames()`, retrieves each
+  `[Logfile]` instance, and collects the following properties into a
+  `[PSCustomObject]` per log file:
+
+  | Property       | Type       | Description                                 |
+  |----------------|------------|---------------------------------------------|
+  | `Name`         | `string`   | Log file name (case-preserved)              |
+  | `EntryCount`   | `int`      | Current number of log entries                |
+  | `Created`      | `string`   | Creation timestamp (`dd.MM.yyyy \| HH:mm:ss`) |
+  | `Updated`      | `string`   | Last write/reset timestamp                  |
+  | `LastAccessed` | `string`   | Last read/filter/export timestamp           |
+  | `AccessCount`  | `int`      | Total interaction count since creation      |
+
+- **Return contract (via `VPDLXreturn`):**
+  - `code  0` — success; `.data` holds `[PSCustomObject[]]` (empty array `@()` if
+    no log files are registered).
+  - `code -1` — failure; `.msg` describes the reason.
+- **Read-only operation:** Calls only public getter methods on `[FileDetails]`
+  and `[Logfile]`. Does **not** increment `axcount` or update `lastacc` on any
+  log file. Safe for monitoring and dashboard use.
+- Skips destroyed instances gracefully (catches `ObjectDisposedException`,
+  continues enumeration) and logs skipped names via `Write-Verbose`.
+
+**Usage example:**
+
+```powershell
+$result = VPDLXgetalllogfiles
+if ($result.code -eq 0) {
+    $result.data | Format-Table -AutoSize
+}
+```
+
+### Added — `VPDLXresetlogfile` (Clear Log File Entries)
+
+- **New file: `Public\VPDLXresetlogfile.ps1`** — a public wrapper that clears all
+  entries from a named virtual log file while preserving the log file itself
+  (its registration, name, and metadata skeleton).
+- Wraps the `[Logfile].Reset()` method in the standardised error-handling and
+  return-object pattern established by all other VPDLX public wrappers.
+- **Parameter:**
+  - `-Logfile` (mandatory, position 0) — the name of the log file to reset.
+    Case-insensitive lookup, leading/trailing whitespace trimmed.
+- **Return contract (via `VPDLXreturn`):**
+  - `code  0` — success; `.data` holds the entry count **before** the reset
+    (so the caller knows how many entries were cleared).
+  - `code -1` — failure; `.msg` describes the reason.
+- **Key behaviour:**
+  - The log file remains registered in `FileStorage` and can immediately accept
+    new entries after reset.
+  - `_details.ApplyReset()` updates: `updated`, `lastacc`, `acctype` (→ `'Reset'`),
+    `axcount` (+1), `entries` (→ 0). The `created` timestamp is preserved.
+- **Difference from `VPDLXdroplogfile`:**
+  - `VPDLXresetlogfile` — clears DATA, keeps the log file alive.
+  - `VPDLXdroplogfile` — destroys EVERYTHING (data + metadata + registration).
+
+**Usage example:**
+
+```powershell
+# Log rotation: export, then clear
+$export = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json'
+if ($export.code -eq 0) {
+    $reset = VPDLXresetlogfile -Logfile 'AppLog'
+    Write-Host "Exported and cleared $($reset.data) entries."
+}
+```
+
+### Added — `VPDLXfilterlogfile` (Filter Entries by Level)
+
+- **New file: `Public\VPDLXfilterlogfile.ps1`** — a public wrapper that retrieves
+  all log entries matching a specific log level from a named virtual log file.
+- Wraps the `[Logfile].FilterByLevel()` method in the standardised error-handling
+  and return-object pattern.
+- **Parameters:**
+  - `-Logfile` (mandatory, position 0) — the name of the log file to filter.
+  - `-Level` (mandatory, position 1) — the log level to filter for. Validated by
+    `[ValidateSet]` at the binding layer (provides tab-completion in interactive
+    sessions and editors).
+    Accepted values: `info`, `debug`, `verbose`, `trace`, `warning`, `error`,
+    `critical`, `fatal` (case-insensitive).
+- **Return contract (via `VPDLXreturn`):**
+  - `code  0` — success; `.data` holds a `[PSCustomObject]` with:
+
+    | Property  | Type        | Description                        |
+    |-----------|-------------|------------------------------------|
+    | `Entries` | `string[]`  | Matching log lines (or empty `@()`)|
+    | `Count`   | `int`       | Number of matches                  |
+    | `Level`   | `string`    | The level that was filtered        |
+
+  - `code -1` — failure; `.msg` describes the reason.
+- **Matching strategy (from `[Logfile].FilterByLevel()`):** Each log line is
+  checked with `String.Contains()` against the uppercase bracket notation
+  (e.g. `[WARNING]`). This is a fixed-string comparison — faster than regex.
+- Updates `_details.RecordFilterByLevel()` on the log file — modifies `lastacc`,
+  `acctype` (→ `'FilterByLevel'`), and `axcount`.
+
+**Usage example:**
+
+```powershell
+$result = VPDLXfilterlogfile -Logfile 'AppLog' -Level 'error'
+if ($result.code -eq 0 -and $result.data.Count -gt 0) {
+    Write-Host "Found $($result.data.Count) error(s):"
+    $result.data.Entries | ForEach-Object { Write-Host "  $_" }
+}
+```
+
+### Added — `VPDLXcore -KeyID 'stats'` (Module-Wide Statistics)
+
+- **New `switch` case in `VPDLXcore`** (defined in `VPDLX.psm1`, Section 5) —
+  returns a `[PSCustomObject]` containing aggregated module-wide statistics.
+- Iterates all registered log files and collects:
+
+  | Property          | Type     | Description                                   |
+  |-------------------|----------|-----------------------------------------------|
+  | `ActiveLogfiles`  | `int`    | Number of currently registered log files       |
+  | `TotalEntries`    | `int`    | Sum of all entries across all log files         |
+  | `MaxEntries`      | `int`    | Highest entry count among all log files         |
+  | `MaxEntriesLog`   | `string` | Name of the log file with the most entries      |
+  | `MinEntries`      | `int`    | Lowest entry count among all log files          |
+  | `MinEntriesLog`   | `string` | Name of the log file with the fewest entries    |
+  | `ModuleVersion`   | `string` | Current VPDLX module version                    |
+
+- **Read-only operation:** Uses `EntryCount()` which is a simple `_data.Count`
+  call. Does **not** modify any log file state.
+
+**Usage example:**
+
+```powershell
+$stats = (VPDLXcore -KeyID 'stats').data
+Write-Host "Active logs: $($stats.ActiveLogfiles), Total entries: $($stats.TotalEntries)"
+Write-Host "Largest: $($stats.MaxEntriesLog) ($($stats.MaxEntries) entries)"
+```
+
+### Changed — Manifest & Module Updates
+
+- **`VPDLX.psd1`:**
+  - `ModuleVersion` updated from `1.02.04` to `1.02.05`.
+  - `FunctionsToExport` extended with `VPDLXgetalllogfiles`, `VPDLXresetlogfile`,
+    and `VPDLXfilterlogfile`.
+  - `FileList` extended with the three new function files.
+  - `ReleaseNotes` updated with the full v1.02.05 entry.
+- **`VPDLX.psm1`:**
+  - `$script:appinfo.appvers` updated to `'1.02.05'`.
+  - Architecture overview in `.DESCRIPTION` extended with the three new files.
+  - Changelog section extended with v1.02.05 entry.
+  - `VPDLXcore` function:
+    - New `'stats'` case added (see above).
+    - `.DESCRIPTION` and `.PARAMETER` documentation updated to include `'stats'`.
+    - Default/error message updated to list `'stats'` as a valid key.
+- **No changes to `VPDLXClasses.ps1`, `VPDLXreturn.ps1`, or any existing public
+  wrapper files.** The three new wrappers build on existing class methods
+  (`Reset()`, `FilterByLevel()`, `GetNames()`, `Get()`, `EntryCount()`,
+  `GetDetails()`) without modification.
+
+### Summary of New Public API Surface
+
+| Function              | Parameters                  | `.data` on Success                                |
+|-----------------------|-----------------------------|---------------------------------------------------|
+| `VPDLXgetalllogfiles` | *(none)*                    | `PSCustomObject[]` — one per log file              |
+| `VPDLXresetlogfile`   | `-Logfile <name>`           | `int` — entries cleared                            |
+| `VPDLXfilterlogfile`  | `-Logfile <name> -Level <l>`| `PSCustomObject { Entries, Count, Level }`         |
+| `VPDLXcore -KeyID 'stats'` | *(via KeyID)*          | `PSCustomObject { ActiveLogfiles, TotalEntries, … }`|
+
+---
+
 ## [1.02.04] — 11.04.2026
 
 ### Overview

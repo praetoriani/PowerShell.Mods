@@ -1,6 +1,6 @@
 <img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
 
-# VPDLX v1.02.04 — Developer ToDo-Liste
+# VPDLX v1.02.05 — Developer ToDo-Liste
 
 
 ***
@@ -173,12 +173,12 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`VPDLXgetalllogfiles` implementieren** | Public Wrapper der alle aktiven Logfile-Instanzen als `[PSCustomObject]`-Array mit Name, EntryCount, Erstell- und Aktualisierungszeit zurückgibt | 4 |
-| ☐ | **`VPDLXresetlogfile` implementieren** | Public Wrapper für `Logfile.Reset()` — Logfile-Inhalt leeren, Metadaten aktualisieren, strukturierten `VPDLXreturn`-Rückgabewert liefern | 3 |
-| ☐ | **`VPDLXfilterlogfile` implementieren** | Public Wrapper für `Logfile.FilterByLevel()` — nach Level filtern, gefilterte Einträge als strukturierten Rückgabewert liefern | 4 |
+| ✅ | **`VPDLXgetalllogfiles` implementieren** | Public Wrapper implementiert — gibt alle aktiven Logfile-Instanzen als `[PSCustomObject]`-Array mit Name, EntryCount, Created, Updated, LastAccessed, AccessCount zurück. Read-only Operation, modifiziert keine Logfile-Metadaten (**v1.02.05, 11.04.2026**) | 4 |
+| ✅ | **`VPDLXresetlogfile` implementieren** | Public Wrapper für `Logfile.Reset()` implementiert — leert Logfile-Inhalt, aktualisiert Metadaten via `ApplyReset()`, gibt Entry-Count vor dem Reset in `.data` zurück. Log bleibt registriert und sofort wieder nutzbar (**v1.02.05, 11.04.2026**) | 3 |
+| ✅ | **`VPDLXfilterlogfile` implementieren** | Public Wrapper für `Logfile.FilterByLevel()` implementiert — filtert nach Level mit `[ValidateSet]`-Tab-Completion, gibt strukturiertes `PSCustomObject { Entries, Count, Level }` in `.data` zurück (**v1.02.05, 11.04.2026**) | 4 |
 | ☐ | **Neue Export-Formate: HTML + NDJSON** | Export-System um `html` (formatierter Log-Bericht mit CSS) und `ndjson` (Newline-Delimited JSON für Log-Streaming) erweitern | 6 |
 | ☐ | **Konfigurierbarer Mindest-Log-Level** | Beim Erstellen eines Logfiles ein minimales Level festlegbar machen (`[Logfile]::new('ProdLog', 'warning')`) — Einträge unterhalb dieses Levels werden verworfen | 6 |
-| ☐ | **`VPDLXcore -KeyID 'stats'` — Modul-Statistiken** | Neuer Core-Key liefert modul-weite Statistiken: Gesamtanzahl erstellter/aktiver Logfiles, Summe aller Einträge, Anzahl Exporte | 4 |
+| ✅ | **`VPDLXcore -KeyID 'stats'` — Modul-Statistiken** | Neuer Core-Key implementiert — liefert ActiveLogfiles, TotalEntries, MaxEntries, MaxEntriesLog, MinEntries, MinEntriesLog, ModuleVersion als `PSCustomObject`. Read-only Operation (**v1.02.05, 11.04.2026**) | 4 |
 
 
 ***
@@ -206,5 +206,5 @@
 
 ***
 
-> **Hinweis zur Bearbeitungsreihenfolge:** Die Prioritäten 1–9 sind vollständig abgeschlossen (v1.02.03 – v1.02.04). Priorität 10 (Neue Features & Erweiterungen) und Priorität 11 (Qualitätssicherung & Dokumentation) stehen als nächstes an und können unabhängig voneinander begonnen werden.
+> **Hinweis zur Bearbeitungsreihenfolge:** Die Prioritäten 1–9 sind vollständig abgeschlossen (v1.02.03 – v1.02.04). In Priorität 10 wurden vier von sechs Aufgaben umgesetzt (v1.02.05): VPDLXgetalllogfiles, VPDLXresetlogfile, VPDLXfilterlogfile und VPDLXcore stats. Die verbleibenden zwei Aufgaben (HTML+NDJSON Export, Konfigurierbarer Mindest-Log-Level) sind für v1.02.06 vorgesehen. Priorität 11 (Qualitätssicherung & Dokumentation) steht als nächstes an.
 

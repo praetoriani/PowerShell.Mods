@@ -1,6 +1,6 @@
 # VPDLX — Quick Start Guide
 
-> **Module version:** 1.02.04
+> **Module version:** 1.02.05
 > **Prerequisites:** PowerShell 5.1 or PowerShell 7.x
 
 This guide takes you from zero to a fully working virtual log file in five minutes.
@@ -24,7 +24,8 @@ After import, three things are available in your session:
 
 - **Type accelerators** — `[Logfile]`, `[FileDetails]`, `[FileStorage]` (no `using module` needed)
 - **Public Wrapper functions** — `VPDLXnewlogfile`, `VPDLXislogfile`, `VPDLXdroplogfile`,
-  `VPDLXreadlogfile`, `VPDLXwritelogfile`, `VPDLXexportlogfile`
+  `VPDLXreadlogfile`, `VPDLXwritelogfile`, `VPDLXexportlogfile`,
+  `VPDLXgetalllogfiles`, `VPDLXresetlogfile`, `VPDLXfilterlogfile` (last three new in v1.02.05)
 - **Module accessor** — `VPDLXcore`
 
 ---
@@ -275,6 +276,13 @@ $details.ToHashtable()
 ### Reset a log (clears entries, preserves metadata skeleton)
 
 ```powershell
+# Public Wrapper (recommended, v1.02.05+)
+$r = VPDLXresetlogfile -Logfile 'MyFirstLog'
+if ($r.code -eq 0) {
+    Write-Host "Cleared $($r.data) entries. Log file is still active."
+}
+
+# Class API (direct)
 $log.Reset()
 # _data is now empty; _created and _axcount are preserved
 ```
@@ -321,6 +329,39 @@ $store.DestroyAll()
 
 > `DestroyAll()` is also called automatically when the module is unloaded
 > via `Remove-Module VPDLX`, ensuring no orphaned instances remain in memory.
+
+### List all active log files (v1.02.05)
+
+```powershell
+$r = VPDLXgetalllogfiles
+if ($r.code -eq 0) {
+    $r.data | Format-Table -AutoSize
+}
+
+# Find the log file with the most entries
+$largest = $r.data | Sort-Object -Property EntryCount -Descending | Select-Object -First 1
+Write-Host "Largest: $($largest.Name) with $($largest.EntryCount) entries"
+```
+
+### Filter entries by level (v1.02.05)
+
+```powershell
+$errors = VPDLXfilterlogfile -Logfile 'MyFirstLog' -Level 'error'
+if ($errors.data.Count -gt 0) {
+    Write-Host "Found $($errors.data.Count) error(s):"
+    $errors.data.Entries | ForEach-Object { Write-Host "  $_" }
+} else {
+    Write-Host 'No errors found.'
+}
+```
+
+### Module statistics (v1.02.05)
+
+```powershell
+$stats = (VPDLXcore -KeyID 'stats').data
+Write-Host "Active: $($stats.ActiveLogfiles) log(s), $($stats.TotalEntries) total entries"
+Write-Host "Largest: $($stats.MaxEntriesLog) ($($stats.MaxEntries) entries)"
+```
 
 ### Retrieve module metadata
 

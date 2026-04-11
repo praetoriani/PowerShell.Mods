@@ -12,7 +12,7 @@
 RootModule = 'VPDLX.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.02.04'
+ModuleVersion = '1.02.05'
 
 # Supported PSEditions
 CompatiblePSEditions = @('Desktop', 'Core')
@@ -109,6 +109,11 @@ FunctionsToExport = @(
     # Logfile export
     'VPDLXexportlogfile'   # Export a virtual log file to disk (txt / log / csv / json)
 
+    # ── New Public Wrapper functions (v1.02.05 — Priorität 10) ───────────
+    'VPDLXgetalllogfiles'  # List all active log files with metadata summary
+    'VPDLXresetlogfile'    # Clear all entries from a log file (preserves registration)
+    'VPDLXfilterlogfile'   # Filter log entries by level, return structured result
+
     # ── Add new Public Wrapper function names below this line ──────────────
 )
 
@@ -136,7 +141,10 @@ FileList = @(
     'Public\VPDLXdroplogfile.ps1',
     'Public\VPDLXreadlogfile.ps1',
     'Public\VPDLXwritelogfile.ps1',
-    'Public\VPDLXexportlogfile.ps1'
+    'Public\VPDLXexportlogfile.ps1',
+    'Public\VPDLXgetalllogfiles.ps1',
+    'Public\VPDLXresetlogfile.ps1',
+    'Public\VPDLXfilterlogfile.ps1'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess.
@@ -153,6 +161,35 @@ PrivateData = @{
 
         # ReleaseNotes of this module
         ReleaseNotes = @'
+v1.02.05  (11.04.2026)
+----------------------
+New Wrapper Functions & Module Statistics (Priorität 10 der Developer ToDo-Liste).
+
+New:
+  VPDLXgetalllogfiles
+      Lists all active virtual log files in the current session. Returns an
+      array of PSCustomObjects with Name, EntryCount, Created, Updated,
+      LastAccessed, and AccessCount for each log file. Read-only operation
+      that does not modify any log file state.
+
+  VPDLXresetlogfile -Logfile <name>
+      Clears all entries from a virtual log file without destroying it. The
+      log file remains registered and can immediately accept new entries.
+      Returns the number of entries that were cleared in .data.
+      Difference from VPDLXdroplogfile: reset keeps the log alive, drop
+      destroys it permanently.
+
+  VPDLXfilterlogfile -Logfile <name> -Level <level>
+      Filters the entries of a virtual log file by log level. Returns a
+      structured PSCustomObject in .data with Entries (string[]), Count
+      (int), and Level (string). Supports [ValidateSet] tab-completion
+      for the Level parameter.
+
+  VPDLXcore -KeyID 'stats'
+      Returns module-wide statistics: ActiveLogfiles, TotalEntries,
+      MaxEntries, MaxEntriesLog, MinEntries, MinEntriesLog, and
+      ModuleVersion. Read-only — no log file state is modified.
+
 v1.02.04  (11.04.2026)
 ----------------------
 Performance & Quality improvements (Priorität 9 der Developer ToDo-Liste).

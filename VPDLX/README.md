@@ -6,7 +6,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/Version-1.02.04-blue)
+![Version](https://img.shields.io/badge/Version-1.02.05-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 
@@ -32,6 +32,9 @@ When you are ready to persist a log, the built-in export function writes it to d
    - [VPDLXreadlogfile](#vpdlxreadlogfile)
    - [VPDLXwritelogfile](#vpdlxwritelogfile)
    - [VPDLXexportlogfile](#vpdlxexportlogfile)
+   - [VPDLXgetalllogfiles](#vpdlxgetalllogfiles)
+   - [VPDLXresetlogfile](#vpdlxresetlogfile)
+   - [VPDLXfilterlogfile](#vpdlxfilterlogfile)
 5. [Class Reference](#class-reference)
    - [Logfile](#logfile)
    - [FileDetails](#filedetails)
@@ -100,7 +103,10 @@ VPDLX/
 │   ├── VPDLXdroplogfile.ps1
 │   ├── VPDLXreadlogfile.ps1
 │   ├── VPDLXwritelogfile.ps1
-│   └── VPDLXexportlogfile.ps1
+│   ├── VPDLXexportlogfile.ps1
+│   ├── VPDLXgetalllogfiles.ps1   # NEW v1.02.05
+│   ├── VPDLXresetlogfile.ps1     # NEW v1.02.05
+│   └── VPDLXfilterlogfile.ps1    # NEW v1.02.05
 │
 └── Examples/
     └── Demo-001.ps1        # Interactive step-by-step demonstration script
@@ -275,6 +281,121 @@ $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'jso
 
 ---
 
+### VPDLXgetalllogfiles
+
+Lists all active virtual log files with their metadata. No parameters required.
+
+```powershell
+VPDLXgetalllogfiles
+```
+
+**Returns:** `code 0` + `[PSCustomObject[]]` in `.data` with one entry per log file.
+
+Each entry contains:
+
+| Property       | Type     | Description                                   |
+|----------------|----------|-----------------------------------------------|
+| `Name`         | `string` | Log file name (case-preserved)                |
+| `EntryCount`   | `int`    | Current number of stored entries               |
+| `Created`      | `string` | Creation timestamp                            |
+| `Updated`      | `string` | Last write/reset timestamp                    |
+| `LastAccessed` | `string` | Last read/filter timestamp                    |
+| `AccessCount`  | `int`    | Total interaction count since creation        |
+
+```powershell
+# List all logs as a table
+$result = VPDLXgetalllogfiles
+if ($result.code -eq 0) {
+    $result.data | Format-Table -AutoSize
+}
+
+# Find the log with the most entries
+$largest = $result.data | Sort-Object -Property EntryCount -Descending | Select-Object -First 1
+Write-Host "Largest: $($largest.Name) with $($largest.EntryCount) entries"
+```
+
+> **Note:** This is a read-only operation. It does **not** increment `axcount` or update `lastacc` on any log file.
+
+---
+
+### VPDLXresetlogfile
+
+Clears all entries from a virtual log file without destroying it. The log file
+remains registered and can immediately accept new entries.
+
+```powershell
+VPDLXresetlogfile -Logfile <string>
+```
+
+| Parameter   | Type     | Required | Description                        |
+|-------------|----------|----------|------------------------------------|
+| `-Logfile`  | `string` | Yes      | Name of the log file to reset      |
+
+**Returns:** `code 0` + entry count before the reset (`int`) in `.data`.
+
+```powershell
+# Basic reset
+$result = VPDLXresetlogfile -Logfile 'AppLog'
+if ($result.code -eq 0) {
+    Write-Host "Cleared $($result.data) entries."
+}
+
+# Log rotation pattern: export then reset
+$export = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json'
+if ($export.code -eq 0) {
+    $reset = VPDLXresetlogfile -Logfile 'AppLog'
+    Write-Host "Exported and cleared $($reset.data) entries."
+}
+```
+
+> **Difference from VPDLXdroplogfile:**
+> - `VPDLXresetlogfile` — clears the data, keeps the log file alive and reusable.
+> - `VPDLXdroplogfile` — destroys the entire log file permanently (data + metadata + registration).
+
+---
+
+### VPDLXfilterlogfile
+
+Filters the entries of a virtual log file by log level. Returns the matching
+entries as a structured result object.
+
+```powershell
+VPDLXfilterlogfile -Logfile <string> -Level <string>
+```
+
+| Parameter   | Type     | Required | Description                                     |
+|-------------|----------|----------|-------------------------------------------------|
+| `-Logfile`  | `string` | Yes      | Name of the log file to filter                  |
+| `-Level`    | `string` | Yes      | Log level to filter for (tab-completion enabled)|
+
+Accepted levels: `info`, `debug`, `verbose`, `trace`, `warning`, `error`, `critical`, `fatal`
+
+**Returns:** `code 0` + `[PSCustomObject]` in `.data` containing:
+
+| Property  | Type       | Description                        |
+|-----------|------------|------------------------------------|
+| `Entries` | `string[]` | Matching log lines (or empty `@()`)|
+| `Count`   | `int`      | Number of matches                  |
+| `Level`   | `string`   | The level that was filtered        |
+
+```powershell
+# Filter for error entries
+$result = VPDLXfilterlogfile -Logfile 'AppLog' -Level 'error'
+if ($result.code -eq 0 -and $result.data.Count -gt 0) {
+    Write-Host "Found $($result.data.Count) error(s):"
+    $result.data.Entries | ForEach-Object { Write-Host "  $_" }
+}
+
+# Alert on critical entries
+$criticals = VPDLXfilterlogfile -Logfile 'ProdLog' -Level 'critical'
+if ($criticals.data.Count -gt 0) {
+    Write-Warning "CRITICAL entries detected — exporting log."
+    VPDLXexportlogfile -Logfile 'ProdLog' -LogPath 'C:\Logs' -ExportAs 'json'
+}
+```
+
+---
+
 ## Class Reference
 
 The classes below are the underlying engine of VPDLX. For most use cases the
@@ -376,6 +497,25 @@ $meta    = VPDLXcore -KeyID 'appinfo'      # Module metadata hashtable
 $storage = VPDLXcore -KeyID 'storage'      # [FileStorage] singleton
 $formats = VPDLXcore -KeyID 'export'       # Export format definitions hashtable
 VPDLXcore -KeyID 'destroyall'              # Destroys all active logfile instances
+$stats   = VPDLXcore -KeyID 'stats'        # Module-wide statistics (v1.02.05)
+```
+
+The `stats` key (new in v1.02.05) returns a `[PSCustomObject]` with:
+
+| Property          | Type     | Description                                 |
+|-------------------|----------|---------------------------------------------|
+| `ActiveLogfiles`  | `int`    | Number of currently registered log files     |
+| `TotalEntries`    | `int`    | Sum of all entries across all log files       |
+| `MaxEntries`      | `int`    | Highest entry count among all log files       |
+| `MaxEntriesLog`   | `string` | Name of the log file with the most entries    |
+| `MinEntries`      | `int`    | Lowest entry count among all log files        |
+| `MinEntriesLog`   | `string` | Name of the log file with the fewest entries  |
+| `ModuleVersion`   | `string` | Current VPDLX module version                  |
+
+```powershell
+$stats = (VPDLXcore -KeyID 'stats').data
+Write-Host "Active: $($stats.ActiveLogfiles) logs, $($stats.TotalEntries) total entries"
+Write-Host "Largest: $($stats.MaxEntriesLog) ($($stats.MaxEntries) entries)"
 ```
 
 **Return type on error:** `PSCustomObject { code = -1, msg = <description>, data = $null }`
@@ -451,6 +591,23 @@ Write-Host "Exported to: $($r.data)"
 
 # Export as JSON, overwrite if file exists
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -Override
+
+# List all active log files (v1.02.05)
+$all = VPDLXgetalllogfiles
+$all.data | Format-Table -AutoSize
+
+# Filter for error entries only (v1.02.05)
+$errors = VPDLXfilterlogfile -Logfile 'AppLog' -Level 'error'
+Write-Host "Found $($errors.data.Count) error(s)."
+
+# Log rotation: export, then clear entries (v1.02.05)
+VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -NoBOM
+$reset = VPDLXresetlogfile -Logfile 'AppLog'
+Write-Host "Cleared $($reset.data) entries."
+
+# Module statistics (v1.02.05)
+$stats = (VPDLXcore -KeyID 'stats').data
+Write-Host "$($stats.ActiveLogfiles) active log(s), $($stats.TotalEntries) total entries."
 
 # Remove the log file from memory
 VPDLXdroplogfile -Logfile 'AppLog'
