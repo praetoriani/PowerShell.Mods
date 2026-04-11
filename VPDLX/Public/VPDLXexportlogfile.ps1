@@ -40,6 +40,28 @@
                      { "LogFile": "<name>", "ExportedAt": "...", "Entries": [...] }
                      File extension: .json
 
+            html  —  Formatted HTML log report with embedded CSS styling.
+                     Generates a self-contained HTML document with:
+                     - A header section showing log file name, export timestamp,
+                       and total entry count
+                     - A styled table with Timestamp, Level, and Message columns
+                     - Level-specific row colouring (e.g. red for ERROR/FATAL,
+                       orange for WARNING, green for INFO)
+                     - Responsive layout suitable for browser viewing and printing
+                     File extension: .html
+                     NEW v1.02.06.
+
+            ndjson — Newline-Delimited JSON (one JSON object per line).
+                     Each log entry becomes a single-line JSON object:
+                     {"Timestamp":"...","Level":"...","Message":"..."}
+                     Unlike the 'json' format, there is NO root wrapper object
+                     and NO array brackets — each line is an independent, valid
+                     JSON document. This format is ideal for log streaming
+                     pipelines (Filebeat, Fluentd, Logstash, Grafana Loki) and
+                     tools that process JSON line-by-line.
+                     File extension: .ndjson
+                     NEW v1.02.06.
+
     OUTPUT FILE NAMING CONVENTION:
         The physical file is named after the virtual log file name + extension:
 
@@ -94,6 +116,16 @@
     IMPROVEMENT v1.02.04 (Priorität 9):
         Added -NoBOM switch parameter for BOM-free UTF-8 export.
 
+    FEATURE v1.02.06 (Priorität 10):
+        Added HTML export format — self-contained, styled HTML document
+        with level-specific row colouring, responsive layout, and a
+        summary header. Suitable for browser viewing, email, and printing.
+
+        Added NDJSON (Newline-Delimited JSON) export format — one JSON
+        object per line, no wrapper. Ideal for log-streaming pipelines
+        (ELK, Splunk, Grafana Loki) and tools that process JSON records
+        line-by-line.
+
     INTERNAL DEPENDENCIES:
         - VPDLXcore     (root module accessor — exposes $script:storage,
                          $script:export)
@@ -117,6 +149,7 @@
     The value is validated against $script:export at runtime so it
     automatically reflects any future changes to the supported format list.
     Case-insensitive.
+    Since v1.02.06: also accepts 'html' and 'ndjson'.
 
 .PARAMETER Override
     Optional switch. When set, an existing file at the target path will be
@@ -183,14 +216,35 @@
     # On Windows PowerShell 5.1, the file will NOT have the 3-byte BOM prefix (EF BB BF).
     # On PowerShell 7.x, -NoBOM is a no-op (PS 7 is BOM-free by default).
 
+.EXAMPLE
+    # Export as a styled HTML report (v1.02.06)
+    $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html'
+    # -> C:\Logs\AppLog.html
+    # Open in any browser — level-coloured rows, responsive table, print-ready.
+
+.EXAMPLE
+    # Export as NDJSON for log-streaming pipelines (v1.02.06)
+    $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson'
+    # -> C:\Logs\AppLog.ndjson
+    # Each line is an independent JSON object — ready for Filebeat, Fluentd, etc.
+
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.02.04
+    Version : 1.02.06
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
     Updated : 11.04.2026
     Scope   : Public — exported via FunctionsToExport in VPDLX.psd1
+
+    CHANGES (11.04.2026, v1.02.06):
+      - Added HTML export format — self-contained, styled HTML document
+        with level-specific row colouring (red for ERROR/FATAL, orange for
+        WARNING/CRITICAL, green for INFO, blue for DEBUG/VERBOSE/TRACE).
+        Responsive layout suitable for browser viewing and printing.
+      - Added NDJSON (Newline-Delimited JSON) export format — one JSON
+        object per line, no root wrapper. Each line is an independent,
+        valid JSON document. Ideal for log-streaming pipelines.
 
     CHANGES (11.04.2026, v1.02.04):
       - Added -NoBOM switch parameter for BOM-free UTF-8 export.
@@ -530,6 +584,173 @@ function VPDLXexportlogfile {
                 # Entries array fully (root -> Entries -> each entry object).
                 [string] $jsonString = $jsonRoot | ConvertTo-Json -Depth 5
                 & $writeLinesToFile -FilePath $targetFile -Lines @($jsonString) -UseBomFreeUtf8 $NoBOM.IsPresent
+            }
+
+            # ── html: self-contained styled HTML log report ──────────────
+            # NEW v1.02.06 (Priorität 10).
+            # Generates a complete HTML document with embedded CSS:
+            #   - Header: log file name, export timestamp, entry count
+            #   - Table: Timestamp | Level | Message columns
+            #   - Row colouring by level (INFO=green, WARNING=orange,
+            #     ERROR/FATAL=red, DEBUG/VERBOSE/TRACE=blue)
+            #   - Responsive, print-friendly layout
+            'html' {
+                [string] $exportedAt = Get-Date -Format 'dd.MM.yyyy | HH:mm:ss'
+                [int]    $entryTotal = $entries.Count
+
+                # Build the HTML table rows from parsed log entries.
+                $htmlRows = [System.Text.StringBuilder]::new()
+                foreach ($entry in $entries) {
+                    [string] $ts  = ''
+                    [string] $lvl = ''
+                    [string] $msg = ''
+
+                    $arrowParts = $entry -split '  ->  ', 2
+                    if ($arrowParts.Count -eq 2) {
+                        $msg = $arrowParts[1].Trim()
+                        [string] $leftPart = $arrowParts[0].Trim().TrimStart('[')
+                        $bracketParts = $leftPart -split '\]\s+\[', 2
+                        if ($bracketParts.Count -eq 2) {
+                            $ts  = $bracketParts[0].Trim()
+                            $lvl = $bracketParts[1].TrimEnd(']').Trim()
+                        } else {
+                            $ts  = $leftPart.Trim()
+                            $lvl = 'UNKNOWN'
+                        }
+                    } else {
+                        $msg = $entry
+                        $ts  = ''
+                        $lvl = 'RAW'
+                    }
+
+                    # HTML-escape special characters to prevent injection.
+                    $tsHtml  = [System.Net.WebUtility]::HtmlEncode($ts)
+                    $lvlHtml = [System.Net.WebUtility]::HtmlEncode($lvl)
+                    $msgHtml = [System.Net.WebUtility]::HtmlEncode($msg)
+
+                    # Determine CSS class based on log level for row colouring.
+                    [string] $cssClass = switch ($lvl.ToUpper()) {
+                        'INFO'     { 'lvl-info' }
+                        'DEBUG'    { 'lvl-debug' }
+                        'VERBOSE'  { 'lvl-debug' }
+                        'TRACE'    { 'lvl-debug' }
+                        'WARNING'  { 'lvl-warning' }
+                        'ERROR'    { 'lvl-error' }
+                        'CRITICAL' { 'lvl-warning' }
+                        'FATAL'    { 'lvl-error' }
+                        default    { '' }
+                    }
+
+                    [void] $htmlRows.AppendLine(
+                        "                <tr class=`"$cssClass`"><td>$tsHtml</td><td>$lvlHtml</td><td>$msgHtml</td></tr>"
+                    )
+                }
+
+                # Assemble the full HTML document.
+                # The CSS is embedded inline so the file is fully self-contained
+                # and can be opened in any browser without external dependencies.
+                [string] $htmlDocument = @"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPDLX Log Report — $([System.Net.WebUtility]::HtmlEncode($trimmedName))</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Consolas, 'Courier New', monospace; background: #f5f5f5; color: #1a1a1a; padding: 24px; }
+        .header { background: #1e293b; color: #f1f5f9; padding: 20px 24px; border-radius: 8px 8px 0 0; }
+        .header h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; }
+        .header .meta { font-size: 0.85rem; color: #94a3b8; }
+        .header .meta span { margin-right: 24px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th { background: #334155; color: #f1f5f9; padding: 10px 14px; text-align: left; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+        td { padding: 8px 14px; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; vertical-align: top; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #f8fafc; }
+        .lvl-info td:nth-child(2) { color: #16a34a; font-weight: 600; }
+        .lvl-debug td:nth-child(2) { color: #2563eb; font-weight: 600; }
+        .lvl-warning { background: #fffbeb; }
+        .lvl-warning td:nth-child(2) { color: #d97706; font-weight: 600; }
+        .lvl-error { background: #fef2f2; }
+        .lvl-error td:nth-child(2) { color: #dc2626; font-weight: 600; }
+        .footer { padding: 12px 24px; font-size: 0.75rem; color: #64748b; text-align: right; border-radius: 0 0 8px 8px; background: #fff; border-top: 1px solid #e2e8f0; }
+        @media print { body { padding: 0; background: #fff; } .header { border-radius: 0; } }
+        @media (max-width: 640px) { td, th { padding: 6px 8px; font-size: 0.78rem; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>VPDLX Log Report</h1>
+        <div class="meta">
+            <span>Log File: <strong>$([System.Net.WebUtility]::HtmlEncode($trimmedName))</strong></span>
+            <span>Exported: <strong>$exportedAt</strong></span>
+            <span>Entries: <strong>$entryTotal</strong></span>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr><th>Timestamp</th><th>Level</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+$($htmlRows.ToString().TrimEnd())
+        </tbody>
+    </table>
+    <div class="footer">Generated by VPDLX v$($script:appinfo.appvers) &mdash; Virtual PowerShell Data-Logger eXtension</div>
+</body>
+</html>
+"@
+                & $writeLinesToFile -FilePath $targetFile -Lines @($htmlDocument) -UseBomFreeUtf8 $NoBOM.IsPresent
+            }
+
+            # ── ndjson: Newline-Delimited JSON (one object per line) ───────
+            # NEW v1.02.06 (Priorität 10).
+            # Each log entry is serialised as a single-line JSON object.
+            # No root wrapper, no array brackets — each line is an
+            # independent, valid JSON document. This format is the standard
+            # for log-streaming pipelines (Filebeat, Fluentd, Logstash,
+            # Grafana Loki) and any tool that processes JSON records
+            # line-by-line.
+            'ndjson' {
+                [System.Collections.Generic.List[string]] $ndjsonLines =
+                    [System.Collections.Generic.List[string]]::new()
+
+                foreach ($entry in $entries) {
+                    # Same parsing approach as CSV / JSON above.
+                    [string] $ts  = ''
+                    [string] $lvl = ''
+                    [string] $msg = ''
+
+                    $arrowParts = $entry -split '  ->  ', 2
+                    if ($arrowParts.Count -eq 2) {
+                        $msg = $arrowParts[1].Trim()
+                        [string] $leftPart = $arrowParts[0].Trim().TrimStart('[')
+                        $bracketParts = $leftPart -split '\]\s+\[', 2
+                        if ($bracketParts.Count -eq 2) {
+                            $ts  = $bracketParts[0].Trim()
+                            $lvl = $bracketParts[1].TrimEnd(']').Trim()
+                        } else {
+                            $ts  = $leftPart.Trim()
+                            $lvl = 'UNKNOWN'
+                        }
+                    } else {
+                        $msg = $entry
+                        $ts  = ''
+                        $lvl = 'RAW'
+                    }
+
+                    # Build a single-line JSON object per entry.
+                    # ConvertTo-Json -Compress produces a single line with no
+                    # whitespace padding — exactly what NDJSON requires.
+                    $entryObj = [ordered]@{
+                        Timestamp = $ts
+                        Level     = $lvl
+                        Message   = $msg
+                    }
+                    $ndjsonLines.Add(($entryObj | ConvertTo-Json -Compress))
+                }
+
+                & $writeLinesToFile -FilePath $targetFile -Lines $ndjsonLines.ToArray() -UseBomFreeUtf8 $NoBOM.IsPresent
             }
         }
     }

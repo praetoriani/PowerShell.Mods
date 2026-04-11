@@ -6,7 +6,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/Version-1.02.05-blue)
+![Version](https://img.shields.io/badge/Version-1.02.06-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 
@@ -248,7 +248,7 @@ VPDLXexportlogfile -Logfile <string> -LogPath <string> -ExportAs <string> [-Over
 |---|---|---|---|
 | `Logfile` | `string` | yes | Name of the virtual log file to export |
 | `LogPath` | `string` | yes | Full path to the target directory (created automatically if it does not exist) |
-| `ExportAs` | `string` | yes | Target format: `txt` \| `csv` \| `json` \| `log` |
+| `ExportAs` | `string` | yes | Target format: `txt` \| `csv` \| `json` \| `log` \| `html` \| `ndjson` |
 | `Override` | `switch` | no | When set, overwrites an existing file at the target path |
 | `NoBOM` | `switch` | no | Forces BOM-free UTF-8 output (important for Unix tools, JSON parsers, and log aggregators; see below) |
 
@@ -260,6 +260,8 @@ VPDLXexportlogfile -Logfile <string> -LogPath <string> -ExportAs <string> [-Over
 | `log` | `.log` | Same as `txt`, with `.log` extension |
 | `csv` | `.csv` | RFC 4180-compliant with header `"Timestamp","Level","Message"` |
 | `json` | `.json` | JSON object `{ LogFile, ExportedAt, EntryCount, Entries[] }` |
+| `html` | `.html` | Self-contained HTML document with embedded CSS, level-coloured rows (v1.02.06) |
+| `ndjson` | `.ndjson` | Newline-Delimited JSON — one compact JSON object per line (v1.02.06) |
 
 **Output file naming:** `<LogPath>\<Logfile><extension>` — e.g. `C:\Logs\AppLog.csv`
 
@@ -275,9 +277,20 @@ $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'jso
 
 # Export with BOM-free UTF-8 (recommended for Unix tools and log aggregators)
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -NoBOM
+
+# Export as HTML — opens in any browser (v1.02.06)
+$result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html'
+if ($result.code -eq 0) { Start-Process $result.data }
+
+# Export as NDJSON — one JSON object per line, ideal for log pipelines (v1.02.06)
+$result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
 ```
 
 > **Encoding note:** By default, Windows PowerShell 5.1 writes a UTF-8 BOM (Byte Order Mark) at the start of exported files. The `-NoBOM` switch suppresses this 3-byte prefix, ensuring clean interoperability with Unix-based log aggregators (Filebeat, Fluentd), JSON parsers, and web APIs. On PowerShell 7.x, `-NoBOM` is a no-op (PS 7 is BOM-free by default), but using it makes the encoding intent explicit across PS editions.
+
+> **HTML export note (v1.02.06):** The HTML format generates a self-contained document with embedded CSS. Log entries are displayed in a styled table with level-specific row colouring (green for INFO, blue for DEBUG, orange background for WARNING, red background for ERROR/CRITICAL/FATAL). All message content is HTML-encoded for XSS safety. The document is print-friendly.
+
+> **NDJSON export note (v1.02.06):** NDJSON (Newline-Delimited JSON) writes one compact JSON object per line — no root wrapper or array. This format is the standard for streaming log data into Elasticsearch, Logstash, Kafka, AWS Kinesis, and Grafana Loki. Each line is independently parseable, making it ideal for `jq` processing: `cat log.ndjson | jq .Level`.
 
 ---
 
@@ -410,10 +423,16 @@ VPDLX into a larger module.
 The central user-facing class. Each instance represents one named virtual log file.
 
 ```powershell
+# Standard constructor — all log levels accepted
 $log = [Logfile]::new('MyAppLog')
+
+# Constructor with minimum log level (v1.02.06) — entries below the threshold are silently discarded
+$prodLog = [Logfile]::new('ProdLog', 'warning')
 ```
 
 **Name rules:** 3–64 characters; allowed characters: `a-z A-Z 0-9 _ - .`; uniqueness is case-insensitive.
+
+**Minimum log level (v1.02.06):** When a minimum level is specified, `Write()` and `Print()` silently discard entries whose severity is below the threshold. No exception is thrown — the call simply returns without side effects. Severity ranking (low → high): `trace(0)` < `debug(1)` < `verbose(2)` < `info(3)` < `warning(4)` < `error(5)` < `critical(6)` < `fatal(7)`.
 
 #### Write Methods
 
@@ -448,7 +467,15 @@ $log = [Logfile]::new('MyAppLog')
 | `Reset` | `Reset() → void` | Clears all entries (irreversible; preserves metadata timestamps) |
 | `Destroy` | `Destroy() → void` | Removes instance from storage and frees all data; subsequent calls throw `ObjectDisposedException` |
 | `GetDetails` | `GetDetails() → [FileDetails]` | Returns the metadata companion |
-| `ToString` | `ToString() → string` | One-line summary |
+| `ToString` | `ToString() → string` | One-line summary (includes `MinLevel` when configured) |
+| `GetMinLogLevel` | `GetMinLogLevel() → string` | Returns the configured minimum level name, or `'none'` if no filter is active (v1.02.06) |
+
+#### Static Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `MaxMessageLength` | `int` | Maximum allowed message length (default: 8192; configurable at runtime) |
+| `LevelSeverity` | `hashtable` | Maps level names to severity indices: trace=0, debug=1, ..., fatal=7 (v1.02.06) |
 
 ---
 
@@ -495,7 +522,7 @@ to module internals.
 ```powershell
 $meta    = VPDLXcore -KeyID 'appinfo'      # Module metadata hashtable
 $storage = VPDLXcore -KeyID 'storage'      # [FileStorage] singleton
-$formats = VPDLXcore -KeyID 'export'       # Export format definitions hashtable
+$formats = VPDLXcore -KeyID 'export'       # Export format definitions (txt, csv, json, log, html, ndjson)
 VPDLXcore -KeyID 'destroyall'              # Destroys all active logfile instances
 $stats   = VPDLXcore -KeyID 'stats'        # Module-wide statistics (v1.02.05)
 ```
@@ -592,6 +619,13 @@ Write-Host "Exported to: $($r.data)"
 # Export as JSON, overwrite if file exists
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -Override
 
+# Export as styled HTML report (v1.02.06)
+$r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html'
+if ($r.code -eq 0) { Start-Process $r.data }   # opens in browser
+
+# Export as NDJSON for log pipelines (v1.02.06)
+VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
+
 # List all active log files (v1.02.05)
 $all = VPDLXgetalllogfiles
 $all.data | Format-Table -AutoSize
@@ -611,6 +645,32 @@ Write-Host "$($stats.ActiveLogfiles) active log(s), $($stats.TotalEntries) total
 
 # Remove the log file from memory
 VPDLXdroplogfile -Logfile 'AppLog'
+```
+
+### Using the Minimum Log Level (v1.02.06)
+
+```powershell
+Import-Module .\VPDLX\VPDLX.psd1
+
+# Create a production log that only records warnings and above
+$prodLog = [Logfile]::new('ProdLog', 'warning')
+
+$prodLog.Info('Ignored — below minimum level.')    # silently discarded
+$prodLog.Warning('Disk usage at 85 percent.')        # recorded
+$prodLog.Error('Connection timeout.')                # recorded
+
+$prodLog.EntryCount()       # → 2
+$prodLog.GetMinLogLevel()   # → 'warning'
+
+# Severity ranking is available as a static property
+[Logfile]::LevelSeverity
+# → @{ trace = 0; debug = 1; verbose = 2; info = 3; warning = 4; error = 5; critical = 6; fatal = 7 }
+
+# Export the filtered log
+VPDLXexportlogfile -Logfile 'ProdLog' -LogPath 'C:\Logs' -ExportAs 'html'
+
+$prodLog.Destroy()
+$prodLog = $null
 ```
 
 ### Using the Classes Directly (advanced)

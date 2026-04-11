@@ -9,7 +9,7 @@
     to create, manage, and query multiple in-memory log files simultaneously,
     and export them to disk in multiple formats when needed.
 
-    Architecture overview (v1.02.05):
+    Architecture overview (v1.02.06):
 
       Classes/
           VPDLXClasses.ps1  — consolidated class file containing all three classes:
@@ -27,7 +27,7 @@
           VPDLXdroplogfile.ps1     — permanently delete a named log file
           VPDLXreadlogfile.ps1     — read a specific line from a log file
           VPDLXwritelogfile.ps1    — append a new entry to a log file
-          VPDLXexportlogfile.ps1   — export a virtual log file to disk (txt/log/csv/json)
+          VPDLXexportlogfile.ps1   — export a virtual log file to disk (txt/log/csv/json/html/ndjson)
           VPDLXgetalllogfiles.ps1  — list all active log files with metadata (v1.02.05)
           VPDLXresetlogfile.ps1    — clear all entries from a log file (v1.02.05)
           VPDLXfilterlogfile.ps1   — filter log entries by level (v1.02.05)
@@ -63,7 +63,7 @@
 .NOTES
     Creation Date : 05.04.2026
     Last Update   : 11.04.2026
-    Version       : 1.02.04
+    Version       : 1.02.06
     Author        : Praetoriani (a.k.a. M.Sczepanski)
     Website       : https://github.com/praetoriani/PowerShell.Mods
 
@@ -72,6 +72,19 @@
     - No external dependencies
 
     CHANGELOG:
+    v1.02.06 (11.04.2026):
+      Advanced Features (Priorität 10 der Developer ToDo-Liste):
+        - VPDLXexportlogfile: Added HTML export format (self-contained, styled
+          HTML document with level-specific row colouring, responsive layout).
+        - VPDLXexportlogfile: Added NDJSON export format (Newline-Delimited JSON,
+          one object per line — ideal for log-streaming pipelines).
+        - $script:export extended with 'html' and 'ndjson' keys.
+        - [Logfile] class: Added configurable minimum log level. New constructor
+          overload Logfile([string] $name, [string] $minLevel) — entries below
+          the minimum are silently discarded. New static [Logfile]::LevelSeverity
+          hashtable and public GetMinLogLevel() method.
+      Updated: VPDLX.psd1 (FunctionsToExport unchanged, Version, ReleaseNotes)
+
     v1.02.05 (11.04.2026):
       New Public Wrapper functions (Priorität 10 der Developer ToDo-Liste):
         - VPDLXgetalllogfiles  : lists all active log files with metadata summary
@@ -134,23 +147,26 @@
 # Read-only module metadata. Accessible externally via: VPDLXcore -KeyID 'appinfo'
 $script:appinfo = @{
     appname    = 'VPDLX'
-    appvers    = '1.02.05'
+    appvers    = '1.02.06'
     appdevname = 'Praetoriani'
     appdevmail = 'mr.praetoriani{at}gmail.com'
     appwebsite = 'https://github.com/praetoriani/PowerShell.Mods'
     datecreate = '05.04.2026'
-    lastupdate = '11.04.2026'  # v1.02.05
+    lastupdate = '11.04.2026'  # v1.02.06
 }
 
 # Supported file formats for VPDLXexportlogfile.
 # The ExportAs parameter is validated against the keys of this hashtable.
 # To add a new format, add a key here and extend the export logic in
 # Public\VPDLXexportlogfile.ps1 accordingly.
+# NEW v1.02.06: Added 'html' and 'ndjson' export formats.
 $script:export = @{
-    txt  = '.txt'
-    csv  = '.csv'
-    json = '.json'
-    log  = '.log'
+    txt    = '.txt'
+    csv    = '.csv'
+    json   = '.json'
+    log    = '.log'
+    html   = '.html'
+    ndjson = '.ndjson'
 }
 
 
@@ -236,7 +252,8 @@ foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
 
       VPDLXcore -KeyID 'appinfo'      ->  $script:appinfo  (module metadata hashtable)
       VPDLXcore -KeyID 'storage'      ->  $script:storage  ([FileStorage] singleton)
-      VPDLXcore -KeyID 'export'       ->  $script:export   (export format definitions)
+      VPDLXcore -KeyID 'export'       ->  $script:export   (export format definitions;
+                                           since v1.02.06: includes html and ndjson)
       VPDLXcore -KeyID 'destroyall'   ->  calls $script:storage.DestroyAll()
       VPDLXcore -KeyID 'stats'        ->  module-wide statistics (v1.02.05)
 

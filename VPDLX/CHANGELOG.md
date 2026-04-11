@@ -5,6 +5,249 @@ This file follows a *reverse-chronological* order — the newest version is alwa
 
 ---
 
+## [1.02.06] — 11.04.2026
+
+### Overview
+Advanced Features release. Implements the remaining two tasks from **Priorität 10**
+of the Developer ToDo-Liste: two new export formats (HTML and NDJSON) for
+`VPDLXexportlogfile`, and a configurable minimum log level for the `[Logfile]`
+class. These additions bring the total number of supported export formats to six
+and allow callers to control log verbosity at construction time.
+
+### Added — HTML Export Format (`VPDLXexportlogfile -ExportAs 'html'`)
+
+- **New export format key: `html`** — generates a self-contained HTML document with
+  embedded CSS styling. No external dependencies — the entire document can be opened
+  in any browser directly from disk.
+
+- **Document structure:**
+  - **Header section:** Log file name, export timestamp (`dd.MM.yyyy | HH:mm:ss`),
+    and total entry count.
+  - **Data table:** Three columns — `Timestamp`, `Level`, and `Message`. Each row
+    represents one log entry.
+  - **Footer:** VPDLX module version stamp.
+
+- **Level-specific row styling:** Each table row receives a CSS class based on the
+  log level of the entry. The visual treatment is:
+
+  | Level         | CSS Class       | Visual Treatment                        |
+  |---------------|-----------------|------------------------------------------|
+  | `INFO`        | `lvl-info`      | Green text colour                        |
+  | `DEBUG`       | `lvl-debug`     | Blue text colour                         |
+  | `VERBOSE`     | `lvl-verbose`   | Default (dark text)                      |
+  | `TRACE`       | `lvl-trace`     | Default (dark text)                      |
+  | `WARNING`     | `lvl-warning`   | Orange background + dark text            |
+  | `ERROR`       | `lvl-error`     | Red background + white text              |
+  | `CRITICAL`    | `lvl-critical`  | Red background + white text              |
+  | `FATAL`       | `lvl-fatal`     | Red background + white text              |
+
+- **XSS safety:** All message content is HTML-encoded via
+  `[System.Net.WebUtility]::HtmlEncode()` before being inserted into the HTML table.
+  This prevents any HTML or JavaScript in log messages from being interpreted by the
+  browser.
+
+- **Performance:** Table row assembly uses `[System.Text.StringBuilder]` to avoid
+  repeated string concatenation overhead when exporting large log files.
+
+- **Print-friendly:** The CSS includes a print media query that preserves the table
+  layout and level colours when the document is printed or saved as PDF from a browser.
+
+- **Respects `-NoBOM` and `-Override` switches** — same behaviour as all other export
+  formats.
+
+**Usage example:**
+
+```powershell
+# Export as HTML
+$r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html'
+if ($r.code -eq 0) { Start-Process $r.data }   # opens in default browser
+
+# Export as HTML with BOM-free UTF-8
+$r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html' -NoBOM
+```
+
+### Added — NDJSON Export Format (`VPDLXexportlogfile -ExportAs 'ndjson'`)
+
+- **New export format key: `ndjson`** — Newline-Delimited JSON. Each log entry is
+  serialised as a single compact JSON object on its own line. There is no root
+  wrapper, no opening `[`, and no trailing `]` — just one JSON object per line.
+
+- **Output format:**
+  ```
+  {"Timestamp":"11.04.2026 | 14:30:01","Level":"INFO","Message":"Application started."}
+  {"Timestamp":"11.04.2026 | 14:30:02","Level":"WARNING","Message":"Disk space low."}
+  {"Timestamp":"11.04.2026 | 14:30:03","Level":"ERROR","Message":"Connection failed."}
+  ```
+
+- **Why NDJSON:**
+  NDJSON (also known as JSON Lines / `.jsonl`) is the standard format for streaming
+  log data into modern observability pipelines. Each line is a valid, independent
+  JSON document that can be parsed without reading the entire file. This makes it
+  ideal for:
+  - **Elasticsearch / Logstash** — `json` codec reads NDJSON natively
+  - **AWS Kinesis / CloudWatch** — one record per line
+  - **Grafana Loki** — direct NDJSON ingestion
+  - **Kafka** — one message per line
+  - **`jq` command-line processing** — `cat log.ndjson | jq .Level`
+  - **Streaming uploads** — send lines as they arrive, no buffering needed
+
+- **Entry parsing:** Uses the same parsing logic as the existing CSV and JSON export
+  blocks — each log line is split into Timestamp, Level, and Message components.
+  Each parsed entry is converted via `ConvertTo-Json -Compress` to produce a single
+  compact line.
+
+- **Respects `-NoBOM` and `-Override` switches.**
+
+**Usage example:**
+
+```powershell
+# Export as NDJSON
+$r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson'
+
+# Export as NDJSON for Unix pipeline consumption
+$r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
+```
+
+### Added — Configurable Minimum Log Level (`[Logfile]` Constructor Overload)
+
+- **New constructor overload: `[Logfile]::new([string] $name, [string] $minLevel)`**
+  Creates a new virtual log file with a minimum severity threshold. Any `Write()` or
+  `Print()` call with a level below the threshold is silently discarded — no exception
+  is thrown, no side effects occur (no metadata update, no entry count change).
+
+- **Severity ranking** (low → high):
+
+  | Level      | Severity Index |
+  |------------|---------------|
+  | `trace`    | 0             |
+  | `debug`    | 1             |
+  | `verbose`  | 2             |
+  | `info`     | 3             |
+  | `warning`  | 4             |
+  | `error`    | 5             |
+  | `critical` | 6             |
+  | `fatal`    | 7             |
+
+  This ranking is exposed as a static hashtable: `[Logfile]::LevelSeverity`.
+
+- **New hidden instance fields:**
+  - `$_minLevelIndex` (`[int]`) — the numeric severity threshold. `-1` means no
+    filter is active (all entries accepted). Set to the severity index of the
+    configured minimum level (e.g. `4` for `warning`).
+  - `$_minLevelName` (`[string]`) — the human-readable name of the configured
+    minimum level (e.g. `'warning'`). Empty string when no filter is active.
+
+- **New hidden method: `_InitLogfile()`** — shared initialisation logic used by both
+  constructors. Contains all the code that was previously in the single-argument
+  constructor (name validation, storage registration, FileDetails creation, data
+  list initialisation). This follows the DRY principle and ensures both constructors
+  behave identically for the common initialisation path.
+
+- **New public method: `GetMinLogLevel()`** — returns the configured minimum level
+  name as a `[string]`, or `'none'` if no filter is active.
+
+- **`Write()` filtering behaviour:** At the top of `Write()`, before any validation
+  or entry formatting, the method checks whether the entry's level meets the minimum
+  severity threshold:
+  ```
+  if $_minLevelIndex is not -1
+    and the entry's severity < $_minLevelIndex
+  then
+    return silently (no exception, no metadata update)
+  ```
+
+- **`Print()` filtering behaviour:** At the top of `Print()`, the same severity
+  check is performed. If the batch level is below the minimum, the entire batch is
+  silently discarded — after parameter validation (null/empty checks) but before
+  message validation and entry formatting.
+
+- **`ToString()` updated:** When a minimum level filter is active, `ToString()`
+  appends `| MinLevel: <name>` to the output string (e.g.
+  `Logfile: ProdLog | Entries: 42 | Created: 11.04.2026 | 14:30:00 | MinLevel: warning`).
+
+- **Original constructor unchanged:** `[Logfile]::new([string] $name)` continues to
+  create log files with no minimum level filter (`$_minLevelIndex = -1`). All
+  existing code remains fully compatible.
+
+**Usage examples:**
+
+```powershell
+# Create a production log that only records warnings and above
+$prodLog = [Logfile]::new('ProdLog', 'warning')
+
+$prodLog.Info('This will be silently discarded.')       # below 'warning'
+$prodLog.Debug('This too.')                              # below 'warning'
+$prodLog.Warning('This will be recorded.')               # >= 'warning'
+$prodLog.Error('This will be recorded.')                 # >= 'warning'
+$prodLog.Fatal('This will be recorded.')                 # >= 'warning'
+
+$prodLog.EntryCount()   # → 3 (only warning, error, fatal)
+
+# Check the configured minimum level
+$prodLog.GetMinLogLevel()   # → 'warning'
+
+# Create a log with no filter (default behaviour)
+$devLog = [Logfile]::new('DevLog')
+$devLog.GetMinLogLevel()    # → 'none'
+
+# Severity ranking is available as a static property
+[Logfile]::LevelSeverity
+# → @{ trace = 0; debug = 1; verbose = 2; info = 3; warning = 4; error = 5; critical = 6; fatal = 7 }
+```
+
+### Changed — Export Format Table (Updated)
+
+The complete list of supported export formats as of v1.02.06:
+
+| Key      | Extension  | Description                                                         |
+|----------|------------|---------------------------------------------------------------------|
+| `txt`    | `.txt`     | Plain text — each log line written as-is                            |
+| `log`    | `.log`     | Same as `txt` with `.log` extension                                 |
+| `csv`    | `.csv`     | RFC 4180-compliant: `"Timestamp","Level","Message"`                 |
+| `json`   | `.json`    | JSON object: `{ LogFile, ExportedAt, EntryCount, Entries[] }`       |
+| `html`   | `.html`    | Self-contained HTML document with embedded CSS **(new)**             |
+| `ndjson` | `.ndjson`  | Newline-Delimited JSON — one object per line **(new)**               |
+
+### Changed — Manifest & Module Updates
+
+- **`VPDLX.psd1`:**
+  - `ModuleVersion` updated from `1.02.05` to `1.02.06`.
+  - `Description` updated to reflect new export formats and min-level constructor.
+  - `ReleaseNotes` updated with the full v1.02.06 entry.
+- **`VPDLX.psm1`:**
+  - `$script:appinfo.appvers` updated to `'1.02.06'`.
+  - `$script:export` extended with `html` (`.html`) and `ndjson` (`.ndjson`) keys.
+  - Architecture overview in `.DESCRIPTION` updated for new formats.
+  - Changelog section extended with v1.02.06 entry.
+  - `VPDLXcore` `.DESCRIPTION` updated to mention html/ndjson in the export key.
+- **`VPDLXClasses.ps1`:**
+  - Version updated to `1.02.06`.
+  - Static `LevelSeverity` hashtable added to `[Logfile]`.
+  - Hidden fields `$_minLevelIndex` and `$_minLevelName` added.
+  - Hidden method `_InitLogfile()` extracted from original constructor.
+  - New constructor overload `Logfile([string] $name, [string] $minLevel)` added.
+  - `Write()` and `Print()` updated with severity filtering.
+  - `GetMinLogLevel()` public method added.
+  - `ToString()` updated to include minimum level.
+  - `.NOTES` header updated with feature description.
+- **`VPDLXexportlogfile.ps1`:**
+  - HTML export block added with full CSS styling and StringBuilder assembly.
+  - NDJSON export block added with per-line ConvertTo-Json -Compress.
+  - Comment-based help updated with new format descriptions.
+- **No changes to `VPDLXreturn.ps1`, or any other existing public wrapper files.**
+
+### Summary of New Features
+
+| Feature                     | Access                                              | Description                                           |
+|-----------------------------|------------------------------------------------------|-------------------------------------------------------|
+| HTML export                 | `VPDLXexportlogfile -ExportAs 'html'`                | Styled HTML document with level-coloured rows          |
+| NDJSON export               | `VPDLXexportlogfile -ExportAs 'ndjson'`              | One JSON object per line for streaming pipelines       |
+| Minimum log level           | `[Logfile]::new('Name', 'warning')`                  | Silently discards entries below the threshold           |
+| `GetMinLogLevel()`          | `$log.GetMinLogLevel()`                              | Returns configured minimum level or `'none'`           |
+| `[Logfile]::LevelSeverity`  | Static property                                      | Hashtable mapping level names to severity indices      |
+
+---
+
 ## [1.02.05] — 11.04.2026
 
 ### Overview

@@ -35,10 +35,21 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.02.04
+    Version : 1.02.06
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
     Updated : 11.04.2026
+
+    FEATURE (11.04.2026, v1.02.06 — Priorität 10):
+      Added configurable minimum log level. When specified during
+      construction, log entries below the minimum severity are silently
+      discarded by Write() and Print(). This enables callers to control
+      verbosity at creation time without changing calling code.
+      New constructor overload: Logfile([string] $name, [string] $minLevel)
+      New hidden instance field: $_minLevelIndex (-1 = no filter, default)
+      New static property: [Logfile]::LevelSeverity (severity ranking)
+      New public method: GetMinLogLevel() — returns the configured minimum
+      level name or 'none' if no filter is active.
 
     QUALITY (11.04.2026, v1.02.04 — Priorität 9):
       Added configurable maximum message length to ValidateMessage().
@@ -464,6 +475,28 @@ class Logfile {
     # Companion object that tracks all metadata for this logfile.
     hidden [FileDetails] $_details
 
+    # Configurable minimum severity index for this logfile instance.
+    # When set to -1 (default), no filtering is applied and all entries
+    # are accepted regardless of level. When set to a value >= 0,
+    # entries whose severity is below this threshold are silently
+    # discarded by Write() and Print().
+    #
+    # The value is an integer index into [Logfile]::LevelSeverity.
+    # For example, setting this to 4 (warning) means that trace, debug,
+    # verbose, and info entries will be discarded.
+    #
+    # This field is set once during construction and is immutable for
+    # the lifetime of the instance.
+    #
+    # NEW v1.02.06 (Priorität 10).
+    hidden [int] $_minLevelIndex
+
+    # Stores the original minimum level name as provided by the caller
+    # (e.g. 'warning'). Used by GetMinLogLevel() to return a human-
+    # readable representation. Set to '' when no minimum is configured.
+    # NEW v1.02.06.
+    hidden [string] $_minLevelName
+
 
     # ── Static definitions ───────────────────────────────────────────────────
 
@@ -501,9 +534,45 @@ class Logfile {
     }
 
 
-    # ── Constructor ───────────────────────────────────────────────────────────
+    # ── Constructors ────────────────────────────────────────────────────────────
 
+    # Primary constructor: creates a new Logfile with no minimum level filter.
+    # All log levels are accepted.
     Logfile([string] $name) {
+        $this._InitLogfile($name, '')
+    }
+
+    # Overloaded constructor: creates a new Logfile with a configurable
+    # minimum log level. Entries below this level are silently discarded
+    # by Write() and Print().
+    #
+    # Parameters:
+    #   name     — Logfile name (same rules as primary constructor)
+    #   minLevel — Minimum log level (case-insensitive). Must be one of:
+    #              trace, debug, verbose, info, warning, error, critical, fatal.
+    #              Pass '' or $null to disable filtering (same as primary constructor).
+    #
+    # Example:
+    #   $log = [Logfile]::new('ProdLog', 'warning')
+    #   $log.Info('This will be silently discarded.')     # below 'warning'
+    #   $log.Warning('This will be written.')              # at or above 'warning'
+    #
+    # NEW v1.02.06 (Priorität 10).
+    Logfile([string] $name, [string] $minLevel) {
+        $this._InitLogfile($name, $minLevel)
+    }
+
+
+    # ── Shared constructor logic ──────────────────────────────────────────────
+    # Extracted into a hidden helper method so both constructors share the
+    # same validation and initialisation code. PowerShell classes do not
+    # support constructor chaining (this(...)), so a shared helper method
+    # is the standard workaround.
+    #
+    # Parameters:
+    #   name     — The logfile name to validate and register
+    #   minLevel — The minimum log level string, or '' for no filter
+    hidden [void] _InitLogfile([string] $name, [string] $minLevel) {
 
         # ── Validate: not null / empty / whitespace ──────────────────────────
         if ([string]::IsNullOrWhiteSpace($name)) {
@@ -550,10 +619,34 @@ class Logfile {
             )
         }
 
+        # ── Validate and resolve minimum log level ─────────────────────────
+        # NEW v1.02.06 (Priorität 10).
+        # If a minimum level is provided, validate it against the known
+        # log levels and resolve its severity index. If empty or $null,
+        # set to -1 (no filter — all levels accepted).
+        [int]    $resolvedMinIndex = -1
+        [string] $resolvedMinName  = ''
+
+        if (-not [string]::IsNullOrWhiteSpace($minLevel)) {
+            [string] $normalizedMin = $minLevel.Trim().ToLower()
+            if (-not [Logfile]::LevelSeverity.ContainsKey($normalizedMin)) {
+                [string] $validLevels = ([Logfile]::LevelSeverity.Keys | Sort-Object) -join ', '
+                throw [System.ArgumentException]::new(
+                    "Parameter 'minLevel' contains an unknown log level '$minLevel'. " +
+                    "Valid levels are: $validLevels.",
+                    'minLevel'
+                )
+            }
+            $resolvedMinIndex = [Logfile]::LevelSeverity[$normalizedMin]
+            $resolvedMinName  = $normalizedMin
+        }
+
         # ── Initialise internal fields ────────────────────────────────────────
-        $this.Name     = $trimmedName
-        $this._data    = [System.Collections.Generic.List[string]]::new()
-        $this._details = [FileDetails]::new()
+        $this.Name           = $trimmedName
+        $this._data          = [System.Collections.Generic.List[string]]::new()
+        $this._details       = [FileDetails]::new()
+        $this._minLevelIndex = $resolvedMinIndex
+        $this._minLevelName  = $resolvedMinName
 
         # ── Register in the module-level FileStorage ──────────────────────────
         $script:storage.Add($trimmedName, $this)
@@ -676,6 +769,19 @@ class Logfile {
         [string] $normalizedLevel = $this.ValidateLevel($level)
         $this.ValidateMessage($message)
 
+        # Minimum log level check (v1.02.06).
+        # If a minimum level is configured, silently discard entries whose
+        # severity is below the threshold. No error, no side-effects — the
+        # entry is simply not written. This allows callers to use the same
+        # logging code in all environments and control verbosity at the
+        # logfile level.
+        if ($this._minLevelIndex -ge 0) {
+            [int] $entrySeverity = [Logfile]::LevelSeverity[$normalizedLevel]
+            if ($entrySeverity -lt $this._minLevelIndex) {
+                return   # silently discard
+            }
+        }
+
         $this._data.Add($this.BuildEntry($normalizedLevel, $message))
         $this._details.RecordWrite()
         $this._details.SetEntryCount($this._data.Count)
@@ -746,6 +852,17 @@ class Logfile {
                 )
             }
             $idx++
+        }
+
+        # Minimum log level check (v1.02.06).
+        # If a minimum level is configured and the batch level is below the
+        # threshold, silently discard the entire batch. Validation has
+        # already passed, so no partial writes occur.
+        if ($this._minLevelIndex -ge 0) {
+            [int] $batchSeverity = [Logfile]::LevelSeverity[$normalizedLevel]
+            if ($batchSeverity -lt $this._minLevelIndex) {
+                return   # silently discard entire batch
+            }
         }
 
         # All validation passed — append all entries.
@@ -977,6 +1094,23 @@ class Logfile {
     [void] Fatal([string] $message)    { $this.Write('fatal',    $message) }
 
 
+    # ── Minimum log level inspection ───────────────────────────────────────
+
+    # Returns the configured minimum log level name for this logfile.
+    # If no minimum level is configured (default), returns 'none'.
+    # This is a read-only accessor — the minimum level is immutable
+    # once set during construction.
+    #
+    # NEW v1.02.06 (Priorität 10).
+    [string] GetMinLogLevel() {
+        $this.GuardDestroyed()
+        if ($this._minLevelIndex -lt 0) {
+            return 'none'
+        }
+        return $this._minLevelName
+    }
+
+
     # ── Inspection / utility ─────────────────────────────────────────────────
 
     # Returns the [FileDetails] companion object for this logfile.
@@ -1002,6 +1136,8 @@ class Logfile {
         # Throws ObjectDisposedException with a descriptive message if _data is $null.
         $this.GuardDestroyed()
 
-        return "Logfile: '$($this.Name)' | Entries: $($this._data.Count) | Created: $($this._details.GetCreated())"
+        # Include the minimum log level in the summary if one is configured (v1.02.06).
+        [string] $minLvl = if ($this._minLevelIndex -ge 0) { " | MinLevel: $($this._minLevelName)" } else { '' }
+        return "Logfile: '$($this.Name)' | Entries: $($this._data.Count) | Created: $($this._details.GetCreated())$minLvl"
     }
 }

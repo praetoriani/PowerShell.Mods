@@ -1,6 +1,6 @@
 # VPDLX — Quick Start Guide
 
-> **Module version:** 1.02.05
+> **Module version:** 1.02.06
 > **Prerequisites:** PowerShell 5.1 or PowerShell 7.x
 
 This guide takes you from zero to a fully working virtual log file in five minutes.
@@ -25,7 +25,7 @@ After import, three things are available in your session:
 - **Type accelerators** — `[Logfile]`, `[FileDetails]`, `[FileStorage]` (no `using module` needed)
 - **Public Wrapper functions** — `VPDLXnewlogfile`, `VPDLXislogfile`, `VPDLXdroplogfile`,
   `VPDLXreadlogfile`, `VPDLXwritelogfile`, `VPDLXexportlogfile`,
-  `VPDLXgetalllogfiles`, `VPDLXresetlogfile`, `VPDLXfilterlogfile` (last three new in v1.02.05)
+  `VPDLXgetalllogfiles`, `VPDLXresetlogfile`, `VPDLXfilterlogfile`
 - **Module accessor** — `VPDLXcore`
 
 ---
@@ -232,6 +232,15 @@ $r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'txt'
 # Overwrite an existing file with -Override
 $r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'txt' -Override
 
+# Export as styled HTML report (v1.02.06)
+# Generates a self-contained HTML document with level-coloured rows
+$r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'html'
+if ($r.code -eq 0) { Start-Process $r.data }   # opens in default browser
+
+# Export as NDJSON for log-streaming pipelines (v1.02.06)
+# One JSON object per line — ideal for Elasticsearch, Logstash, Kafka, Loki
+$r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
+
 # Check the result
 if ($r.code -eq 0) {
     Write-Host "Exported to: $($r.data)"
@@ -240,7 +249,7 @@ if ($r.code -eq 0) {
 }
 ```
 
-Supported export formats: `txt`, `log`, `csv`, `json`
+Supported export formats: `txt`, `log`, `csv`, `json`, `html`, `ndjson`
 
 ---
 
@@ -268,6 +277,51 @@ $details.ToHashtable()
 | `acctype` | `GetLastAccessType()`   | Every interaction                               |
 | `entries` | `GetEntries()`          | Every write or reset                            |
 | `axcount` | `GetAxcount()`          | Every interaction (never reset unless Destroy)  |
+
+---
+
+## Minimum log level (v1.02.06)
+
+Since v1.02.06, the `[Logfile]` class supports a configurable minimum log level.
+When specified during construction, log entries below the given severity are
+silently discarded by `Write()` and `Print()` — no exception is thrown.
+
+```powershell
+# Create a production log that only records warnings and above
+$prodLog = [Logfile]::new('ProdLog', 'warning')
+
+$prodLog.Info('This will be silently discarded.')       # below 'warning'
+$prodLog.Debug('This too.')                              # below 'warning'
+$prodLog.Warning('Disk usage at 85 percent.')            # recorded (≥ warning)
+$prodLog.Error('Connection timeout on retry 3.')         # recorded (≥ warning)
+$prodLog.Fatal('Service terminated.')                    # recorded (≥ warning)
+
+$prodLog.EntryCount()       # → 3 (only warning, error, fatal)
+
+# Query the configured minimum level
+$prodLog.GetMinLogLevel()   # → 'warning'
+```
+
+**Severity ranking** (low → high):
+
+| Level      | Severity |
+|------------|----------|
+| `trace`    | 0        |
+| `debug`    | 1        |
+| `verbose`  | 2        |
+| `info`     | 3        |
+| `warning`  | 4        |
+| `error`    | 5        |
+| `critical` | 6        |
+| `fatal`    | 7        |
+
+The ranking is also available as a static property: `[Logfile]::LevelSeverity`
+
+```powershell
+# Create a log with no filter (default behaviour — unchanged)
+$devLog = [Logfile]::new('DevLog')
+$devLog.GetMinLogLevel()    # → 'none'
+```
 
 ---
 
