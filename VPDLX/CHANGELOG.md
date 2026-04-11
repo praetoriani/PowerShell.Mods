@@ -43,10 +43,55 @@ already follows.
   — with `GuardDestroyed()` in place, both `_data` and `_details` are guaranteed
   non-null when the return statement executes.
 
+### Fixed — `FilterByLevel()` Call-Order + Label (Issue #2 + Issue #4)
+
+- **`RecordFilter()` call moved from before to after the `foreach` loop** (Issue #2).
+  In `Logfile.FilterByLevel()`, the metadata-recording call
+  `$this._details.RecordFilter()` was placed *before* the `foreach` loop that
+  collects matching entries. This meant `_lastAccessed` and `_axcount` were updated
+  even if the method returned early or encountered an error during iteration.
+  The call has been moved to immediately *after* the loop, just before `return`,
+  so metadata is recorded only when filtering actually completes successfully.
+
+- **`RecordFilter()` renamed to `RecordFilterByLevel()`** (Issue #4).
+  The hidden method `RecordFilter()` in `[FileDetails]` set
+  `_lastAccessType = 'Filter'` — a generic label that did not clearly identify
+  which operation was performed. The method has been renamed to
+  `RecordFilterByLevel()` and the label updated to `'FilterByLevel'`, matching
+  the public method name. The single call-site in `Logfile.ps1` has been updated
+  accordingly.
+
+### Fixed — `FunctionsToExport` Single Source of Truth (Issue #5)
+
+- **`Export-ModuleMember` call removed from `VPDLX.psm1` Section 7** (Issue #5).
+  When a `.psd1` manifest is present, PowerShell ignores any `Export-ModuleMember`
+  calls in the `.psm1` file — the manifest's `FunctionsToExport` array takes
+  precedence. The `Export-ModuleMember -Function $PublicFunctions` call was
+  therefore misleading and has been replaced with an explanatory comment.
+
+- **`VPDLX.psd1` `FunctionsToExport` annotated as SINGLE SOURCE OF TRUTH.**
+  A comment block has been added above the `FunctionsToExport` array in the
+  manifest, clearly marking it as the authoritative list and instructing future
+  developers to add new public functions there.
+
+### Fixed — `VPDLXreturn` Status Code Extensibility (Issue #8)
+
+- **`[ValidateSet(0, -1)]` replaced with `[ValidateRange(-99, 99)]`** (Issue #8).
+  The `$Code` parameter in `VPDLXreturn.ps1` was hard-coded to accept only `0`
+  (success) and `-1` (failure). This prevented future wrapper functions from
+  returning granular status codes. The constraint has been widened to
+  `[ValidateRange(-99, 99)]` and a documentation block added above the parameter
+  defining the status code conventions:
+  - `0` = success
+  - `-1` = general failure
+  - `1..99` = partial success / warning codes
+  - `-2..-99` = typed / categorised error codes
+
 ### Changed
-- Version bumped to `1.02.03` across all module files (`VPDLX.psm1`, `VPDLX.psd1`,
-  `Logfile.ps1`, `README.md`, `QUICKSTART.md`).
-- Developer ToDo-Liste updated: Priorität 1 and Priorität 3 marked as completed.
+- Version stays at `1.02.03` — these fixes are bundled into the same release.
+- Developer ToDo-Liste updated: Prioritäten 1, 2, 3, 4, 5 marked as completed.
+- Files modified: `Classes/Logfile.ps1`, `Classes/FileDetails.ps1`,
+  `Private/VPDLXreturn.ps1`, `VPDLX.psm1`, `VPDLX.psd1`.
 
 ---
 

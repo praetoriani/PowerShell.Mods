@@ -27,16 +27,16 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`FilterByLevel()` + `RecordFilter()` — Zwei-in-einem Fix** | `RecordFilter()` an die korrekte Position verschieben (Issue \#2) **und** den Label-String `'Filter'` auf `'FilterByLevel'` aktualisieren (Issue \#4) — beide Fixes betreffen dieselben Dateien und gehören in einen Commit | 2 |
+| ✅ | **`FilterByLevel()` + `RecordFilter()` — Zwei-in-einem Fix** | `RecordFilter()` an die korrekte Position verschieben (Issue \#2) **und** den Label-String `'Filter'` auf `'FilterByLevel'` aktualisieren (Issue \#4) — beide Fixes betreffen dieselben Dateien und gehören in einen Commit (**v1.02.03, 11.04.2026**) | 2 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | `RecordFilter()`-Aufruf nach die `foreach`-Schleife verschieben | In `Logfile.FilterByLevel()` den `$this._details.RecordFilter()`-Aufruf von **vor** die Schleife auf **nach** die Schleife und vor `return` versetzen | 1 |
-| ☐ | Label-String in `FileDetails.RecordFilter()` korrigieren | `$this._lastAccessType = 'Filter'` ändern zu `$this._lastAccessType = 'FilterByLevel'` | 1 |
-| ☐ | (Optional) `RecordFilter()` in `RecordFilterByLevel()` umbenennen | Kosmetische interne Umbenennung der `hidden`-Methode + Update des einzigen Call-Site in `Logfile.ps1` | 1 |
+| ✅ | `RecordFilter()`-Aufruf nach die `foreach`-Schleife verschieben | In `Logfile.FilterByLevel()` den `$this._details.RecordFilter()`-Aufruf von **vor** die Schleife auf **nach** die Schleife und vor `return` versetzt (**v1.02.03**) | 1 |
+| ✅ | Label-String in `FileDetails.RecordFilter()` korrigieren | `$this._lastAccessType = 'Filter'` geändert zu `$this._lastAccessType = 'FilterByLevel'` (**v1.02.03**) | 1 |
+| ✅ | (Optional) `RecordFilter()` in `RecordFilterByLevel()` umbenennen | Kosmetische interne Umbenennung der `hidden`-Methode + Update des einzigen Call-Site in `Logfile.ps1` (**v1.02.03**) | 1 |
 
 
 ***
@@ -62,16 +62,16 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`FunctionsToExport` — Einzelne Autorität festlegen** | Den Konflikt zwischen `VPDLX.psd1`-Manifest und `Export-ModuleMember` in `VPDLX.psm1` auflösen — Manifest als alleinige Quelle der Wahrheit festlegen (Issue \#5) | 3 |
+| ✅ | **`FunctionsToExport` — Einzelne Autorität festlegen** | Den Konflikt zwischen `VPDLX.psd1`-Manifest und `Export-ModuleMember` in `VPDLX.psm1` auflösen — Manifest als alleinige Quelle der Wahrheit festgelegt (Issue \#5, **v1.02.03, 11.04.2026**) | 3 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | `FunctionsToExport` in `VPDLX.psd1` vollständig und korrekt pflegen | Explizite Liste **aller** aktuell vorhandenen Public-Funktionen eintragen und einen Hinweis-Kommentar ergänzen: *„Neue Public-Funktionen HIER eintragen"* | 2 |
-| ☐ | `Export-ModuleMember`-Aufruf in `VPDLX.psm1` entfernen / kommentieren | Sektion 7 in `VPDLX.psm1` bereinigen — der Aufruf wird durch das Manifest vollständig überschrieben und ist irreführend | 2 |
-| ☐ | Dynamische `$PublicFunctions`-Logik in Sektion 7 dokumentieren | Kommentar ergänzen, der klar erklärt, warum Manifest Vorrang hat — für zukünftige Entwickler | 1 |
+| ✅ | `FunctionsToExport` in `VPDLX.psd1` vollständig und korrekt pflegen | Explizite Liste aller Public-Funktionen eingetragen, SINGLE SOURCE OF TRUTH-Kommentarblock ergänzt (**v1.02.03**) | 2 |
+| ✅ | `Export-ModuleMember`-Aufruf in `VPDLX.psm1` entfernen / kommentieren | Sektion 7 in `VPDLX.psm1` bereinigt — `Export-ModuleMember` durch erklärenden Kommentar ersetzt (**v1.02.03**) | 2 |
+| ✅ | Dynamische `$PublicFunctions`-Logik in Sektion 7 dokumentieren | Kommentar ergänzt, der klar erklärt, warum Manifest Vorrang hat (**v1.02.03**) | 1 |
 
 
 ***
@@ -80,15 +80,15 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`[ValidateSet(0, -1)]` durch `[ValidateRange]` ersetzen** | Den hard-codierten `[ValidateSet(0, -1)]`-Constraint in `VPDLXreturn.ps1` durch `[ValidateRange(-99, 99)]` ersetzen und Status-Code-Konventionen im Code-Kommentar dokumentieren (Issue \#8) | 2 |
+| ✅ | **`[ValidateSet(0, -1)]` durch `[ValidateRange]` ersetzen** | Den hard-codierten `[ValidateSet(0, -1)]`-Constraint in `VPDLXreturn.ps1` durch `[ValidateRange(-99, 99)]` ersetzt und Status-Code-Konventionen im Code-Kommentar dokumentiert (Issue \#8, **v1.02.03, 11.04.2026**) | 2 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | `[ValidateRange(-99, 99)]` einbauen | Attribut in der `$Code`-Parameterdeklaration ersetzen | 1 |
-| ☐ | Status-Code-Konvention dokumentieren | Kommentar über `$Code` ergänzen: `0` = Erfolg, `-1` = Allg. Fehler, `1..99` = Partial-Success, `-2..-99` = Typisierte Fehler | 1 |
+| ✅ | `[ValidateRange(-99, 99)]` einbauen | Attribut in der `$Code`-Parameterdeklaration ersetzt (**v1.02.03**) | 1 |
+| ✅ | Status-Code-Konvention dokumentieren | Kommentar über `$Code` ergänzt: `0` = Erfolg, `-1` = Allg. Fehler, `1..99` = Partial-Success, `-2..-99` = Typisierte Fehler (**v1.02.03**) | 1 |
 
 
 ***

@@ -76,6 +76,16 @@ RequiredAssemblies = @()
 # ScriptsToProcess = @()
 
 # Functions to export from this module.
+#
+# IMPORTANT (Issue #5 fix, v1.02.03):
+#   This manifest is the SINGLE SOURCE OF TRUTH for exported functions.
+#   When a module manifest (.psd1) is present and FunctionsToExport is set to
+#   an explicit list, PowerShell uses it as the authoritative filter and
+#   silently ignores any Export-ModuleMember call in the .psm1.
+#   The Export-ModuleMember call in VPDLX.psm1 Section 7 has been removed.
+#
+#   --> When adding a new Public function, add its name HERE.
+#
 # Note: PowerShell classes are NOT exported here — they are made globally available
 # via TypeAccelerators registered in VPDLX.psm1 at load time.
 FunctionsToExport = @(
@@ -94,6 +104,8 @@ FunctionsToExport = @(
 
     # Logfile export
     'VPDLXexportlogfile'   # Export a virtual log file to disk (txt / log / csv / json)
+
+    # ── Add new Public Wrapper function names below this line ──────────────
 )
 
 # Cmdlets to export from this module
@@ -137,7 +149,9 @@ PrivateData = @{
         ReleaseNotes = @'
 v1.02.03  (11.04.2026)
 ----------------------
-Bugfix release: Destroy() and ToString() hardened.
+Bugfix release: Destroy() and ToString() hardened; FilterByLevel()
+call-order and label corrected; export configuration conflict resolved;
+VPDLXreturn status code range extended.
 
 Fixed:
   Destroy() — GuardDestroyed() at entry (Issue #1)
@@ -157,6 +171,26 @@ Fixed:
       string interpolation) now throws ObjectDisposedException instead
       of a misleading NullReferenceException. The partial null-check
       for _data has been removed — GuardDestroyed() makes it redundant.
+
+  FilterByLevel() — RecordFilter() call-order fix (Issue #2)
+      The metadata-recording call was placed before the foreach loop.
+      Moved to after the loop so metadata is recorded only on successful
+      completion.
+
+  FilterByLevel() — RecordFilter() renamed + label fix (Issue #4)
+      Hidden method RecordFilter() renamed to RecordFilterByLevel().
+      Label string changed from 'Filter' to 'FilterByLevel' to match
+      the public method name.
+
+  FunctionsToExport — single source of truth (Issue #5)
+      Export-ModuleMember call removed from VPDLX.psm1 Section 7 (the
+      manifest takes precedence). SINGLE SOURCE OF TRUTH comment block
+      added to FunctionsToExport in VPDLX.psd1.
+
+  VPDLXreturn — status code range extended (Issue #8)
+      [ValidateSet(0, -1)] replaced with [ValidateRange(-99, 99)].
+      Status code conventions documented: 0 = success, -1 = general
+      failure, 1..99 = partial success, -2..-99 = typed errors.
 
 v1.01.02  (06.04.2026)
 ----------------------

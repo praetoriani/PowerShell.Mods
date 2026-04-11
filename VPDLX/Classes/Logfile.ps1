@@ -411,13 +411,18 @@ class Logfile {
     #   level — One of the supported log levels (case-insensitive)
     #
     # Side-effects:
-    #   - _details.RecordFilter() is called  -> updates 'lastacc', 'acctype', 'axcount'
+    #   - _details.RecordFilterByLevel() is called  -> updates 'lastacc', 'acctype', 'axcount'
+    #
+    # BUGFIX v1.02.03 (Issue #2 + Issue #4):
+    #   - RecordFilter() call moved from BEFORE the filter loop to AFTER it,
+    #     consistent with all other methods (Write, Print, Read, Reset) that
+    #     record metadata only after the core operation has completed.
+    #   - Call site updated from RecordFilter() to RecordFilterByLevel() to
+    #     match the renamed method in FileDetails (Issue #4).
     [string[]] FilterByLevel([string] $level) {
         $this.GuardDestroyed()
         [string] $normalizedLevel = $this.ValidateLevel($level)
         [string] $marker          = "[$($normalizedLevel.ToUpper())]"
-
-        $this._details.RecordFilter()
 
         # Use a typed List and a direct foreach loop with .Contains() instead
         # of Where-Object pipeline — avoids regex overhead and pipeline cost.
@@ -427,6 +432,10 @@ class Logfile {
                 $results.Add($line)
             }
         }
+
+        # Record the interaction AFTER the filter operation completes successfully,
+        # consistent with Write(), Print(), Read(), and all other methods.
+        $this._details.RecordFilterByLevel()
         return $results.ToArray()
     }
 

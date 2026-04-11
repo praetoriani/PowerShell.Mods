@@ -25,10 +25,23 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.01.00
+    Version : 1.02.03
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
-    Updated : 06.04.2026
+    Updated : 11.04.2026
+
+    BUGFIXES (11.04.2026):
+      1. Renamed RecordFilter() to RecordFilterByLevel() to match the
+         public method name FilterByLevel(). The previous name was a
+         leftover from the v1.01.00 Filter() -> FilterByLevel() rename.
+         (Issue #4 — cosmetic internal consistency)
+      2. Updated the _lastAccessType label from 'Filter' to
+         'FilterByLevel' inside the renamed method. The stale label
+         caused GetLastAccessType() and ToHashtable() to return a
+         ghost value that no longer corresponded to any public method.
+         (Issue #4)
+      3. Updated field comment for _lastAccessType to list
+         'FilterByLevel' instead of 'Filter' in the possible values.
 #>
 
 class FileDetails {
@@ -48,7 +61,7 @@ class FileDetails {
     hidden [string] $_lastAccessed
 
     # Human-readable label describing the type of the most recent interaction.
-    # Possible values: 'Write', 'Print', 'Read', 'SoakUp', 'Filter', 'Reset'
+    # Possible values: 'Write', 'Print', 'Read', 'SoakUp', 'FilterByLevel', 'Reset'
     hidden [string] $_lastAccessType
 
     # Current number of log lines stored in the Logfile's data list.
@@ -110,11 +123,18 @@ class FileDetails {
         $this._axcount++
     }
 
-    # Records a Filter interaction.
-    # Updates _lastAccessed, sets _lastAccessType to 'Filter', increments _axcount.
-    hidden [void] RecordFilter() {
+    # Records a FilterByLevel interaction.
+    # Updates _lastAccessed, sets _lastAccessType to 'FilterByLevel', increments _axcount.
+    #
+    # BUGFIX v1.02.03 (Issue #4):
+    #   Renamed from RecordFilter() to RecordFilterByLevel() and updated the
+    #   _lastAccessType label from 'Filter' to 'FilterByLevel'. The old label
+    #   was a stale leftover from the v1.01.00 rename of Filter() to
+    #   FilterByLevel(). The single call site in Logfile.FilterByLevel() has
+    #   been updated accordingly.
+    hidden [void] RecordFilterByLevel() {
         $this._lastAccessed   = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
-        $this._lastAccessType = 'Filter'
+        $this._lastAccessType = 'FilterByLevel'
         $this._axcount++
     }
 

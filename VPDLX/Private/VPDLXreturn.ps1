@@ -7,25 +7,28 @@
     caller uses VPDLXreturn to build a consistent [PSCustomObject] with three
     well-known properties:
 
-        code  [int]     —  0 on success, -1 on failure
+        code  [int]     —  status code (see convention below)
         msg   [string]  —  human-readable status or error description
         data  [object]  —  optional payload (any type); $null when not applicable
+
+    Status code convention:
+         0       = Success
+        -1       = General failure (default)
+         1..99   = Reserved for partial-success / warning scenarios
+        -2..-99  = Reserved for typed error categories
 
     This contract is stable across all VPDLX versions so that callers can
     always inspect the 'code' property to branch on success/failure without
     parsing the 'msg' string.
-
-    Although the current v1.01.00 release exposes only the class-based OOP
-    surface (no exported public functions), VPDLXreturn is retained so that
-    future public wrapper functions can provide a consistent return type
-    without changing the caller contract.
 
     USAGE (internal, inside any VPDLX function or method):
         return VPDLXreturn -Code 0  -Message 'Operation completed.' -Data $result
         return VPDLXreturn -Code -1 -Message 'Something went wrong.'
 
 .PARAMETER Code
-    0 for success, -1 for failure. Validated via [ValidateSet].
+    Integer status code. Validated via [ValidateRange(-99, 99)].
+    Convention: 0 = success, -1 = general failure (default).
+    See .DESCRIPTION for the full code convention.
     Default: -1
 
 .PARAMETER Message
@@ -49,20 +52,33 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.01.00
+    Version : 1.02.03
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
-    Updated : 06.04.2026
+    Updated : 11.04.2026
     Scope   : Private — used exclusively by VPDLX internals
+
+    CHANGES (11.04.2026):
+      - Replaced [ValidateSet(0, -1)] with [ValidateRange(-99, 99)] on
+        the $Code parameter. The hard-coded ValidateSet blocked any future
+        status code beyond 0 and -1, making even minor extensions a
+        breaking change. The new range allows typed error categories
+        (-2..-99) and partial-success codes (1..99) while preserving
+        backward compatibility for all existing callers.
+        (Issue #8)
 #>
 
 function VPDLXreturn {
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
     param(
-        # Status code: 0 = success, -1 = failure.
+        # Status code.
+        # Convention: 0 = success, -1 = general failure.
+        # Range -99..99 allows typed error categories and partial-success codes.
+        # FIX v1.02.03 (Issue #8): replaced [ValidateSet(0, -1)] with
+        # [ValidateRange(-99, 99)] to enable future extensibility.
         [Parameter(Mandatory = $false)]
-        [ValidateSet(0, -1)]
+        [ValidateRange(-99, 99)]
         [int] $Code = -1,
 
         # Human-readable outcome description.

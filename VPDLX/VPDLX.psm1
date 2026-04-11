@@ -70,11 +70,18 @@
 
     CHANGELOG:
     v1.02.03 (11.04.2026):
-      Bugfix release: Destroy() and ToString() hardened.
+      Bugfix release: Destroy() and ToString() hardened; FilterByLevel()
+      call-order and label corrected; export configuration conflict
+      resolved; VPDLXreturn status code range extended.
       - Destroy() now calls GuardDestroyed() first (Issue #1).
       - Destroy() wraps storage.Remove() in try/catch/finally (Issue #6).
       - ToString() now calls GuardDestroyed() first (Issue #3).
-      All three fixes affect Classes/Logfile.ps1 only.
+      - RecordFilter() call moved after foreach loop in FilterByLevel() (Issue #2).
+      - RecordFilter() renamed to RecordFilterByLevel(), label updated (Issue #4).
+      - Export-ModuleMember removed from Section 7; manifest is SSOT (Issue #5).
+      - [ValidateSet(0,-1)] replaced with [ValidateRange(-99,99)] (Issue #8).
+      Affected files: Logfile.ps1, FileDetails.ps1, VPDLXreturn.ps1,
+      VPDLX.psm1, VPDLX.psd1.
 
     v1.01.02 (06.04.2026):
       Public Wrapper Layer added (6 functions in Public\).
@@ -293,17 +300,22 @@ foreach ($Type in $script:ExportableTypes) {
 # SECTION 7 — Module export declarations
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
-# Export-ModuleMember must be called AFTER all dot-sourcing is complete.
-# VPDLXcore is defined in this root file; all Public Wrapper function names
-# are collected dynamically from $PublicFunctions (see Section 4 above) so
-# that adding a new .ps1 file to Public\ automatically makes it available
-# without requiring a manual update to this list.
-[string[]] $FunctionsToExport = @('VPDLXcore')
-if ($PublicFunctions.Count -gt 0) {
-    $FunctionsToExport += $PublicFunctions.BaseName
-}
-
-Export-ModuleMember -Function $FunctionsToExport
+# FIX v1.02.03 (Issue #5):
+#   The Export-ModuleMember call that was previously here has been REMOVED.
+#
+#   REASON: When a module manifest (.psd1) is present and its FunctionsToExport
+#   key is set to an explicit list, PowerShell uses the MANIFEST as the
+#   authoritative filter and silently ignores Export-ModuleMember. The dynamic
+#   discovery logic below was therefore entirely inert — any function not also
+#   listed in VPDLX.psd1 was silently suppressed, with no error or warning.
+#
+#   SINGLE SOURCE OF TRUTH: VPDLX.psd1 → FunctionsToExport
+#   When adding a new Public function, add its name to the FunctionsToExport
+#   array in VPDLX.psd1. No changes are needed here.
+#
+#   The dynamic $PublicFunctions collection in Section 4 is retained because
+#   it is still needed for DOT-SOURCING the function files into the module
+#   scope. It just no longer feeds into an Export-ModuleMember call.
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
