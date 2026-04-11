@@ -5,6 +5,51 @@ This file follows a *reverse-chronological* order — the newest version is alwa
 
 ---
 
+## [1.02.03] — 11.04.2026
+
+### Overview
+Critical bugfix release targeting the `Destroy()` and `ToString()` methods in
+`[Logfile]`. Three issues are resolved in this version, all affecting
+`Classes/Logfile.ps1`. Together, they bring `Destroy()` and `ToString()` in line
+with the defensive `GuardDestroyed()` contract that every other public method
+already follows.
+
+### Fixed — `Destroy()` Hardening (Issue #1 + Issue #6)
+
+- **`Destroy()` now calls `GuardDestroyed()` at the very beginning** (Issue #1).
+  Previously, calling `Destroy()` a second time on an already-destroyed instance
+  silently succeeded instead of throwing `ObjectDisposedException`. This was
+  inconsistent with every other public method in the class. The redundant
+  `if ($null -ne $this._data)` conditional has been removed — `GuardDestroyed()`
+  makes it unnecessary.
+
+- **`Destroy()` now wraps `storage.Remove()` in `try/catch/finally`** (Issue #6).
+  `FileStorage.Remove()` throws `InvalidOperationException` by design when the
+  name is not found (e.g. after direct manipulation via `VPDLXcore`). Without
+  exception handling, this interrupted cleanup and left the instance in a
+  half-destroyed state: removed from storage but still holding live `_data` and
+  `_details` references. The `finally` block now unconditionally clears `_data`
+  and sets both `_data` and `_details` to `$null`, guaranteeing full cleanup
+  regardless of whether `Remove()` succeeds or throws. The `catch` block emits
+  a `Write-Verbose` diagnostic instead of re-throwing.
+
+### Fixed — `ToString()` Post-Destroy Safety (Issue #3)
+
+- **`ToString()` now calls `GuardDestroyed()` at the top** (Issue #3).
+  Previously, `ToString()` contained a partial null-check for `_data` but
+  unconditionally accessed `_details.GetCreated()`. After `Destroy()`, this
+  caused an unhelpful `NullReferenceException` instead of the expected
+  `ObjectDisposedException`. The partial `if/else` construct has been removed
+  — with `GuardDestroyed()` in place, both `_data` and `_details` are guaranteed
+  non-null when the return statement executes.
+
+### Changed
+- Version bumped to `1.02.03` across all module files (`VPDLX.psm1`, `VPDLX.psd1`,
+  `Logfile.ps1`, `README.md`, `QUICKSTART.md`).
+- Developer ToDo-Liste updated: Priorität 1 and Priorität 3 marked as completed.
+
+---
+
 ## [1.01.02] — 06.04.2026
 
 ### Overview

@@ -9,7 +9,7 @@
     to create, manage, and query multiple in-memory log files simultaneously,
     and export them to disk in multiple formats when needed.
 
-    Architecture overview (v1.01.02):
+    Architecture overview (v1.02.03):
 
       Classes/
           FileDetails.ps1   — metadata companion for each Logfile instance
@@ -59,8 +59,8 @@
 
 .NOTES
     Creation Date : 05.04.2026
-    Last Update   : 06.04.2026
-    Version       : 1.01.02
+    Last Update   : 11.04.2026
+    Version       : 1.02.03
     Author        : Praetoriani (a.k.a. M.Sczepanski)
     Website       : https://github.com/praetoriani/PowerShell.Mods
 
@@ -69,6 +69,13 @@
     - No external dependencies
 
     CHANGELOG:
+    v1.02.03 (11.04.2026):
+      Bugfix release: Destroy() and ToString() hardened.
+      - Destroy() now calls GuardDestroyed() first (Issue #1).
+      - Destroy() wraps storage.Remove() in try/catch/finally (Issue #6).
+      - ToString() now calls GuardDestroyed() first (Issue #3).
+      All three fixes affect Classes/Logfile.ps1 only.
+
     v1.01.02 (06.04.2026):
       Public Wrapper Layer added (6 functions in Public\).
       Export functionality implemented: VPDLXexportlogfile supports
@@ -90,12 +97,12 @@
 # Read-only module metadata. Accessible externally via: VPDLXcore -KeyID 'appinfo'
 $script:appinfo = @{
     appname    = 'VPDLX'
-    appvers    = '1.01.02'
+    appvers    = '1.02.03'
     appdevname = 'Praetoriani'
     appdevmail = 'mr.praetoriani{at}gmail.com'
     appwebsite = 'https://github.com/praetoriani/PowerShell.Mods'
     datecreate = '05.04.2026'
-    lastupdate = '06.04.2026'
+    lastupdate = '11.04.2026'
 }
 
 # Supported file formats for VPDLXexportlogfile.

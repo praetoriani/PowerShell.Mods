@@ -1,6 +1,6 @@
 <img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
 
-# VPDLX v1.01.02 — Developer ToDo-Liste
+# VPDLX v1.02.03 — Developer ToDo-Liste
 
 
 ***
@@ -9,16 +9,16 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`Destroy()` — Vollständige Härtung** | `Logfile.Destroy()` erhält `GuardDestroyed()` am Anfang (Issue \#1) **und** ein `try/catch/finally`-Konstrukt um `storage.Remove()` (Issue \#6) — beide Fixes in einem einzigen Commit umsetzen | 3 |
+| ✅ | **`Destroy()` — Vollständige Härtung** | `Logfile.Destroy()` erhält `GuardDestroyed()` am Anfang (Issue \#1) **und** ein `try/catch/finally`-Konstrukt um `storage.Remove()` (Issue \#6) — beide Fixes in einem einzigen Commit umgesetzt (**v1.02.03, 11.04.2026**) | 3 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | `GuardDestroyed()` in `Destroy()` einbauen | Erster Aufruf in `Destroy()` muss `$this.GuardDestroyed()` sein — entfernt danach das überflüssige `if`-Konstrukt | 1 |
-| ☐ | `try/catch/finally` um `storage.Remove()` | `finally`-Block setzt `_data` und `_details` **immer** auf `$null`, `catch`-Block schreibt `Write-Verbose`-Warnung statt Exception zu werfen | 2 |
-| ☐ | Altes `if ($null -ne $this._data)`-Konstrukt entfernen | Nach Einbau von `GuardDestroyed()` ist diese Prüfung redundant und kann sauber entfernt werden | 1 |
+| ✅ | `GuardDestroyed()` in `Destroy()` einbauen | Erster Aufruf in `Destroy()` ist nun `$this.GuardDestroyed()` — altes `if`-Konstrukt entfernt (**v1.02.03**) | 1 |
+| ✅ | `try/catch/finally` um `storage.Remove()` | `finally`-Block setzt `_data` und `_details` **immer** auf `$null`, `catch`-Block schreibt `Write-Verbose`-Warnung (**v1.02.03**) | 2 |
+| ✅ | Altes `if ($null -ne $this._data)`-Konstrukt entfernen | Nach Einbau von `GuardDestroyed()` redundant — entfernt (**v1.02.03**) | 1 |
 
 
 ***
@@ -45,15 +45,15 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`ToString()` NullReferenceException beheben** | `Logfile.ToString()` wirft nach `Destroy()` eine `NullReferenceException` durch unbewachten Zugriff auf `_details.GetCreated()` — `GuardDestroyed()` an erster Stelle einbauen (Issue \#3) | 2 |
+| ✅ | **`ToString()` NullReferenceException beheben** | `Logfile.ToString()` wirft nach `Destroy()` eine `NullReferenceException` durch unbewachten Zugriff auf `_details.GetCreated()` — `GuardDestroyed()` an erster Stelle eingebaut (Issue \#3, **v1.02.03, 11.04.2026**) | 2 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | `GuardDestroyed()` in `ToString()` einbauen | Erster Aufruf in `ToString()` wird `$this.GuardDestroyed()` — danach entfällt die partielle `if`-Prüfung für `_data` | 1 |
-| ☐ | Partielle `_data`-Nullprüfung in `ToString()` entfernen | Das `if ($null -ne $this._data) { ... } else { 0 }`-Konstrukt wird nach Einbau des Guards überflüssig und kann bereinigt werden | 1 |
+| ✅ | `GuardDestroyed()` in `ToString()` einbauen | Erster Aufruf in `ToString()` ist nun `$this.GuardDestroyed()` (**v1.02.03**) | 1 |
+| ✅ | Partielle `_data`-Nullprüfung in `ToString()` entfernen | `if/else`-Konstrukt entfernt — `_data` ist nach `GuardDestroyed()` garantiert non-null (**v1.02.03**) | 1 |
 
 
 ***

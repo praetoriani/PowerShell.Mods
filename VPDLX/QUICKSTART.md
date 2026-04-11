@@ -1,6 +1,6 @@
 # VPDLX — Quick Start Guide
 
-> **Module version:** 1.01.02
+> **Module version:** 1.02.03
 > **Prerequisites:** PowerShell 5.1 or PowerShell 7.x
 
 This guide takes you from zero to a fully working virtual log file in five minutes.
@@ -322,6 +322,7 @@ press `<Enter>` before continuing, so you can read each result at your own pace.
   instances inside `ForEach-Object -Parallel` or `Start-ThreadJob` without external
   synchronisation. See `README.md` for the full list of known limitations.
 - After calling `.Destroy()` or `VPDLXdroplogfile`, always set the variable to `$null`.
-  Subsequent method calls on a destroyed instance throw `ObjectDisposedException`.
+  Subsequent method calls on a destroyed instance — including `ToString()` and
+  implicit string interpolation — throw `ObjectDisposedException` (fixed in v1.02.03).
 - There is no built-in entry limit. Very large logs accumulate in RAM for the duration
   of the PowerShell session.

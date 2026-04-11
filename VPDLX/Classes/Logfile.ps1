@@ -43,10 +43,29 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.01.00
+    Version : 1.02.03
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
-    Updated : 06.04.2026
+    Updated : 11.04.2026
+
+    BUGFIXES (11.04.2026):
+      1. Destroy() now calls GuardDestroyed() at the very beginning,
+         consistent with all other public methods. A second call on an
+         already-destroyed instance now correctly throws
+         ObjectDisposedException instead of silently succeeding.
+         (Issue #1)
+      2. Destroy() now wraps storage.Remove() in a try/catch/finally
+         block. The finally block unconditionally sets _data and _details
+         to $null, guaranteeing full cleanup even if Remove() throws an
+         InvalidOperationException due to registry desynchronisation.
+         (Issue #6)
+      3. ToString() now calls GuardDestroyed() at the top, consistent
+         with all other public methods. The previous partial null-check
+         for _data has been removed — with GuardDestroyed() in place,
+         _data is guaranteed non-null. Calling ToString() on a destroyed
+         instance now throws ObjectDisposedException instead of a
+         misleading NullReferenceException.
+         (Issue #3)
 
     BUGFIXES (06.04.2026):
       1. Constructor parameter $name is no longer reassigned directly.
@@ -445,13 +464,44 @@ class Logfile {
     #   - This instance is removed from $script:storage
     #   - _data list is cleared and set to $null
     #   - _details is set to $null
+    #
+    # BUGFIX v1.02.03 (Issue #1 + Issue #6):
+    #   - GuardDestroyed() is now called first, preventing silent double-
+    #     destroy. The previous 'if ($null -ne $this._data)' guard has been
+    #     removed — GuardDestroyed() makes it redundant.
+    #   - storage.Remove() is wrapped in try/catch/finally. The finally block
+    #     unconditionally clears _data and sets both _data and _details to
+    #     $null, guaranteeing consistent cleanup even if Remove() throws
+    #     (e.g. due to state desynchronisation via VPDLXcore).
     [void] Destroy() {
-        if ($null -ne $this._data) {
+        # Guard against double-destroy, consistent with all other public methods.
+        # Throws ObjectDisposedException if this instance was already destroyed.
+        $this.GuardDestroyed()
+
+        try {
+            # Attempt to deregister from FileStorage.
+            # Remove() throws InvalidOperationException if the name is not found
+            # (e.g. due to state desynchronisation via VPDLXcore or a prior error).
             $script:storage.Remove($this.Name)
-            $this._data.Clear()
         }
-        $this._data    = $null
-        $this._details = $null
+        catch [System.InvalidOperationException] {
+            # The instance was not (or no longer) registered in FileStorage.
+            # Log a verbose diagnostic but do not re-throw: the caller invoked
+            # Destroy() with the intent to release this instance, and we honour
+            # that intent regardless of the registry state.
+            Write-Verbose (
+                "VPDLX: Destroy() could not remove '$($this.Name)' from FileStorage " +
+                "(already removed or registry inconsistency): $($_.Exception.Message)"
+            )
+        }
+        finally {
+            # Unconditional cleanup: always runs, even if Remove() threw.
+            # Sets _data and _details to $null so that GuardDestroyed() works
+            # correctly on any subsequent method call (including a second Destroy()).
+            $this._data.Clear()
+            $this._data    = $null
+            $this._details = $null
+        }
     }
 
 
@@ -506,8 +556,19 @@ class Logfile {
 
     # Returns a one-line summary string — shown automatically when the object
     # is output to the console without a method call.
+    #
+    # BUGFIX v1.02.03 (Issue #3):
+    #   GuardDestroyed() is now called at the top, consistent with all other
+    #   public methods. The previous partial null-check for _data has been
+    #   removed — with GuardDestroyed() in place, _data and _details are
+    #   guaranteed non-null. Calling ToString() on a destroyed instance now
+    #   throws ObjectDisposedException instead of a misleading
+    #   NullReferenceException from the unguarded _details.GetCreated() call.
     [string] ToString() {
-        [int] $count = if ($null -ne $this._data) { $this._data.Count } else { 0 }
-        return "Logfile: '$($this.Name)' | Entries: $count | Created: $($this._details.GetCreated())"
+        # Guard against post-destroy access, consistent with all other public methods.
+        # Throws ObjectDisposedException with a descriptive message if _data is $null.
+        $this.GuardDestroyed()
+
+        return "Logfile: '$($this.Name)' | Entries: $($this._data.Count) | Created: $($this._details.GetCreated())"
     }
 }

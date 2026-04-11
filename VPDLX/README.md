@@ -6,7 +6,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/Version-1.01.02-blue)
+![Version](https://img.shields.io/badge/Version-1.02.03-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 
@@ -507,3 +507,4 @@ storage registry) are not synchronised. Using `[Logfile]` instances inside
 | No entry limit | Logs grow unboundedly in RAM. Long-running scripts with high write frequency may consume significant memory. |
 | String timestamps | Timestamps are stored as formatted strings. Direct time arithmetic requires additional parsing via `[datetime]::ParseExact()`. |
 | After `Destroy()` | The PowerShell variable is not automatically set to `$null`. Always assign `$log = $null` after calling `Destroy()` to prevent stale reference errors. |
+| After `Destroy()` + `ToString()` | Calling `ToString()` on a destroyed instance (explicitly or via string interpolation) throws `ObjectDisposedException`. This is consistent with all other public methods since v1.02.03. |
