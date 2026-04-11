@@ -5,6 +5,135 @@ This file follows a *reverse-chronological* order — the newest version is alwa
 
 ---
 
+## [1.02.04] — 11.04.2026
+
+### Overview
+Performance & Quality improvement release. Implements all three tasks from
+**Priorität 9** of the Developer ToDo-Liste: a pre-import environment check,
+a configurable maximum message length, and a BOM-free UTF-8 export option.
+These changes harden the module against edge-case failures and improve
+interoperability with external log-processing tools.
+
+### Added — Pre-Import Environment Validation (`VPDLX.Precheck.ps1`)
+
+- **New file: `VPDLX.Precheck.ps1`** — a lightweight pre-import script that
+  validates the PowerShell environment before the root module (`VPDLX.psm1`)
+  is loaded.
+
+- **Registered via `ScriptsToProcess` in `VPDLX.psd1`** — PowerShell executes
+  this script automatically when `Import-Module VPDLX` is called, before any
+  class definitions or function files are processed.
+
+- **Check performed: PowerShell version >= 5.1.**
+  VPDLX uses PowerShell 5 class syntax, generic collections, and
+  TypeAccelerator registration — all of which require at least PS 5.1.
+  Running on PS 4.0 or earlier would produce cryptic parse errors that do not
+  clearly indicate the root cause. The precheck script catches this early and
+  emits a clear, actionable error message:
+  ```
+  VPDLX requires PowerShell 5.1 or higher.
+  Your current PowerShell version is 4.0.
+  ...
+  ```
+
+- **Design decision:** The script uses `Write-Error -ErrorAction Stop` to
+  prevent module loading entirely. A `Write-Warning` would allow the module
+  to continue loading and fail later with confusing errors. Stopping here
+  gives the user a single, clear diagnostic message.
+
+- **Silent on success** — when the check passes, the precheck produces no
+  output (only a `Write-Verbose` message for diagnostic tracing).
+
+### Added — Configurable Maximum Message Length
+
+- **New static property: `[Logfile]::MaxMessageLength`** (default: `8192`).
+  This property defines the upper bound for the length of a single log
+  message. Any message exceeding this limit is rejected by `ValidateMessage()`
+  with a descriptive `ArgumentException` that includes:
+  - The actual length of the message
+  - The configured maximum length
+  - Instructions on how to increase the limit
+
+- **Why this matters:**
+  Without a length limit, a caller could accidentally pass a multi-megabyte
+  string (e.g. the contents of an entire file, a serialised object, or a
+  runaway string concatenation) as a single log message. Since VPDLX stores
+  all entries in a `List<string>` in RAM, a single oversized message could
+  consume significant memory and degrade performance for the entire session.
+
+- **Configurable at runtime** — callers can adjust the limit without
+  modifying source code:
+  ```powershell
+  [Logfile]::MaxMessageLength = 16384   # double the default
+  [Logfile]::MaxMessageLength = 1024    # stricter limit for production
+  ```
+  The minimum sensible value is `10` — setting it lower would conflict with
+  the existing "at least 3 non-whitespace characters" rule.
+
+- **Validation order in `ValidateMessage()`** (all four rules):
+  1. Must not be null, empty, or whitespace-only
+  2. Must contain at least 3 non-whitespace characters
+  3. Must not contain newline characters (CR or LF)
+  4. Must not exceed `[Logfile]::MaxMessageLength` characters **(new)**
+
+- **Backwards compatible** — the default limit of 8192 characters is generous
+  enough that no existing caller should be affected. Messages shorter than
+  8192 characters pass without any change in behaviour.
+
+### Added — BOM-Free UTF-8 Export (`-NoBOM` Switch)
+
+- **New switch parameter: `-NoBOM` on `VPDLXexportlogfile`.**
+  When specified, forces BOM-free UTF-8 encoding on all PowerShell versions,
+  including Windows PowerShell 5.1.
+
+- **The problem this solves:**
+  Windows PowerShell 5.1 writes a 3-byte UTF-8 BOM (Byte Order Mark:
+  `EF BB BF`) at the beginning of files when using `Set-Content -Encoding UTF8`.
+  This invisible prefix causes issues with:
+  - **Unix/Linux log aggregators** (Filebeat, Fluentd, Logstash) that do not
+    expect a BOM and may treat it as data corruption or display garbled
+    characters at the start of the first log entry
+  - **JSON parsers** that interpret the BOM as invalid JSON before the
+    opening `{` bracket, causing parse failures
+  - **CSV readers** in non-Microsoft tools that show the BOM as a visible
+    character (`﻿`) in the first header field
+  - **Web APIs** that interpret the BOM as part of the request body
+
+- **Implementation:**
+  When `-NoBOM` is specified, the export function bypasses `Set-Content`
+  entirely and writes the file via `[System.IO.File]::WriteAllText()` with
+  an explicit BOM-free encoder:
+  ```powershell
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($filePath, $content, $utf8NoBom)
+  ```
+  The `$false` argument to `UTF8Encoding` suppresses BOM generation.
+
+- **Behaviour on PowerShell 7.x:**
+  On PS 7.x, `-NoBOM` is effectively a no-op because PS 7 already writes
+  BOM-free UTF-8 by default. However, using `-NoBOM` explicitly is still
+  recommended for scripts that must work across both PS editions, as it
+  makes the encoding intent clear and self-documenting.
+
+- **Usage example:**
+  ```powershell
+  VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -NoBOM
+  ```
+
+- **Applies to all four export formats** — `txt`, `log`, `csv`, and `json`
+  all respect the `-NoBOM` switch. The encoding logic is encapsulated in a
+  single internal helper scriptblock so all formats share the same
+  implementation.
+
+### Changed
+- Module version updated to `1.02.04` in all files (psd1, psm1, VPDLXClasses.ps1).
+- `$script:appinfo.appvers` updated to `'1.02.04'`.
+- `VPDLX.psd1` `ScriptsToProcess` activated (was previously commented out).
+- `VPDLX.psd1` `FileList` updated to include `VPDLX.Precheck.ps1`.
+- Developer ToDo-Liste: Priorität 9 tasks marked as completed.
+
+---
+
 ## [1.02.03] — 11.04.2026
 
 ### Overview

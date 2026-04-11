@@ -35,10 +35,18 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.02.03
+    Version : 1.02.04
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
     Updated : 11.04.2026
+
+    QUALITY (11.04.2026, v1.02.04 — Priorität 9):
+      Added configurable maximum message length to ValidateMessage().
+      Default limit is 8192 characters, configurable via the static
+      property [Logfile]::MaxMessageLength. Messages exceeding the limit
+      are rejected with a descriptive ArgumentException that includes
+      the actual length and the configured maximum. This protects against
+      accidental memory flooding from extremely long strings.
 
     CONSOLIDATION (11.04.2026, Issue #9):
       Merged FileDetails.ps1, FileStorage.ps1, and Logfile.ps1 into this
@@ -459,6 +467,24 @@ class Logfile {
 
     # ── Static definitions ───────────────────────────────────────────────────
 
+    # Configurable upper bound for message length in ValidateMessage().
+    # Default: 8192 characters. Any message exceeding this limit is rejected
+    # with a descriptive ArgumentException before it reaches the data list.
+    # Callers can adjust this value at any time:
+    #   [Logfile]::MaxMessageLength = 16384   # double the default
+    #   [Logfile]::MaxMessageLength = 1024    # stricter limit
+    # The minimum accepted value is 10 — setting it lower than 10 would
+    # conflict with the existing "at least 3 non-whitespace characters" rule
+    # and make the validator confusing.
+    #
+    # NEW v1.02.04 (Priorität 9):
+    #   Introduced to protect against memory flooding from extremely long
+    #   strings being passed to Write() or Print(). Without a limit, a caller
+    #   could accidentally pass a multi-megabyte string (e.g. the contents of
+    #   an entire file) as a single log message.
+    static [int] $MaxMessageLength = 8192
+
+
     # All supported log levels and their formatted output prefixes.
     # Keys are lowercase identifiers; values are fixed-width prefix strings
     # that appear in each log line after the timestamp.
@@ -575,6 +601,14 @@ class Logfile {
     #   1. Must not be null, empty, or whitespace-only.
     #   2. Must contain at least 3 non-whitespace characters (no trivial entries).
     #   3. Must not contain newline characters (prevents log-injection attacks).
+    #   4. Must not exceed [Logfile]::MaxMessageLength characters (memory protection).
+    #
+    # IMPROVEMENT v1.02.04 (Priorität 9):
+    #   Added rule 4 — configurable maximum message length. The default limit
+    #   is 8192 characters (see [Logfile]::MaxMessageLength). Messages that
+    #   exceed the limit are rejected with a descriptive ArgumentException
+    #   that includes the actual length and the configured maximum, so the
+    #   caller knows both what happened and what the boundary is.
     hidden [void] ValidateMessage([string] $message) {
         if ([string]::IsNullOrWhiteSpace($message)) {
             throw [System.ArgumentException]::new(
@@ -593,6 +627,18 @@ class Logfile {
         if ($message -match '[\r\n]') {
             throw [System.ArgumentException]::new(
                 "Parameter 'message' must not contain newline characters (CR or LF).",
+                'message'
+            )
+        }
+        # Maximum length check — protects against accidental memory flooding.
+        # The limit is configurable via [Logfile]::MaxMessageLength (default: 8192).
+        # NEW v1.02.04 (Priorität 9).
+        [int] $maxLen = [Logfile]::MaxMessageLength
+        if ($message.Length -gt $maxLen) {
+            throw [System.ArgumentException]::new(
+                ("Parameter 'message' exceeds the maximum allowed length. " +
+                 "Length: $($message.Length) characters; limit: $maxLen characters. " +
+                 "Adjust [Logfile]::MaxMessageLength to increase the limit."),
                 'message'
             )
         }

@@ -1,6 +1,6 @@
 # VPDLX — Quick Start Guide
 
-> **Module version:** 1.02.03
+> **Module version:** 1.02.04
 > **Prerequisites:** PowerShell 5.1 or PowerShell 7.x
 
 This guide takes you from zero to a fully working virtual log file in five minutes.
@@ -14,6 +14,11 @@ the underlying **class-based API** for advanced scenarios.
 ```powershell
 Import-Module .\VPDLX.psd1
 ```
+
+> **Note:** Since v1.02.04 the module ships with `VPDLX.Precheck.ps1` (registered in
+> `ScriptsToProcess`). This script runs automatically before the module loads and
+> verifies that your PowerShell version meets the minimum requirement (5.1).
+> If the check fails you will see a descriptive error message — no silent breakage.
 
 After import, three things are available in your session:
 
@@ -117,6 +122,28 @@ $log.Print('info', $messages)
 > All messages are validated **before** any are written.
 > A validation failure on one message leaves the log unchanged (transactional).
 
+### Message length limit
+
+Since v1.02.04, every message is checked against a configurable maximum length
+(default: **8 192 characters**). Messages that exceed this limit are rejected with
+a descriptive `ArgumentException`.
+
+You can read or change the limit at any time via the static property:
+
+```powershell
+# Query the current limit
+[Logfile]::MaxMessageLength          # → 8192
+
+# Raise the limit for very long messages
+[Logfile]::MaxMessageLength = 16384
+
+# Lower the limit for strict environments
+[Logfile]::MaxMessageLength = 2048
+```
+
+The minimum accepted value is **1**. Setting the property to `0` or a negative
+number throws an `ArgumentException`.
+
 ### Supported log levels
 
 | Level      | Shortcut method   | Output tag   |
@@ -195,6 +222,11 @@ $r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'csv'
 
 # Export as JSON
 $r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'json'
+
+# Export as BOM-free UTF-8 (v1.02.04+)
+# Useful when feeding log files to external aggregators (ELK, Splunk, Grafana Loki)
+# that do not expect a UTF-8 BOM at the start of the file.
+$r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'txt' -NoBOM
 
 # Overwrite an existing file with -Override
 $r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'txt' -Override
@@ -339,5 +371,6 @@ press `<Enter>` before continuing, so you can read each result at your own pace.
 - After calling `.Destroy()` or `VPDLXdroplogfile`, always set the variable to `$null`.
   Subsequent method calls on a destroyed instance — including `ToString()` and
   implicit string interpolation — throw `ObjectDisposedException` (fixed in v1.02.03).
-- There is no built-in entry limit. Very large logs accumulate in RAM for the duration
-  of the PowerShell session.
+- Individual message length is capped by `[Logfile]::MaxMessageLength` (default 8 192).
+  There is no built-in **entry count** limit. Very large logs accumulate in RAM for
+  the duration of the PowerShell session.

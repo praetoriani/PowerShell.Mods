@@ -1,6 +1,6 @@
 <img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
 
-# VPDLX v1.02.03 — Developer ToDo-Liste
+# VPDLX v1.02.04 — Developer ToDo-Liste
 
 
 ***
@@ -154,17 +154,17 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`ScriptsToProcess` Precheck-Skript erstellen** | `VPDLX.Precheck.ps1` anlegen und in `VPDLX.psd1` unter `ScriptsToProcess` eintragen — prüft PS-Version und gibt klare Fehlermeldungen vor dem Modul-Load | 3 |
-| ☐ | **Encoding-Option für Export verbessern** | Export-Funktionen um BOM-freie UTF-8-Option erweitern (`New-Object System.Text.UTF8Encoding($false)`) für Kompatibilität mit externen Log-Aggregatoren | 4 |
-| ☐ | **Eingabelängen-Limit für Nachrichten** | In `ValidateMessage()` eine konfigurierbare maximale Nachrichtenlänge einbauen (Standard: 8.192 Zeichen) zum Schutz vor Speicher-Flooding | 3 |
+| ✅ | **`ScriptsToProcess` Precheck-Skript erstellen** | `VPDLX.Precheck.ps1` angelegt und in `VPDLX.psd1` unter `ScriptsToProcess` eingetragen — prüft PS-Version (`Major -ge 5`, bei PS 5.x zusätzlich `Minor -ge 1`) und gibt klare `Write-Error`- bzw. `Write-Warning`-Meldungen vor dem Modul-Load (**v1.02.04, 11.04.2026**) | 3 |
+| ✅ | **Encoding-Option für Export verbessern** | `VPDLXexportlogfile` um `-NoBOM`-Switch erweitert — nutzt `[System.Text.UTF8Encoding]::new($false)` via `[System.IO.StreamWriter]` für BOM-freie UTF-8-Ausgabe, kompatibel mit externen Log-Aggregatoren (ELK, Splunk, Grafana Loki) (**v1.02.04, 11.04.2026**) | 4 |
+| ✅ | **Eingabelängen-Limit für Nachrichten** | Neue statische Property `[Logfile]::MaxMessageLength` (Standard: 8192) — `ValidateMessage()` prüft `$Message.Length` gegen diesen Wert und wirft `ArgumentException` bei Überschreitung. Setter validiert `>= 1` (**v1.02.04, 11.04.2026**) | 3 |
 
 **Unter-Tasks für Precheck-Skript:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | `VPDLX.Precheck.ps1` erstellen | PS-Versionscheck (`Major -ge 5`, `Minor -ge 1`), aussagekräftige `Write-Error`-/`Write-Warning`-Meldungen | 2 |
-| ☐ | `ScriptsToProcess` in `VPDLX.psd1` aktivieren | Auskommentierten Eintrag aktivieren und auf `'VPDLX.Precheck.ps1'` setzen | 1 |
+| ✅ | `VPDLX.Precheck.ps1` erstellen | PS-Versionscheck (`Major -ge 5`, `Minor -ge 1`), aussagekräftige `Write-Error`-/`Write-Warning`-Meldungen, `throw` bei nicht unterstützter Version (**v1.02.04**) | 2 |
+| ✅ | `ScriptsToProcess` in `VPDLX.psd1` aktivieren | Auskommentierten Eintrag aktiviert und auf `'VPDLX.Precheck.ps1'` gesetzt (**v1.02.04**) | 1 |
 
 
 ***
@@ -206,5 +206,5 @@
 
 ***
 
-> **Hinweis zur Bearbeitungsreihenfolge:** Die Prioritäten 1–4 bilden eine logische Kette und sollten streng sequenziell abgearbeitet werden — Priorität 1 zuerst, da alle anderen Fixes auf einem korrekten `Destroy()` aufbauen. Prioritäten 5–7 sind voneinander unabhängig und können parallel angegangen werden. Priorität 8 setzt die erfolgreiche Umsetzung von Priorität 1 voraus. Die Prioritäten 9–11 sind Qualitäts- und Zukunftsthemen, die unabhängig vom Bug-Fix-Zyklus begonnen werden können.
+> **Hinweis zur Bearbeitungsreihenfolge:** Die Prioritäten 1–9 sind vollständig abgeschlossen (v1.02.03 – v1.02.04). Priorität 10 (Neue Features & Erweiterungen) und Priorität 11 (Qualitätssicherung & Dokumentation) stehen als nächstes an und können unabhängig voneinander begonnen werden.
 

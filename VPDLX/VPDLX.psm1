@@ -60,7 +60,7 @@
 .NOTES
     Creation Date : 05.04.2026
     Last Update   : 11.04.2026
-    Version       : 1.02.03
+    Version       : 1.02.04
     Author        : Praetoriani (a.k.a. M.Sczepanski)
     Website       : https://github.com/praetoriani/PowerShell.Mods
 
@@ -69,6 +69,17 @@
     - No external dependencies
 
     CHANGELOG:
+    v1.02.04 (11.04.2026):
+      Performance & Quality improvements (Priorität 9).
+      - Added VPDLX.Precheck.ps1 — validates PS >= 5.1 before module load.
+        Registered via ScriptsToProcess in the module manifest.
+      - Added configurable maximum message length in ValidateMessage().
+        Default: 8192 characters; configurable via [Logfile]::MaxMessageLength.
+        Protects against memory flooding from extremely long strings.
+      - Added -NoBOM switch to VPDLXexportlogfile for BOM-free UTF-8 export.
+        Uses [System.Text.UTF8Encoding]::new($false) for PS 5.1 compatibility
+        with Unix-based log aggregators and web services.
+
     v1.02.03 (11.04.2026):
       Bugfix release: Destroy() and ToString() hardened; FilterByLevel()
       call-order and label corrected; export configuration conflict
@@ -110,7 +121,7 @@
 # Read-only module metadata. Accessible externally via: VPDLXcore -KeyID 'appinfo'
 $script:appinfo = @{
     appname    = 'VPDLX'
-    appvers    = '1.02.03'
+    appvers    = '1.02.04'
     appdevname = 'Praetoriani'
     appdevmail = 'mr.praetoriani{at}gmail.com'
     appwebsite = 'https://github.com/praetoriani/PowerShell.Mods'

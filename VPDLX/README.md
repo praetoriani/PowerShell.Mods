@@ -6,7 +6,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/Version-1.02.03-blue)
+![Version](https://img.shields.io/badge/Version-1.02.04-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 
@@ -82,6 +82,7 @@ Remove-Module VPDLX
 VPDLX/
 ├── VPDLX.psm1              # Root module: class loading, TypeAccelerators, VPDLXcore
 ├── VPDLX.psd1              # Module manifest
+├── VPDLX.Precheck.ps1      # Pre-import validation (PS version check)
 ├── CHANGELOG.md
 ├── QUICKSTART.md
 ├── README.md
@@ -234,7 +235,7 @@ if ($result.code -eq 0) { Write-Host "Total entries: $($result.data)" }
 Exports a virtual log file to a physical file on disk. This is the primary way to persist in-memory log data.
 
 ```powershell
-VPDLXexportlogfile -Logfile <string> -LogPath <string> -ExportAs <string> [-Override]
+VPDLXexportlogfile -Logfile <string> -LogPath <string> -ExportAs <string> [-Override] [-NoBOM]
 ```
 
 | Parameter | Type | Mandatory | Description |
@@ -243,6 +244,7 @@ VPDLXexportlogfile -Logfile <string> -LogPath <string> -ExportAs <string> [-Over
 | `LogPath` | `string` | yes | Full path to the target directory (created automatically if it does not exist) |
 | `ExportAs` | `string` | yes | Target format: `txt` \| `csv` \| `json` \| `log` |
 | `Override` | `switch` | no | When set, overwrites an existing file at the target path |
+| `NoBOM` | `switch` | no | Forces BOM-free UTF-8 output (important for Unix tools, JSON parsers, and log aggregators; see below) |
 
 **Supported formats:**
 
@@ -264,7 +266,12 @@ if ($result.code -eq 0) { Write-Host "Saved to: $($result.data)" }
 
 # Export as JSON and overwrite if file exists
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -Override
+
+# Export with BOM-free UTF-8 (recommended for Unix tools and log aggregators)
+$result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -NoBOM
 ```
+
+> **Encoding note:** By default, Windows PowerShell 5.1 writes a UTF-8 BOM (Byte Order Mark) at the start of exported files. The `-NoBOM` switch suppresses this 3-byte prefix, ensuring clean interoperability with Unix-based log aggregators (Filebeat, Fluentd), JSON parsers, and web APIs. On PowerShell 7.x, `-NoBOM` is a no-op (PS 7 is BOM-free by default), but using it makes the encoding intent explicit across PS editions.
 
 ---
 
@@ -499,12 +506,22 @@ storage registry) are not synchronised. Using `[Logfile]` instances inside
 > independent `[Logfile]` instance and the results should be merged after the
 > parallel block completes.
 
+### Message Length Limit
+
+Since v1.02.04, `ValidateMessage()` enforces a configurable maximum message length (default: **8192 characters**). Messages exceeding the limit are rejected with a descriptive error. This protects against accidental memory flooding from extremely long strings.
+
+To adjust the limit at runtime:
+
+```powershell
+[Logfile]::MaxMessageLength = 16384   # double the default
+[Logfile]::MaxMessageLength = 1024    # stricter limit for production
+```
+
 ### Other Limitations
 
 | Limitation | Detail |
 |---|---|
 | `hidden` ≠ `private` | PowerShell does not enforce true access control. `hidden` suppresses IntelliSense / `Get-Member` visibility only. Disciplined callers should use the documented public methods. |
-| No entry limit | Logs grow unboundedly in RAM. Long-running scripts with high write frequency may consume significant memory. |
 | String timestamps | Timestamps are stored as formatted strings. Direct time arithmetic requires additional parsing via `[datetime]::ParseExact()`. |
 | After `Destroy()` | The PowerShell variable is not automatically set to `$null`. Always assign `$log = $null` after calling `Destroy()` to prevent stale reference errors. |
 | After `Destroy()` + `ToString()` | Calling `ToString()` on a destroyed instance (explicitly or via string interpolation) throws `ObjectDisposedException`. This is consistent with all other public methods since v1.02.03. |

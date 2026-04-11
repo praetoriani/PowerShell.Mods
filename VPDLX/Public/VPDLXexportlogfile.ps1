@@ -76,10 +76,23 @@
         resilient to messages that contain '->' themselves.
 
     ENCODING:
-        All output files are written with UTF-8 encoding (no BOM on
-        PowerShell 6+; with BOM on Windows PowerShell 5.1 when using
-        Set-Content -Encoding UTF8). The encoding is explicitly set on
-        every write call.
+        All output files are written with UTF-8 encoding. By default,
+        Windows PowerShell 5.1 writes a UTF-8 BOM (Byte Order Mark),
+        while PowerShell 7.x writes BOM-free UTF-8.
+
+        The -NoBOM switch forces BOM-free UTF-8 output on ALL PowerShell
+        versions, including 5.1. This is important for interoperability
+        with external log aggregators, Unix-based tools, and web services
+        that do not expect or handle a BOM prefix correctly.
+
+        When -NoBOM is specified, the function uses
+        [System.IO.File]::WriteAllText() with an explicit
+        [System.Text.UTF8Encoding]::new($false) encoder instead of
+        Set-Content -Encoding UTF8. This bypasses the PowerShell 5.1
+        BOM behaviour entirely.
+
+    IMPROVEMENT v1.02.04 (Priorität 9):
+        Added -NoBOM switch parameter for BOM-free UTF-8 export.
 
     INTERNAL DEPENDENCIES:
         - VPDLXcore     (root module accessor — exposes $script:storage,
@@ -109,6 +122,28 @@
     Optional switch. When set, an existing file at the target path will be
     deleted before the new file is written. Without this switch, an existing
     file causes the function to return code -1 without overwriting anything.
+
+.PARAMETER NoBOM
+    Optional switch. When set, forces BOM-free UTF-8 encoding on ALL
+    PowerShell versions, including Windows PowerShell 5.1.
+
+    By default, Windows PowerShell 5.1 writes a UTF-8 BOM (EF BB BF)
+    at the beginning of the file when using Set-Content -Encoding UTF8.
+    This 3-byte prefix can cause issues with:
+      - Unix/Linux log aggregators (e.g. Filebeat, Fluentd)
+      - JSON parsers that do not expect a BOM before the opening bracket
+      - CSV readers in non-Microsoft tools
+      - Web APIs that interpret the BOM as content
+
+    When -NoBOM is specified, the function writes the file using
+    [System.IO.File]::WriteAllText() with an explicit BOM-free encoder
+    ([System.Text.UTF8Encoding]::new($false)), bypassing the PS 5.1
+    default behaviour entirely.
+
+    On PowerShell 7.x, -NoBOM is effectively a no-op because PS 7.x
+    already writes BOM-free UTF-8 by default. However, using -NoBOM
+    explicitly is still recommended for scripts that must work across
+    both PS editions, as it makes the encoding intent clear.
 
 .OUTPUTS
     [PSCustomObject] with three properties:
@@ -142,14 +177,25 @@
     # $result.code -> -1
     # $result.msg  -> "... already exists. Use -Override to overwrite ..."
 
+.EXAMPLE
+    # Export as JSON with BOM-free UTF-8 (important for Unix tools / log aggregators)
+    $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -NoBOM
+    # On Windows PowerShell 5.1, the file will NOT have the 3-byte BOM prefix (EF BB BF).
+    # On PowerShell 7.x, -NoBOM is a no-op (PS 7 is BOM-free by default).
+
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.01.02
+    Version : 1.02.04
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
-    Updated : 06.04.2026
-    Scope   : Public — exported via Export-ModuleMember in VPDLX.psm1
+    Updated : 11.04.2026
+    Scope   : Public — exported via FunctionsToExport in VPDLX.psd1
+
+    CHANGES (11.04.2026, v1.02.04):
+      - Added -NoBOM switch parameter for BOM-free UTF-8 export.
+        Uses [System.Text.UTF8Encoding]::new($false) + [System.IO.File]::WriteAllText()
+        to bypass the Windows PowerShell 5.1 BOM default.
 #>
 
 function VPDLXexportlogfile {
@@ -177,7 +223,14 @@ function VPDLXexportlogfile {
 
         # When set, an existing file at the target path is deleted first.
         [Parameter(Mandatory = $false)]
-        [switch] $Override
+        [switch] $Override,
+
+        # When set, forces BOM-free UTF-8 output on all PowerShell versions.
+        # Without this switch, Windows PowerShell 5.1 writes a UTF-8 BOM (EF BB BF).
+        # On PowerShell 7.x this is effectively a no-op (PS 7 is BOM-free by default).
+        # NEW v1.02.04 (Priorität 9).
+        [Parameter(Mandatory = $false)]
+        [switch] $NoBOM
     )
 
     # ── Stage 1: Pre-flight — verify module storage and export map ───────────
@@ -334,6 +387,34 @@ function VPDLXexportlogfile {
         )
     }
 
+    # ── Helper: Write content to file with correct encoding ──────────────────
+    # Encapsulates the BOM/NoBOM decision in a single helper so the format-
+    # specific blocks below do not need to repeat the encoding logic.
+    #
+    # When -NoBOM is specified (or the caller wants BOM-free UTF-8 on PS 5.1),
+    # this helper joins the lines into a single string and writes via
+    # [System.IO.File]::WriteAllText() with an explicit BOM-free encoder.
+    # Otherwise, it falls back to Set-Content -Encoding UTF8 (standard PS).
+    #
+    # NEW v1.02.04 (Priorität 9).
+    $writeLinesToFile = {
+        param(
+            [string]   $FilePath,
+            [string[]] $Lines,
+            [bool]     $UseBomFreeUtf8
+        )
+        if ($UseBomFreeUtf8) {
+            # BOM-free UTF-8 encoder: the $false argument to UTF8Encoding
+            # suppresses the 3-byte BOM prefix (EF BB BF).
+            $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+            [string] $content = $Lines -join [System.Environment]::NewLine
+            [System.IO.File]::WriteAllText($FilePath, $content, $utf8NoBom)
+        }
+        else {
+            $Lines | Set-Content -LiteralPath $FilePath -Encoding UTF8 -ErrorAction Stop
+        }
+    }
+
     # Format the content according to ExportAs.
     # Each format has its own serialisation block; all are wrapped in a
     # single try/catch that reports the format name in the error message.
@@ -342,7 +423,7 @@ function VPDLXexportlogfile {
 
             # ── txt / log: write each entry as a plain line ─────────────────
             { $_ -in 'txt','log' } {
-                $entries | Set-Content -LiteralPath $targetFile -Encoding UTF8 -ErrorAction Stop
+                & $writeLinesToFile -FilePath $targetFile -Lines $entries -UseBomFreeUtf8 $NoBOM.IsPresent
             }
 
             # ── csv: parse each entry into Timestamp/Level/Message columns ──
@@ -398,7 +479,7 @@ function VPDLXexportlogfile {
                     $csvLines.Add("`"$ts`",`"$lvl`",`"$msg`"")
                 }
 
-                $csvLines | Set-Content -LiteralPath $targetFile -Encoding UTF8 -ErrorAction Stop
+                & $writeLinesToFile -FilePath $targetFile -Lines $csvLines.ToArray() -UseBomFreeUtf8 $NoBOM.IsPresent
             }
 
             # ── json: structured array wrapped in a root object ─────────────
@@ -447,8 +528,8 @@ function VPDLXexportlogfile {
 
                 # ConvertTo-Json -Depth must be >= 3 to serialise the nested
                 # Entries array fully (root -> Entries -> each entry object).
-                $jsonRoot | ConvertTo-Json -Depth 5 |
-                    Set-Content -LiteralPath $targetFile -Encoding UTF8 -ErrorAction Stop
+                [string] $jsonString = $jsonRoot | ConvertTo-Json -Depth 5
+                & $writeLinesToFile -FilePath $targetFile -Lines @($jsonString) -UseBomFreeUtf8 $NoBOM.IsPresent
             }
         }
     }
