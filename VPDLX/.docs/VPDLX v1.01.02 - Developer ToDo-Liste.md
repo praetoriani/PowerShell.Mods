@@ -97,19 +97,19 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`FileStorage` Typsicherheit — Architekturentscheidung treffen und umsetzen** | `FileStorage.Get()` gibt `[object]` zurück statt `[Logfile]` — Forward-Reference-Problem aus PS 5.1-Kompatibilität lösen (Issue \#9) | 6 |
+| ✅ | **`FileStorage` Typsicherheit — Architekturentscheidung treffen und umsetzen** | `FileStorage.Get()` gibt `[object]` zurück statt `[Logfile]` — Forward-Reference-Problem durch Klassen-Konsolidierung gelöst (Issue \#9, **v1.02.03, 11.04.2026**) | 6 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | Entscheidung: Eine Datei vs. drei Dateien | Architekturelle Entscheidung treffen: Option A (alle drei Klassen in `VPDLXClasses.ps1`) vs. Option B (Minimal-Fix mit Runtime-Typprüfung in `Add()`) | 2 |
-| ☐ | **(Option A)** Klassen in `VPDLXClasses.ps1` zusammenführen | `FileDetails.ps1`, `FileStorage.ps1`, `Logfile.ps1` in eine einzige Datei in korrekter Reihenfolge zusammenführen | 5 |
-| ☐ | **(Option A)** `FileList`-Eintrag in `VPDLX.psd1` aktualisieren | Manifest-`FileList` auf die neue einzelne Klassendatei anpassen | 1 |
-| ☐ | **(Option A)** `$script:ClassFiles`-Array in `VPDLX.psm1` anpassen | Sektion 2 in `VPDLX.psm1` auf die neue Datei umstellen | 1 |
-| ☐ | **(Option B)** Runtime-Typprüfung in `FileStorage.Add()` einbauen | `if ($instance -isnot [Logfile]) { throw ... }` als sofortigen Schutz — unabhängig von der Architekturentscheidung sinnvoll | 2 |
-| ☐ | `Get()`-Methode mit Kommentar und Cast-Beispiel dokumentieren | Unabhängig von Option A oder B: Aufrufenden Code klar dokumentieren, dass manueller Cast `[Logfile] $store.Get(...)` notwendig ist (bis Option A umgesetzt) | 1 |
+| ✅ | Entscheidung: Eine Datei vs. drei Dateien | **Option A gewählt:** alle drei Klassen in `VPDLXClasses.ps1` zusammengeführt (**v1.02.03**) | 2 |
+| ✅ | **(Option A)** Klassen in `VPDLXClasses.ps1` zusammenführen | `FileDetails.ps1`, `FileStorage.ps1`, `Logfile.ps1` in `Classes\VPDLXClasses.ps1` zusammengeführt (**v1.02.03**) | 5 |
+| ✅ | **(Option A)** `FileList`-Eintrag in `VPDLX.psd1` aktualisieren | Manifest-`FileList` auf `Classes\VPDLXClasses.ps1` umgestellt (**v1.02.03**) | 1 |
+| ✅ | **(Option A)** `$script:ClassFiles`-Array in `VPDLX.psm1` anpassen | Sektion 2 in `VPDLX.psm1` auf `VPDLXClasses.ps1` umgestellt (**v1.02.03**) | 1 |
+| ✅ | **(Option B)** Runtime-Typprüfung in `FileStorage.Add()` einbauen | Durch Option A überflüssig — `Add()` akzeptiert jetzt `[Logfile]` statt `[object]`, Compile-Time-Typsicherheit (**v1.02.03**) | 2 |
+| ✅ | `Get()`-Methode mit Kommentar und Cast-Beispiel dokumentieren | `Get()` gibt jetzt `[Logfile]` zurück — Cast nicht mehr nötig, Kommentar aktualisiert (**v1.02.03**) | 1 |
 
 
 ***
@@ -118,16 +118,16 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`Print()` Validierungsfehler mit Element-Index anreichern** | Die `foreach`-Schleife in `Logfile.Print()` um Index-Tracking ergänzen, sodass eine `ArgumentException` bei Batch-Validierung den 0-basierten Index und einen Preview des fehlerhaften Wertes enthält (Issue \#7) | 3 |
+| ✅ | **`Print()` Validierungsfehler mit Element-Index anreichern** | Die `foreach`-Schleife in `Logfile.Print()` um Index-Tracking ergänzt, `ArgumentException` enthält jetzt 0-basierten Index und Preview des fehlerhaften Wertes (Issue \#7, **v1.02.03, 11.04.2026**) | 3 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | Index-Counter `$idx` in die `foreach`-Schleife einbauen | `[int] $idx = 0` vor der Schleife, `$idx++` am Ende jedes Schleifendurchlaufs | 1 |
-| ☐ | `try/catch [ArgumentException]` um `ValidateMessage()` wickeln | Im `catch`-Block neue Exception mit angereicherter Meldung `"messages[$idx]: ..."` werfen — `ValidateMessage()` selbst bleibt unverändert | 2 |
-| ☐ | Wert-Preview im Fehlertext implementieren | Offending-Value-Vorschau: `(null)`, `(leerer String)` oder escaped/gekürzter String (max. 40 Zeichen, `\r`/`\n` sichtbar machen) | 2 |
+| ✅ | Index-Counter `$idx` in die `foreach`-Schleife einbauen | `[int] $idx = 0` vor der Schleife, `$idx++` am Ende jedes Schleifendurchlaufs (**v1.02.03**) | 1 |
+| ✅ | `try/catch [ArgumentException]` um `ValidateMessage()` wickeln | Im `catch`-Block neue Exception mit angereicherter Meldung `"messages[$idx]: ..."` geworfen — `ValidateMessage()` unverändert (**v1.02.03**) | 2 |
+| ✅ | Wert-Preview im Fehlertext implementieren | Offending-Value-Vorschau: `(null)`, `(empty string)` oder escaped/gekürzter String (max. 40 Zeichen, `\r`/`\n` sichtbar) (**v1.02.03**) | 2 |
 
 
 ***
@@ -136,16 +136,16 @@
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | **`DestroyAll()` implementieren und in `OnRemove` integrieren** | `FileStorage.DestroyAll()`-Methode erstellen, in `OnRemove`-Handler von `VPDLX.psm1` aufrufen und optional über `VPDLXcore -KeyID 'destroyall'` zugänglich machen (Issue \#10) — hängt von Issue \#1/\#6-Fixes ab! | 4 |
+| ✅ | **`DestroyAll()` implementieren und in `OnRemove` integrieren** | `FileStorage.DestroyAll()` erstellt, in `OnRemove`-Handler integriert und über `VPDLXcore -KeyID 'destroyall'` zugänglich (Issue \#10, **v1.02.03, 11.04.2026**) | 4 |
 
 **Unter-Tasks:**
 
 
 | Status | Aufgabe | Beschreibung | Schweregrad |
 | :-- | :-- | :-- | :-- |
-| ☐ | `DestroyAll()`-Methode in `FileStorage.ps1` implementieren | Über alle `_registry`-Keys iterieren (Snapshot vor Iteration!), `Destroy()` auf jede Instanz aufrufen, `catch` für Fehler pro Instanz, abschließend `_registry.Clear()` + `_names.Clear()` | 3 |
-| ☐ | `OnRemove`-Handler in `VPDLX.psm1` um `DestroyAll()` erweitern | Vor der TypeAccelerator-Entfernung `$script:storage.DestroyAll()` aufrufen, mit `try/catch` absichern | 2 |
-| ☐ | (Optional) `VPDLXcore -KeyID 'destroyall'` implementieren | Neuen `switch`-Case in `VPDLXcore.ps1` ergänzen, der `$script:storage.DestroyAll()` aufruft und einen `VPDLXreturn`-Rückgabewert liefert | 2 |
+| ✅ | `DestroyAll()`-Methode in `FileStorage` implementieren | Keys-Snapshot vor Iteration, `Destroy()` pro Instanz mit `try/catch`, finales `_registry.Clear()` + `_names.Clear()` (**v1.02.03**) | 3 |
+| ✅ | `OnRemove`-Handler in `VPDLX.psm1` um `DestroyAll()` erweitern | Vor der TypeAccelerator-Entfernung `$script:storage.DestroyAll()` aufgerufen, mit `try/catch` abgesichert (**v1.02.03**) | 2 |
+| ✅ | (Optional) `VPDLXcore -KeyID 'destroyall'` implementieren | Neuen `switch`-Case in `VPDLXcore` ergänzt, ruft `DestroyAll()` auf und gibt `VPDLXreturn` mit Anzahl zurück (**v1.02.03**) | 2 |
 
 
 ***

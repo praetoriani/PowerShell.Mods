@@ -39,7 +39,7 @@ the filesystem, and export them to disk in multiple formats when needed.
 
 Architecture (v1.02.03):
 
-  Classes (type accelerators registered on load):
+  Classes (all in Classes\VPDLXClasses.ps1, type accelerators registered on load):
     [Logfile]     - core user-facing class
                     Write, Print, Read, GetAllEntries, FilterByLevel,
                     Reset, Destroy, Info/Debug/Verbose/Trace/Warning/
@@ -47,7 +47,7 @@ Architecture (v1.02.03):
     [FileDetails] - metadata companion per Logfile instance
                     creation time, last update, last access type, axcount
     [FileStorage] - central registry for all active Logfile instances
-                    Contains, Get, Count, GetNames
+                    Contains, Get, Count, GetNames, DestroyAll
 
   Public Wrapper Functions (v1.01.02):
     VPDLXnewlogfile    - create a new virtual log file
@@ -118,12 +118,12 @@ VariablesToExport = @()
 AliasesToExport = @()
 
 # List of all files packaged with this module
+# FIX v1.02.03 (Issue #9):
+#   Three separate class files replaced by single consolidated VPDLXClasses.ps1.
 FileList = @(
     'VPDLX.psm1',
     'VPDLX.psd1',
-    'Classes\FileDetails.ps1',
-    'Classes\FileStorage.ps1',
-    'Classes\Logfile.ps1',
+    'Classes\VPDLXClasses.ps1',
     'Private\VPDLXreturn.ps1',
     'Public\VPDLXnewlogfile.ps1',
     'Public\VPDLXislogfile.ps1',
@@ -191,6 +191,26 @@ Fixed:
       [ValidateSet(0, -1)] replaced with [ValidateRange(-99, 99)].
       Status code conventions documented: 0 = success, -1 = general
       failure, 1..99 = partial success, -2..-99 = typed errors.
+
+  Print() — batch validation diagnostics improved (Issue #7)
+      The pre-validation loop now tracks the 0-based element index.
+      When validation fails, the enriched ArgumentException includes
+      the index and a safe preview of the offending value (truncated
+      to 40 chars, CR/LF escaped as \r/\n).
+
+  Class consolidation — forward-reference resolved (Issue #9)
+      FileDetails.ps1, FileStorage.ps1, Logfile.ps1 merged into
+      Classes\VPDLXClasses.ps1. FileStorage now uses
+      Dictionary[string, Logfile] instead of Dictionary[string, object].
+      Get() returns [Logfile], Add() accepts [Logfile] — full type
+      safety and IntelliSense support.
+
+  DestroyAll() — batch cleanup + OnRemove integration (Issue #10)
+      FileStorage.DestroyAll() iterates all registered instances,
+      calls Destroy() on each (with per-instance try/catch), then
+      clears the registry. OnRemove in VPDLX.psm1 now calls
+      DestroyAll() before removing TypeAccelerators.
+      VPDLXcore -KeyID 'destroyall' exposes batch cleanup to callers.
 
 v1.01.02  (06.04.2026)
 ----------------------

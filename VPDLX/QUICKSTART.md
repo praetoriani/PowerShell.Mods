@@ -270,10 +270,25 @@ $store.GetNames()
 # Count registered log files
 $store.Count()
 
-# Get a log file instance by name
+# Get a log file instance by name (returns [Logfile] directly, no cast needed)
 $myLog = $store.Get('MyFirstLog')
 $myLog.EntryCount()
 ```
+
+### Destroy all log files at once
+
+```powershell
+# Option 1: Via VPDLXcore (recommended)
+$r = VPDLXcore -KeyID 'destroyall'
+Write-Host $r.msg   # "DestroyAll completed. 3 logfile instance(s) destroyed."
+
+# Option 2: Via FileStorage directly
+$store = (VPDLXcore -KeyID 'storage').data
+$store.DestroyAll()
+```
+
+> `DestroyAll()` is also called automatically when the module is unloaded
+> via `Remove-Module VPDLX`, ensuring no orphaned instances remain in memory.
 
 ### Retrieve module metadata
 

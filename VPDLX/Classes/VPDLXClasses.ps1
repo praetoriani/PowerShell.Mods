@@ -1,45 +1,37 @@
 <#
 .SYNOPSIS
-    Logfile — Core class of the VPDLX module.
+    VPDLXClasses — All VPDLX class definitions in a single file.
 
 .DESCRIPTION
-    [Logfile] is the central, user-facing class of VPDLX. Each instance
-    represents one named virtual log file that lives entirely in memory
-    for the duration of the current PowerShell session.
+    This file consolidates the three VPDLX classes (FileDetails, FileStorage,
+    Logfile) into a single script that is dot-sourced by VPDLX.psm1 at module
+    load time.
 
-    An instance is created with:
-        $log = [Logfile]::new('MyLogfile')
+    Combining all classes into one file eliminates the PowerShell 5.1
+    forward-reference limitation: when classes are split across multiple files
+    and dot-sourced sequentially, a class loaded earlier cannot reference a
+    class loaded later in its type annotations. This forced FileStorage to
+    declare its dictionary and Get() return type as [object] instead of
+    [Logfile], because [Logfile] was defined in a separate file loaded after
+    FileStorage.
 
-    The constructor validates the name, initialises the internal data list
-    and a [FileDetails] companion object, then registers itself in the
-    module-level [FileStorage] instance ($script:storage).
+    With all three classes in a single file, PowerShell parses them together
+    and resolves all cross-class type references at parse time. FileStorage
+    can now use [Logfile] as the dictionary value type and as the Get()
+    return type, providing full type safety and IntelliSense support.
 
-    ── Supported log levels ─────────────────────────────────────────────────
-    info, debug, verbose, trace, warning, error, critical, fatal
+    Class definition order (dependency chain):
+      1. FileDetails  — no dependencies
+      2. FileStorage  — references [Logfile] (now resolved within the same file)
+      3. Logfile      — references [FileDetails] and [FileStorage]
 
-    ── Public write methods ──────────────────────────────────────────────────
-    Write(level, message)     — Appends a single formatted log line.
-    Print(level, messages[])  — Appends an array of messages in one call.
+    PREVIOUS STRUCTURE (v1.02.03 and earlier):
+      Classes/FileDetails.ps1   — loaded 1st
+      Classes/FileStorage.ps1   — loaded 2nd (could NOT reference [Logfile])
+      Classes/Logfile.ps1       — loaded 3rd
 
-    ── Public read methods ───────────────────────────────────────────────────
-    Read(line)           — Returns the formatted log line at the given 1-based index.
-    SoakUp()             — Returns the complete log content as a string array.
-    FilterByLevel(level) — Returns only lines that match the specified log level.
-
-    ── Public utility methods ────────────────────────────────────────────────
-    IsEmpty()     — Returns $true if the log contains no entries.
-    HasEntries()  — Returns $true if the log contains at least one entry.
-    EntryCount()  — Returns the current number of entries.
-    Reset()       — Clears all log data (irreversible).
-    Destroy()     — Removes this instance from FileStorage and frees memory.
-
-    ── Shortcut write methods ────────────────────────────────────────────────
-    Info(msg) / Debug(msg) / Verbose(msg) / Trace(msg) / Warning(msg) /
-    Error(msg) / Critical(msg) / Fatal(msg)
-
-    ── Inspection ────────────────────────────────────────────────────────────
-    GetDetails()  — Returns the [FileDetails] companion object.
-    ToString()    — Returns a one-line summary string.
+    CURRENT STRUCTURE (this file):
+      Classes/VPDLXClasses.ps1  — single file, all three classes
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
@@ -48,50 +40,403 @@
     Created : 05.04.2026
     Updated : 11.04.2026
 
-    BUGFIXES (11.04.2026):
-      1. Destroy() now calls GuardDestroyed() at the very beginning,
-         consistent with all other public methods. A second call on an
-         already-destroyed instance now correctly throws
-         ObjectDisposedException instead of silently succeeding.
-         (Issue #1)
-      2. Destroy() now wraps storage.Remove() in a try/catch/finally
-         block. The finally block unconditionally sets _data and _details
-         to $null, guaranteeing full cleanup even if Remove() throws an
-         InvalidOperationException due to registry desynchronisation.
-         (Issue #6)
-      3. ToString() now calls GuardDestroyed() at the top, consistent
-         with all other public methods. The previous partial null-check
-         for _data has been removed — with GuardDestroyed() in place,
-         _data is guaranteed non-null. Calling ToString() on a destroyed
-         instance now throws ObjectDisposedException instead of a
-         misleading NullReferenceException.
-         (Issue #3)
+    CONSOLIDATION (11.04.2026, Issue #9):
+      Merged FileDetails.ps1, FileStorage.ps1, and Logfile.ps1 into this
+      single file to resolve the forward-reference problem. FileStorage now
+      uses Dictionary[string, Logfile] and returns [Logfile] from Get().
+      Add() accepts [Logfile] instead of [object], providing compile-time
+      type safety.
 
-    BUGFIXES (06.04.2026):
-      1. Constructor parameter $name is no longer reassigned directly.
-         PowerShell 5.1 does not allow reassigning a constructor/method
-         parameter variable inside the same scope. A new local variable
-         $trimmedName is used instead, which resolves the parser error:
-         'The property cannot be set. Use "$this.Name"'.
-      2. Renamed method Filter() -> FilterByLevel().
-         'filter' is a reserved keyword in PowerShell (pipeline filter
-         construct). Using it as a class method name caused a parser error
-         that prevented the entire Classes/Logfile.ps1 file from loading,
-         which in turn prevented the VPDLX module from importing.
-         All internal references updated accordingly.
+    FEATURE (11.04.2026, Issue #10):
+      Added DestroyAll() method to FileStorage. Iterates over all registered
+      Logfile instances, calls Destroy() on each, and clears the registry.
 
-    KNOWN LIMITATIONS:
-      - VPDLX is NOT designed for parallel execution.
-        Using Logfile instances inside ForEach-Object -Parallel or
-        Start-ThreadJob without external synchronisation may lead to
-        race conditions on the internal List<string> and Dictionary.
-        See README.md section 'Known Limitations' for details.
+    IMPROVEMENT (11.04.2026, Issue #7):
+      Print() pre-validation loop now tracks the element index and enriches
+      ArgumentException messages with the 0-based index and a safe preview
+      of the offending value.
 
-    DEPENDENCIES (must be dot-sourced before this file):
-      - Classes/FileDetails.ps1
-      - Classes/FileStorage.ps1
-    The module root (VPDLX.psm1) ensures correct load order.
+    DEPENDENCIES:
+      - $script:storage must be initialised after this file is dot-sourced
+        (done in VPDLX.psm1 Section 3)
 #>
+
+
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║  CLASS 1 — FileDetails                                                    ║
+# ║  Metadata container for a single Logfile instance.                         ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
+
+class FileDetails {
+
+    # ── Hidden (internal) fields ──────────────────────────────────────────────
+    # All fields are marked hidden so they do not surface in IntelliSense or
+    # Get-Member output for the caller. VPDLX class methods write these fields
+    # via the internal helper methods defined below.
+
+    # Timestamp when the Logfile instance was first created.
+    hidden [string] $_created
+
+    # Timestamp of the most recent Write, Print, or Reset call.
+    hidden [string] $_updated
+
+    # Timestamp of the most recent Read, SoakUp, or Filter call.
+    hidden [string] $_lastAccessed
+
+    # Human-readable label describing the type of the most recent interaction.
+    # Possible values: 'Write', 'Print', 'Read', 'SoakUp', 'FilterByLevel', 'Reset'
+    hidden [string] $_lastAccessType
+
+    # Current number of log lines stored in the Logfile's data list.
+    # This is set explicitly (not incremented) so that Print(array) always
+    # produces an accurate count regardless of batch size.
+    hidden [int]    $_entries
+
+    # Running counter of ALL interactions since the Logfile instance was created.
+    # This counter is NEVER reset during the lifetime of the instance — it is
+    # only zeroed when the Logfile is destroyed via Destroy().
+    hidden [int]    $_axcount
+
+
+    # ── Constructor ───────────────────────────────────────────────────────────
+    # Called by [Logfile]::new() during instance creation.
+    # Captures the creation timestamp and zeros all counters.
+    FileDetails() {
+        [string] $ts          = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._created        = $ts
+        $this._updated        = $ts
+        $this._lastAccessed   = $ts
+        $this._lastAccessType = 'Created'
+        $this._entries        = 0
+        $this._axcount        = 0
+    }
+
+
+    # ── Internal update methods (called by Logfile methods only) ──────────────
+
+    # Records a Write interaction.
+    # Updates _updated, sets _lastAccessType to 'Write', increments _axcount.
+    hidden [void] RecordWrite() {
+        $this._updated        = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._lastAccessType = 'Write'
+        $this._axcount++
+    }
+
+    # Records a Print interaction.
+    # Updates _updated, sets _lastAccessType to 'Print', increments _axcount.
+    hidden [void] RecordPrint() {
+        $this._updated        = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._lastAccessType = 'Print'
+        $this._axcount++
+    }
+
+    # Records a Read interaction.
+    # Updates _lastAccessed, sets _lastAccessType to 'Read', increments _axcount.
+    hidden [void] RecordRead() {
+        $this._lastAccessed   = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._lastAccessType = 'Read'
+        $this._axcount++
+    }
+
+    # Records a SoakUp interaction.
+    # Updates _lastAccessed, sets _lastAccessType to 'SoakUp', increments _axcount.
+    hidden [void] RecordSoakUp() {
+        $this._lastAccessed   = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._lastAccessType = 'SoakUp'
+        $this._axcount++
+    }
+
+    # Records a FilterByLevel interaction.
+    # Updates _lastAccessed, sets _lastAccessType to 'FilterByLevel', increments _axcount.
+    #
+    # BUGFIX v1.02.03 (Issue #4):
+    #   Renamed from RecordFilter() to RecordFilterByLevel() and updated the
+    #   _lastAccessType label from 'Filter' to 'FilterByLevel'. The old label
+    #   was a stale leftover from the v1.01.00 rename of Filter() to
+    #   FilterByLevel(). The single call site in Logfile.FilterByLevel() has
+    #   been updated accordingly.
+    hidden [void] RecordFilterByLevel() {
+        $this._lastAccessed   = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._lastAccessType = 'FilterByLevel'
+        $this._axcount++
+    }
+
+    # Sets the absolute entry count after any write or reset operation.
+    # An absolute set is used (not an increment) so that Print(array) can
+    # reflect the exact final count in a single call.
+    hidden [void] SetEntryCount([int] $count) {
+        $this._entries = $count
+    }
+
+    # Resets mutable metadata fields to their post-reset state.
+    # _created and _axcount are intentionally preserved:
+    #   _created  — reflects the original instantiation time and must survive Reset()
+    #   _axcount  — must never be reset during the Logfile lifetime
+    hidden [void] ApplyReset() {
+        [string] $ts          = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._updated        = $ts
+        $this._lastAccessed   = $ts
+        $this._lastAccessType = 'Reset'
+        $this._axcount++    # Reset itself counts as one interaction
+        $this._entries      = 0
+    }
+
+
+    # ── Public getter methods ─────────────────────────────────────────────────
+    # These are the only methods the caller should use. They return copies of
+    # the internal field values, preventing accidental mutation via reference.
+
+    # Returns the creation timestamp string.
+    [string] GetCreated()       { return $this._created }
+
+    # Returns the last-write (Write/Print/Reset) timestamp string.
+    [string] GetUpdated()       { return $this._updated }
+
+    # Returns the last-read (Read/SoakUp/Filter) timestamp string.
+    [string] GetLastAccessed()  { return $this._lastAccessed }
+
+    # Returns the type of the most recent interaction (e.g. 'Write', 'Read').
+    [string] GetLastAccessType() { return $this._lastAccessType }
+
+    # Returns the current number of entries in the associated Logfile.
+    [int]    GetEntries()       { return $this._entries }
+
+    # Returns the total interaction count since instance creation.
+    # This value is never reset during the lifetime of the Logfile.
+    [int]    GetAxcount()       { return $this._axcount }
+
+    # Returns a formatted one-line summary — useful for quick console inspection.
+    [string] ToString() {
+        return (
+            "FileDetails | Created: $($this._created) | " +
+            "Updated: $($this._updated) | " +
+            "LastAccessed: $($this._lastAccessed) | " +
+            "LastAccessType: $($this._lastAccessType) | " +
+            "Entries: $($this._entries) | " +
+            "Axcount: $($this._axcount)"
+        )
+    }
+
+    # Returns all metadata as an ordered dictionary — useful for export or JSON.
+    [System.Collections.Specialized.OrderedDictionary] ToHashtable() {
+        $ht = [ordered] @{
+            created        = $this._created
+            updated        = $this._updated
+            lastacc        = $this._lastAccessed
+            acctype        = $this._lastAccessType
+            entries        = $this._entries
+            axcount        = $this._axcount
+        }
+        return $ht
+    }
+}
+
+
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║  CLASS 2 — FileStorage                                                    ║
+# ║  Central registry for all active Logfile instances.                        ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
+
+class FileStorage {
+
+    # ── Hidden (internal) fields ──────────────────────────────────────────────
+
+    # Maps name (case-insensitive) -> [Logfile] instance.
+    # OrdinalIgnoreCase comparer means 'MyLog' and 'mylog' refer to the same slot.
+    #
+    # FIX v1.02.03 (Issue #9):
+    #   Changed value type from [object] to [Logfile]. This is now possible
+    #   because all three classes are defined in the same file, so the forward-
+    #   reference to [Logfile] is resolved at parse time. This provides full
+    #   type safety: inserting a non-Logfile object into the registry now causes
+    #   a type error at the insertion point instead of silently succeeding.
+    hidden [System.Collections.Generic.Dictionary[string, Logfile]] $_registry
+
+    # Preserves original (case-as-provided) filenames in insertion order.
+    # Used by GetNames() so the caller sees the names they chose, not normalised.
+    hidden [System.Collections.Generic.List[string]] $_names
+
+
+    # ── Constructor ───────────────────────────────────────────────────────────
+    FileStorage() {
+        $this._registry = [System.Collections.Generic.Dictionary[string, Logfile]]::new(
+            [System.StringComparer]::OrdinalIgnoreCase
+        )
+        $this._names = [System.Collections.Generic.List[string]]::new()
+    }
+
+
+    # ── Management methods ────────────────────────────────────────────────────
+    # NOTE: These methods are intentionally NOT marked 'hidden'.
+    # [Logfile] calls Add() from its constructor and Remove() from Destroy().
+    # In PowerShell 5.1, hidden methods are inaccessible from other classes,
+    # which would cause a 'method not found' runtime error.
+
+    # Registers a new [Logfile] instance in the storage.
+    # Throws if a logfile with the same name already exists (case-insensitive).
+    # Called by [Logfile]::new() as its final constructor step.
+    #
+    # FIX v1.02.03 (Issue #9):
+    #   Parameter type changed from [object] to [Logfile]. Combined with the
+    #   typed Dictionary, this guarantees compile-time type safety — passing a
+    #   non-Logfile object to Add() is now a type error instead of silently
+    #   inserting the wrong type into the registry.
+    [void] Add([string] $name, [Logfile] $instance) {
+        if ($this._registry.ContainsKey($name)) {
+            throw [System.InvalidOperationException]::new(
+                "FileStorage: A logfile named '$name' already exists. " +
+                'Remove the existing instance before creating a new one.'
+            )
+        }
+        $this._registry[$name] = $instance
+        $this._names.Add($name)
+    }
+
+    # Removes a [Logfile] instance from the storage by name.
+    # Throws if the specified name does not exist.
+    # Called by the [Logfile] class's own Destroy() method.
+    [void] Remove([string] $name) {
+        if (-not $this._registry.ContainsKey($name)) {
+            throw [System.InvalidOperationException]::new(
+                "FileStorage: No logfile named '$name' found in storage."
+            )
+        }
+        $this._registry.Remove($name) | Out-Null
+
+        # Remove from the names list using a case-insensitive search.
+        # List<T>.Remove() uses Equals() which is case-sensitive for strings,
+        # so we locate the matching entry manually and remove by index.
+        [int] $indexToRemove = -1
+        for ([int] $i = 0; $i -lt $this._names.Count; $i++) {
+            if ([string]::Equals($this._names[$i], $name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $indexToRemove = $i
+                break
+            }
+        }
+        if ($indexToRemove -ge 0) {
+            $this._names.RemoveAt($indexToRemove)
+        }
+    }
+
+
+    # ── DestroyAll ────────────────────────────────────────────────────────────
+
+    # Destroys all registered [Logfile] instances and clears the registry.
+    #
+    # Equivalent to calling Destroy() on every instance individually, but in a
+    # single, safe operation. After this call, Count() returns 0 and GetNames()
+    # returns an empty array. Any caller-held variable references to destroyed
+    # instances will correctly throw ObjectDisposedException on subsequent
+    # method calls (via GuardDestroyed).
+    #
+    # Implementation details:
+    #   - A snapshot of the registry keys is taken BEFORE iteration to avoid
+    #     modifying the dictionary while enumerating it (Destroy() calls
+    #     Remove() internally, which would invalidate the enumerator).
+    #   - Each Destroy() call is wrapped in try/catch so that a failure on one
+    #     instance does not prevent cleanup of the remaining instances.
+    #   - A final Clear() on both _registry and _names is performed as a safety
+    #     measure — individual Destroy() calls already remove entries via
+    #     Remove(), but Clear() ensures no orphaned references remain if an
+    #     exception occurred during iteration.
+    #
+    # NEW v1.02.03 (Issue #10):
+    #   This method was added to support batch cleanup of all active Logfile
+    #   instances. It is called by the OnRemove handler in VPDLX.psm1 during
+    #   module unload, and is also accessible via VPDLXcore -KeyID 'destroyall'.
+    [void] DestroyAll() {
+        if ($this._registry.Count -eq 0) {
+            return   # nothing to do
+        }
+
+        # Take a snapshot of the keys to avoid modifying the dictionary
+        # while iterating over it (Destroy() -> Remove() would invalidate
+        # the enumerator).
+        [string[]] $names = @($this._registry.Keys)
+
+        foreach ($name in $names) {
+            $instance = $this._registry[$name]
+            if ($null -ne $instance) {
+                try {
+                    # Call Destroy() on the [Logfile] instance.
+                    # Destroy() internally calls storage.Remove() which deregisters
+                    # the instance. It also nulls _data and _details on the instance.
+                    $instance.Destroy()
+                }
+                catch {
+                    # If Destroy() fails for any reason (e.g. already destroyed,
+                    # or an unexpected runtime error), log a verbose warning but
+                    # continue to the next instance — one failure must not prevent
+                    # cleanup of the remaining instances.
+                    Write-Verbose (
+                        "VPDLX: DestroyAll() could not destroy logfile '$name': " +
+                        $_.Exception.Message
+                    )
+                }
+            }
+        }
+
+        # Final safety clear: individual Destroy() calls already removed entries
+        # via Remove(), but a final Clear() ensures no orphaned references remain
+        # if any Destroy() call threw an exception before completing.
+        $this._registry.Clear()
+        $this._names.Clear()
+    }
+
+
+    # ── Public query methods ──────────────────────────────────────────────────
+
+    # Returns $true if a logfile with the given name is registered.
+    [bool] Contains([string] $name) {
+        return $this._registry.ContainsKey($name)
+    }
+
+    # Returns the [Logfile] instance for the given name, or $null if not found.
+    #
+    # FIX v1.02.03 (Issue #9):
+    #   Return type changed from [object] to [Logfile]. Callers no longer need
+    #   to cast the result — IntelliSense and static type checking work
+    #   correctly on the returned reference. The previous [object] return type
+    #   was a workaround for the PowerShell 5.1 forward-reference limitation
+    #   (FileStorage was loaded before Logfile). With all classes in a single
+    #   file, the forward reference is resolved at parse time.
+    [Logfile] Get([string] $name) {
+        if (-not $this._registry.ContainsKey($name)) {
+            return $null
+        }
+        return $this._registry[$name]
+    }
+
+    # Returns the number of currently registered logfile instances.
+    [int] Count() {
+        return $this._registry.Count
+    }
+
+    # Returns an array of all registered filenames in creation order.
+    # Returns an empty array (not $null) when the storage is empty.
+    [string[]] GetNames() {
+        if ($this._names.Count -eq 0) {
+            return @()
+        }
+        return $this._names.ToArray()
+    }
+
+    # Returns a human-readable summary of the current storage state.
+    [string] ToString() {
+        [int] $count = $this._registry.Count
+        if ($count -eq 0) {
+            return 'FileStorage | 0 registered logfiles'
+        }
+        [string] $list = $this._names -join ', '
+        return "FileStorage | $count registered logfile(s): $list"
+    }
+}
+
+
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║  CLASS 3 — Logfile                                                         ║
+# ║  Core user-facing class of the VPDLX module.                              ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
 
 class Logfile {
 
@@ -308,6 +653,14 @@ class Logfile {
     #   - _data list grows by messages.Count entries
     #   - _details.RecordPrint() is called ONCE  -> one interaction for the batch
     #   - _details.SetEntryCount() is called ONCE -> accurate final entry count
+    #
+    # IMPROVEMENT v1.02.03 (Issue #7):
+    #   The pre-validation loop now tracks the 0-based element index. When
+    #   ValidateMessage() throws ArgumentException, the exception is caught,
+    #   enriched with the index and a safe preview of the offending value,
+    #   and re-thrown as a new ArgumentException. This allows callers to
+    #   identify exactly which element in a large batch caused the failure
+    #   without manual bisection or debug output.
     [void] Print([string] $level, [string[]] $messages) {
         $this.GuardDestroyed()
         [string] $normalizedLevel = $this.ValidateLevel($level)
@@ -320,8 +673,33 @@ class Logfile {
         }
 
         # Pre-validate every message before writing any entry.
+        # Track the index so that validation failures identify the exact
+        # offending element in the batch.
+        [int] $idx = 0
         foreach ($msg in $messages) {
-            $this.ValidateMessage($msg)
+            try {
+                $this.ValidateMessage($msg)
+            }
+            catch [System.ArgumentException] {
+                # Build a safe preview of the offending value for the error message.
+                # Truncate to 40 characters to avoid overwhelming the output;
+                # escape control characters so newlines / CRs are visible as literals.
+                [string] $preview = if ($null -eq $msg) {
+                    '(null)'
+                } elseif ($msg.Length -eq 0) {
+                    '(empty string)'
+                } else {
+                    $escaped = $msg -replace "`r", '\r' -replace "`n", '\n'
+                    if ($escaped.Length -gt 40) { $escaped = $escaped.Substring(0, 40) + '...' }
+                    "'$escaped'"
+                }
+
+                throw [System.ArgumentException]::new(
+                    "messages[$idx]: $($_.Exception.Message) Offending value: $preview",
+                    'messages'
+                )
+            }
+            $idx++
         }
 
         # All validation passed — append all entries.

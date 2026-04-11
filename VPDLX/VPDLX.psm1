@@ -12,10 +12,10 @@
     Architecture overview (v1.02.03):
 
       Classes/
-          FileDetails.ps1   — metadata companion for each Logfile instance
-          FileStorage.ps1   — central registry that tracks all Logfile instances
-          Logfile.ps1       — core user-facing class (Write/Print/Read/GetAllEntries/
-                               FilterByLevel/Reset/Destroy + shortcut methods)
+          VPDLXClasses.ps1  — consolidated class file containing all three classes:
+                               FileDetails  (metadata companion)
+                               FileStorage  (central registry with DestroyAll)
+                               Logfile      (core user-facing class)
 
       Private/
           VPDLXreturn.ps1   — factory function for standardised { code, msg, data }
@@ -72,16 +72,22 @@
     v1.02.03 (11.04.2026):
       Bugfix release: Destroy() and ToString() hardened; FilterByLevel()
       call-order and label corrected; export configuration conflict
-      resolved; VPDLXreturn status code range extended.
+      resolved; VPDLXreturn status code range extended; class files
+      consolidated; DestroyAll() added; Print() diagnostics improved.
       - Destroy() now calls GuardDestroyed() first (Issue #1).
       - Destroy() wraps storage.Remove() in try/catch/finally (Issue #6).
       - ToString() now calls GuardDestroyed() first (Issue #3).
       - RecordFilter() call moved after foreach loop in FilterByLevel() (Issue #2).
       - RecordFilter() renamed to RecordFilterByLevel(), label updated (Issue #4).
       - Export-ModuleMember removed from Section 7; manifest is SSOT (Issue #5).
+      - Print() pre-validation now reports 0-based index + value preview (Issue #7).
       - [ValidateSet(0,-1)] replaced with [ValidateRange(-99,99)] (Issue #8).
-      Affected files: Logfile.ps1, FileDetails.ps1, VPDLXreturn.ps1,
-      VPDLX.psm1, VPDLX.psd1.
+      - Three class files consolidated into Classes/VPDLXClasses.ps1 (Issue #9).
+        FileStorage now uses Dictionary[string, Logfile] and typed Get()/Add().
+      - FileStorage.DestroyAll() added; OnRemove calls it before cleanup (Issue #10).
+        VPDLXcore -KeyID 'destroyall' exposes batch cleanup to callers.
+      Affected files: VPDLXClasses.ps1 (new), VPDLXreturn.ps1,
+      VPDLX.psm1, VPDLX.psd1. Old class files removed.
 
     v1.01.02 (06.04.2026):
       Public Wrapper Layer added (6 functions in Public\).
@@ -128,17 +134,19 @@ $script:export = @{
 # SECTION 2 — Class loading (order is critical)
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
-# PowerShell requires classes to be defined before they are referenced.
-# [FileDetails] and [FileStorage] must be dot-sourced before [Logfile] because
-# [Logfile] declares a [FileDetails] typed property and references $script:storage
-# (a [FileStorage] instance) in its constructor and methods.
+# All three VPDLX classes (FileDetails, FileStorage, Logfile) are defined in a
+# single consolidated file. This resolves the PowerShell 5.1 forward-reference
+# limitation: when classes were in separate files, FileStorage could not reference
+# [Logfile] in its type annotations because [Logfile] was loaded later. With all
+# classes in one file, PowerShell parses them together and resolves all cross-class
+# type references at parse time.
 #
-# IMPORTANT: Do NOT change this load order without carefully verifying that
-# no forward-reference would break class resolution on PowerShell 5.1.
+# FIX v1.02.03 (Issue #9):
+#   Consolidated FileDetails.ps1, FileStorage.ps1, and Logfile.ps1 into a single
+#   VPDLXClasses.ps1. FileStorage now uses Dictionary[string, Logfile] and returns
+#   [Logfile] from Get(), providing full type safety and IntelliSense support.
 $script:ClassFiles = @(
-    "$PSScriptRoot\Classes\FileDetails.ps1",
-    "$PSScriptRoot\Classes\FileStorage.ps1",
-    "$PSScriptRoot\Classes\Logfile.ps1"
+    "$PSScriptRoot\Classes\VPDLXClasses.ps1"
 )
 
 foreach ($ClassFile in $script:ClassFiles) {
@@ -202,9 +210,10 @@ foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
     $script:* variables that live in the root module scope (VPDLX.psm1).
     VPDLXcore bridges that gap by acting as a controlled getter:
 
-      VPDLXcore -KeyID 'appinfo'   ->  $script:appinfo  (module metadata hashtable)
-      VPDLXcore -KeyID 'storage'   ->  $script:storage  ([FileStorage] singleton)
-      VPDLXcore -KeyID 'export'    ->  $script:export   (export format definitions)
+      VPDLXcore -KeyID 'appinfo'      ->  $script:appinfo  (module metadata hashtable)
+      VPDLXcore -KeyID 'storage'      ->  $script:storage  ([FileStorage] singleton)
+      VPDLXcore -KeyID 'export'       ->  $script:export   (export format definitions)
+      VPDLXcore -KeyID 'destroyall'   ->  calls $script:storage.DestroyAll()
 
     Callers receive a reference, not a copy, so operations on the returned
     object reflect the current live state at all times.
@@ -214,7 +223,8 @@ foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
     functions to preserve internal consistency.
 
 .PARAMETER KeyID
-    The variable to access. One of: 'appinfo', 'storage', 'export'  (case-insensitive)
+    The variable to access. One of: 'appinfo', 'storage', 'export', 'destroyall'
+    (case-insensitive)
 
 .OUTPUTS
     PSCustomObject  { code [int], msg [string], data [object] }
@@ -246,10 +256,23 @@ function VPDLXcore {
             'appinfo' { return VPDLXreturn -Code 0 -Message 'OK' -Data $script:appinfo }
             'storage' { return VPDLXreturn -Code 0 -Message 'OK' -Data $script:storage }
             'export'  { return VPDLXreturn -Code 0 -Message 'OK' -Data $script:export  }
+
+            # NEW v1.02.03 (Issue #10):
+            # Destroys all active Logfile instances and clears the FileStorage
+            # registry. Returns a VPDLXreturn object with the count of instances
+            # that were registered before the cleanup.
+            'destroyall' {
+                [int] $count = $script:storage.Count()
+                $script:storage.DestroyAll()
+                return VPDLXreturn -Code 0 -Message (
+                    "DestroyAll completed. $count logfile instance(s) destroyed."
+                )
+            }
+
             default {
                 return VPDLXreturn -Code -1 -Message (
                     "Unknown KeyID '$KeyID'. " +
-                    "Valid keys: 'appinfo', 'storage', 'export'."
+                    "Valid keys: 'appinfo', 'storage', 'export', 'destroyall'."
                 )
             }
         }
@@ -323,10 +346,29 @@ foreach ($Type in $script:ExportableTypes) {
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # Executed automatically when 'Remove-Module VPDLX' is called.
-# Removes the TypeAccelerators that were registered at load time so they
-# do not persist in the session after unload and cannot cause type-name
-# conflicts if the module is subsequently re-imported.
+# Performs two cleanup steps:
+#   1. Destroys all active Logfile instances (releases memory, clears registry).
+#   2. Removes the TypeAccelerators that were registered at load time.
+#
+# FIX v1.02.03 (Issue #10):
+#   Added Step 1 — DestroyAll(). Previously, module unload only removed
+#   TypeAccelerators but left all Logfile instances orphaned in memory.
 $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
+
+    # Step 1: Destroy all active Logfile instances before the module unloads.
+    # This ensures _data and _details are cleared and no orphaned instances
+    # remain in memory after Remove-Module.
+    if ($null -ne $script:storage -and $script:storage.Count() -gt 0) {
+        try {
+            $script:storage.DestroyAll()
+            Write-Verbose "VPDLX: DestroyAll() completed — all logfile instances destroyed."
+        }
+        catch {
+            Write-Verbose "VPDLX OnRemove: DestroyAll() encountered an error: $($_.Exception.Message)"
+        }
+    }
+
+    # Step 2: Remove TypeAccelerators (unchanged from original implementation).
     foreach ($Type in $script:ExportableTypes) {
         if ($script:TypeAcceleratorsClass::Get.ContainsKey($Type.Name)) {
             $script:TypeAcceleratorsClass::Remove($Type.Name) | Out-Null

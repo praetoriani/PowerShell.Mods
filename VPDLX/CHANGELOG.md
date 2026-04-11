@@ -87,11 +87,67 @@ already follows.
   - `1..99` = partial success / warning codes
   - `-2..-99` = typed / categorised error codes
 
+### Improved — `Print()` Batch Validation Diagnostics (Issue #7)
+
+- **Pre-validation loop now tracks the 0-based element index** (Issue #7).
+  When `ValidateMessage()` throws `ArgumentException` inside `Print()`, the
+  exception is caught, enriched with the element index and a safe preview of
+  the offending value, and re-thrown as a new `ArgumentException` with the
+  parameter name `'messages'`. The preview is truncated to 40 characters,
+  and control characters (`\r`, `\n`) are escaped to their literal
+  backslash representations so they are visible in the error output.
+  `ValidateMessage()` itself remains unchanged — the improvement is fully
+  isolated to `Print()`.
+
+### Fixed — FileStorage Type Safety via Class Consolidation (Issue #9)
+
+- **Three separate class files merged into `Classes/VPDLXClasses.ps1`** (Issue #9).
+  `FileDetails.ps1`, `FileStorage.ps1`, and `Logfile.ps1` have been consolidated
+  into a single file. This eliminates the PowerShell 5.1 forward-reference
+  limitation that forced `FileStorage` to use `[object]` instead of `[Logfile]`
+  in its dictionary, `Get()` return type, and `Add()` parameter type.
+
+- **`FileStorage._registry` is now `Dictionary[string, Logfile]`.**
+  Inserting a non-`Logfile` object is now a type error at the insertion point
+  instead of silently succeeding.
+
+- **`FileStorage.Get()` returns `[Logfile]` instead of `[object]`.**
+  Callers no longer need to cast the result — IntelliSense and static type
+  checking work correctly on the returned reference.
+
+- **`FileStorage.Add()` accepts `[Logfile]` instead of `[object]`.**
+  Combined with the typed dictionary, this provides full compile-time type
+  safety for the registry.
+
+- **`VPDLX.psm1` Section 2** updated to load the single `VPDLXClasses.ps1`
+  instead of three separate files.
+
+- **`VPDLX.psd1` `FileList`** updated to reference the new consolidated file.
+
+### Added — `FileStorage.DestroyAll()` + `OnRemove` Integration (Issue #10)
+
+- **`FileStorage.DestroyAll()` method added** (Issue #10).
+  Iterates over all registered `[Logfile]` instances, calls `Destroy()` on
+  each one (with per-instance `try/catch` to prevent one failure from
+  blocking cleanup of remaining instances), and performs a final `Clear()`
+  on both `_registry` and `_names` as a safety measure.
+
+- **`OnRemove` handler in `VPDLX.psm1` now calls `DestroyAll()`** before
+  removing TypeAccelerators. Previously, `Remove-Module VPDLX` cleaned up
+  TypeAccelerators but left all `[Logfile]` instances orphaned in memory.
+  Now all instances are properly destroyed, their `_data` and `_details`
+  fields are cleared, and the `FileStorage` registry is empty when the
+  module finishes unloading.
+
+- **`VPDLXcore -KeyID 'destroyall'`** exposes batch cleanup to callers.
+  Returns a `VPDLXreturn` object with `code 0` and a message indicating
+  how many instances were destroyed.
+
 ### Changed
-- Version stays at `1.02.03` — these fixes are bundled into the same release.
-- Developer ToDo-Liste updated: Prioritäten 1, 2, 3, 4, 5 marked as completed.
-- Files modified: `Classes/Logfile.ps1`, `Classes/FileDetails.ps1`,
-  `Private/VPDLXreturn.ps1`, `VPDLX.psm1`, `VPDLX.psd1`.
+- Version stays at `1.02.03` — all fixes are bundled into the same release.
+- Developer ToDo-Liste updated: all Prioritäten (1–8) marked as completed.
+- Old class files (`FileDetails.ps1`, `FileStorage.ps1`, `Logfile.ps1`)
+  replaced by consolidated `Classes/VPDLXClasses.ps1`.
 
 ---
 

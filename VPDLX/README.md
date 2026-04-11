@@ -88,9 +88,7 @@ VPDLX/
 ├── VPDLX.Logo.v1.svg       # Module logo
 │
 ├── Classes/
-│   ├── FileDetails.ps1     # Metadata companion for each Logfile instance
-│   ├── FileStorage.ps1     # Module-level singleton registry
-│   └── Logfile.ps1         # Core user-facing class
+│   └── VPDLXClasses.ps1    # All three classes: FileDetails, FileStorage, Logfile
 │
 ├── Private/
 │   └── VPDLXreturn.ps1     # Standardised return-object factory { code, msg, data }
@@ -107,7 +105,7 @@ VPDLX/
     └── Demo-001.ps1        # Interactive step-by-step demonstration script
 ```
 
-Classes are dot-sourced in strict dependency order: `FileDetails` → `FileStorage` → `Logfile`.
+All three classes are defined in a single file (`VPDLXClasses.ps1`) in dependency order: `FileDetails` → `FileStorage` → `Logfile`. This resolves the PowerShell 5.1 forward-reference limitation and enables full type safety throughout.
 Public wrapper functions are dot-sourced automatically from `Public\*.ps1` by the module loader.
 
 ---
@@ -352,7 +350,8 @@ Module-level singleton registry. Not typically called directly — use `VPDLXcor
 | Method | Signature | Description |
 |---|---|---|
 | `Contains` | `Contains([string] $name) → bool` | O(1) existence check |
-| `Get` | `Get([string] $name) → object` | Returns the `[Logfile]` instance or `$null` |
+| `Get` | `Get([string] $name) → Logfile` | Returns the `[Logfile]` instance or `$null` |
+| `DestroyAll` | `DestroyAll() → void` | Destroys all registered instances and clears the registry |
 | `Count` | `Count() → int` | Number of currently registered instances |
 | `GetNames` | `GetNames() → string[]` | All registered names in insertion order |
 | `ToString` | `ToString() → string` | One-line summary |
@@ -366,9 +365,10 @@ Public Wrapper functions and available for advanced callers who need direct acce
 to module internals.
 
 ```powershell
-$meta    = VPDLXcore -KeyID 'appinfo'   # Module metadata hashtable
-$storage = VPDLXcore -KeyID 'storage'   # [FileStorage] singleton
-$formats = VPDLXcore -KeyID 'export'    # Export format definitions hashtable
+$meta    = VPDLXcore -KeyID 'appinfo'      # Module metadata hashtable
+$storage = VPDLXcore -KeyID 'storage'      # [FileStorage] singleton
+$formats = VPDLXcore -KeyID 'export'       # Export format definitions hashtable
+VPDLXcore -KeyID 'destroyall'              # Destroys all active logfile instances
 ```
 
 **Return type on error:** `PSCustomObject { code = -1, msg = <description>, data = $null }`
