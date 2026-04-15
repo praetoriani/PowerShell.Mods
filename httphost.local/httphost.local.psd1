@@ -52,7 +52,8 @@ ScriptsToProcess = @('include\httphost.precheck.ps1')
 
 # Functions to export from this module.
 FunctionsToExport = @(
-    'GetMimeType'           # Retrieve MIME type based on file extension (public function)
+    'ExportServerLog',       # Export the server log to a specified path (public function)
+    'GetMimeType'            # Retrieve MIME type based on file extension (public function)
 )
 
 # Cmdlets to export from this module
@@ -68,8 +69,14 @@ AliasesToExport = @()
 FileList = @(
     'httphost.local.psm1',
     'httphost.local.psd1',
-    'Private\VPDLXreturn.ps1',
-    'Public\GetMimeType.ps1'
+    'httphost.local.ps1',   # ← This ... Ladies and Gentlemen, is our HTTP Server
+    # Private (internal) functions
+    'Private\OPSreturn.ps1',
+    # Public functions
+    'Public\ExportServerLog.ps1',
+    'Public\GetMimeType.ps1',
+    # Additional scripts
+    'include\httphost.precheck.ps1'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess.

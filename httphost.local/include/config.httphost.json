@@ -13,5 +13,11 @@
         "xml":  "include\\ui.xml\\",
         "png":  "include\\ui.png\\",
         "log":  "include\\httphost.log"
+    },
+    "dialog":   {
+        "info":     "popup-info.xml",
+        "warn":     "popup-warn.xml",
+        "error":    "popup-error.xml",
+        "exit":     "popup-exit.xml"
     }
 }

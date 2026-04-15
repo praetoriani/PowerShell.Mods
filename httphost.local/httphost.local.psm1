@@ -6,6 +6,10 @@
     to serve static files and support Single Page Applications (SPAs) with client-side routing.
     It is ideal for local development, testing, and quick file sharing without the need
     for complex server setups.
+.EXAMPLE
+    Import-Module httphost.local -Verbose
+    Import-Module httphost.local -Verbose -PathPointer 'C:\MyWebApp' -SystemTray -UseLogging 1
+    Import-Module httphost.local -Verbose -SystemTray
 .NOTES
     Creation Date : 15.04.2026
     Last Update   : 15.04.2026
@@ -22,12 +26,21 @@
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # SECTION 1: Important Params for this module
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+
 [CmdletBinding()]
 param(
+    # The path to the directory that should be served by the HTTP server.
     [Parameter(Mandatory = $false, Position = 0)]
     [ValidateNotNullOrEmpty()]
-    [ValidateSet($true, $false)]
-    [bool]$logging = $false
+    [string]$PathPointer,
+    # If used, a systray icon will be shown for the HTTP-Server.
+    [Parameter(Mandatory = $false, Position = 1)]
+    [switch]$SystemTray,
+    # If set to 1, the module will create a logfile during runtime
+    [Parameter(Mandatory = $false, Position = 2)]
+    [ValidateNotNullOrEmpty()]
+    [ValidateSet(0,1)]
+    [int]$UseLogging = 0
 )
 
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
@@ -60,7 +73,6 @@ else {
 $httpCore.config.http = Join-Path $PSScriptRoot $httpCore.config.http
 $httpCore.config.mime = Join-Path $PSScriptRoot $httpCore.config.mime
 $httpCore.config.log = Join-Path $PSScriptRoot $httpCore.config.log
-
 
 # Load the configuration for the HTTP-Server
 $httpJSON = Join-Path $PSScriptRoot $httpCore.config.http
@@ -96,7 +108,9 @@ else {
 }
 
 
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # Get public and private function definition files
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 $PublicFunctions = @(Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction SilentlyContinue)
 $PrivateFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue)
 
