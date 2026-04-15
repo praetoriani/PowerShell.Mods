@@ -1,0 +1,7 @@
+{
+    "domain": "localhost",
+    "port": "8080",
+    "wwwroot": "C:\\httphost",
+    "homepage": "home.html",
+    "usessl": false
+}
