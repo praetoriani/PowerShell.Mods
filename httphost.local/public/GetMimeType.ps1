@@ -7,21 +7,15 @@ function GetMimeType {
         [string]$FilePath
     )
 
+    [hashtable]$mimeTypes = @{}
+
     # Load Configuration from JSON
-    if (Test-Path $httpCore.config.mime) {
-        try {
-            $mimeTypes = Get-Content $httpCore.config.mime -Raw | ConvertFrom-Json -ErrorAction Stop
-            Write-Information "[INFO] Configuration successfully loaded from $($httpCore.config.mime)"
-        }
-        catch {
-            Write-Error "[ERROR] Failed to load JSON: $($_.Exception.Message)"
-            exit 1
-        }
-    }
-    else {
-        Write-Error "[ERROR] Configuration file not found: $coreJSON"
-        exit 1
-    }
+    $mimeTypes = ReadJSON -Location $httpCore.config.mime
+    # Exit on error
+    if ($mimeTypes.code -ne 0) { Write-Error $mimeTypes.msg; exit 1 }
+    # unwrap the data from the return object to obtain the plain deserialized JSON content
+    $mimeTypes = $mimeTypes.data
+
     # Extract the file extension and look up the MIME type
     $ext = [System.IO.Path]::GetExtension($FilePath).ToLower()
     if ($mimeTypes.ContainsKey($ext)) {

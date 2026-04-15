@@ -1,7 +1,12 @@
 {
-    "domain": "localhost",
-    "port": "8080",
-    "wwwroot": "C:\\httphost",
+    "domain":   "localhost",
+    "port":     "8080",
+    "wwwroot":  "C:\\httphost",
     "homepage": "home.html",
-    "usessl": false
+    "ipc":    {
+        "stop":     "/sys/ctrl/http-shutdown",
+        "restart":  "/sys/ctrl/http-reboot",
+        "status":   "/sys/ctrl/http-getstatus",
+        "home":     "/sys/ctrl/http-gohome"
+    }
 }

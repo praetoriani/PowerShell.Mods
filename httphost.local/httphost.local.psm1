@@ -7,9 +7,7 @@
     It is ideal for local development, testing, and quick file sharing without the need
     for complex server setups.
 .EXAMPLE
-    Import-Module httphost.local -Verbose
-    Import-Module httphost.local -Verbose -PathPointer 'C:\MyWebApp' -SystemTray -UseLogging 1
-    Import-Module httphost.local -Verbose -SystemTray
+    Import-Module httphost.local -ArgumentList 'C:\MyWebApp', 0, $false, $true -Verbose
 .NOTES
     Creation Date : 15.04.2026
     Last Update   : 15.04.2026
@@ -33,86 +31,29 @@ param(
     [Parameter(Mandatory = $false, Position = 0)]
     [ValidateNotNullOrEmpty()]
     [string]$PathPointer,
-    # If used, a systray icon will be shown for the HTTP-Server.
-    [Parameter(Mandatory = $false, Position = 1)]
-    [switch]$SystemTray,
     # If set to 1, the module will create a logfile during runtime
-    [Parameter(Mandatory = $false, Position = 2)]
+    [Parameter(Mandatory = $false, Position = 1)]
     [ValidateNotNullOrEmpty()]
     [ValidateSet(0,1)]
-    [int]$UseLogging = 0
+    [int]$UseLogging = 0,
+    # If used, a Pipe-Server will be created for IPC (Inter-Process Communication)
+    # to allow external processes to send commands to the HTTP-Server.
+    [Parameter(Mandatory = $false, Position = 2)]
+    [switch]$UseIPC,
+    # If used, a systray icon will be shown for the HTTP-Server.
+    [Parameter(Mandatory = $false, Position = 3)]
+    [switch]$SystemTray
 )
 
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-# SECTION 2: Load the core configuration files
+# SECTION 2: Bootstrapping
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 
-$httpCore = @{} # ← This will hold the deserialized content of config.httphost.json
-$httpHost = @{} # ← This will hold the deserialized content of config.server.json
-$mimetype = @{} # ← This will hold the deserialized content of config.mime.json
+$script:root = $PSScriptRoot # ← This is the root directory of the module, used for resolving relative paths in the config files
 
-# This is the config file for the httphost.serviceworker module.
-$coreJSON = Join-Path $PSScriptRoot 'include\config.httphost.json'
-# Load Configuration from JSON
-if (Test-Path $coreJSON) {
-    try {
-        $httpCore = Get-Content $coreJSON -Raw | ConvertFrom-Json -ErrorAction Stop
-        Write-Information "[INFO] Configuration successfully loaded from $coreJSON"
-    }
-    catch {
-        Write-Error "[ERROR] Failed to load JSON: $($_.Exception.Message)"
-        exit 1
-    }
-}
-else {
-    Write-Error "[ERROR] Configuration file not found: $coreJSON"
-    exit 1
-}
-
-# Resolve relative paths in the core configuration to absolute paths based on the module directory
-$httpCore.config.http = Join-Path $PSScriptRoot $httpCore.config.http
-$httpCore.config.mime = Join-Path $PSScriptRoot $httpCore.config.mime
-$httpCore.config.log = Join-Path $PSScriptRoot $httpCore.config.log
-
-# Load the configuration for the HTTP-Server
-$httpJSON = Join-Path $PSScriptRoot $httpCore.config.http
-if (Test-Path $httpJSON) {
-    try {
-        $httpHost = Get-Content $httpJSON -Raw | ConvertFrom-Json -ErrorAction Stop
-        Write-Information "[INFO] Configuration successfully loaded from $httpJSON"
-    }
-    catch {
-        Write-Error "[ERROR] Failed to load JSON: $($_.Exception.Message)"
-        exit 1
-    }
-}
-else {
-    Write-Error "[ERROR] Configuration file not found: $httpJSON"
-    exit 1
-}
-# Load the Mime-Type Configuration
-$mimeJSON = Join-Path $PSScriptRoot $httpCore.config.mime
-if (Test-Path $mimeJSON) {
-    try {
-        $mimetype = Get-Content $mimeJSON -Raw | ConvertFrom-Json -ErrorAction Stop
-        Write-Information "[INFO] Configuration successfully loaded from $mimeJSON"
-    }
-    catch {
-        Write-Error "[ERROR] Failed to load JSON: $($_.Exception.Message)"
-        exit 1
-    }
-}
-else {
-    Write-Error "[ERROR] Configuration file not found: $mimeJSON"
-    exit 1
-}
-
-
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
 # Get public and private function definition files
-# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
-$PublicFunctions = @(Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction SilentlyContinue)
-$PrivateFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue)
+$PublicFunctions = @(Get-ChildItem -Path $script:root\Public\*.ps1 -ErrorAction SilentlyContinue)
+$PrivateFunctions = @(Get-ChildItem -Path $script:root\Private\*.ps1 -ErrorAction SilentlyContinue)
 
 # Import all functions
 foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
@@ -129,6 +70,47 @@ foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
 if ($PublicFunctions) {
     Export-ModuleMember -Function ($PublicFunctions.BaseName)
 }
+# Bootstraping finished.
+# The code below this line has now access to the public and private functions of this module.
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+
+
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+# SECTION 3: Load the core configuration files
+# ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
+
+[hashtable]$httpCore = @{} # ← This will hold the deserialized content of config.httphost.json
+[hashtable]$httpHost = @{} # ← This will hold the deserialized content of config.server.json
+[hashtable]$mimetype = @{} # ← This will hold the deserialized content of config.mime.jsonscop
+
+# This is the config file for the httphost.serviceworker module.
+$coreJSON = Join-Path $script:root 'include\config.httphost.json'
+# Load config.httphost.json
+$jsonContent = ReadJSON -Location $coreJSON
+# Exit on error
+if ($jsonContent.code -ne 0) { Write-Error $jsonContent.msg; exit 1 }
+# pass the unwraped data from the return object to obtain the plain deserialized JSON content
+$httpCore = $jsonContent.data
+
+# Resolve relative paths in the core configuration to absolute paths based on the module directory
+$httpCore.config.http = Join-Path $script:root $httpCore.config.http
+$httpCore.config.mime = Join-Path $script:root $httpCore.config.mime
+$httpCore.config.log = Join-Path $script:root $httpCore.config.log
+
+# Load config.server.json
+$jsonContent = ReadJSON -Location $httpCore.config.http
+# Exit on error
+if ($jsonContent.code -ne 0) { Write-Error $jsonContent.msg; exit 1 }
+# pass the unwraped data from the return object to obtain the plain deserialized JSON content
+$httpHost = $jsonContent.data
+
+# Load config.mime.json
+$jsonContent = ReadJSON -Location $httpCore.config.mime
+# Exit on error
+if ($jsonContent.code -ne 0) { Write-Error $jsonContent.msg; exit 1 }
+# pass the unwraped data from the return object to obtain the plain deserialized JSON content
+$mimetype = $jsonContent.data
+
 
 # Module initialization message
-Write-Verbose "httphost.daemon module loaded successfully. Available functions: $(($PublicFunctions.BaseName) -join ', ')"
+Write-Verbose "httphost.local module loaded successfully. Available functions: $(($PublicFunctions.BaseName) -join ', ')"

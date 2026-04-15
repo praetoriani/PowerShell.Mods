@@ -72,6 +72,7 @@ FileList = @(
     'httphost.local.ps1',   # ← This ... Ladies and Gentlemen, is our HTTP Server
     # Private (internal) functions
     'Private\OPSreturn.ps1',
+    'Private\ReadJSON.ps1',
     # Public functions
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',
