@@ -99,24 +99,24 @@ ScriptsToProcess = @('VPDLX.Precheck.ps1')
 # via TypeAccelerators registered in VPDLX.psm1 at load time.
 FunctionsToExport = @(
     # Infrastructure accessor (controlled read-only access to module-scoped variables)
-    'VPDLXcore'
+    'VPDLXcore',
 
     # ── Public Wrapper Layer (v1.01.02) ─────────────────────────────────────
     # Logfile lifecycle management
-    'VPDLXnewlogfile'      # Create a new virtual log file
-    'VPDLXislogfile'       # Check whether a named log file exists
-    'VPDLXdroplogfile'     # Permanently delete a named log file and all its data
+    'VPDLXnewlogfile',      # Create a new virtual log file
+    'VPDLXislogfile',       # Check whether a named log file exists
+    'VPDLXdroplogfile',     # Permanently delete a named log file and all its data
 
     # Logfile I/O
-    'VPDLXreadlogfile'     # Read a specific line from a log file (1-based, clamped)
-    'VPDLXwritelogfile'    # Append a new formatted entry to a log file
+    'VPDLXreadlogfile',     # Read a specific line from a log file (1-based, clamped)
+    'VPDLXwritelogfile',    # Append a new formatted entry to a log file
 
     # Logfile export
-    'VPDLXexportlogfile'   # Export a virtual log file to disk (txt / log / csv / json / html / ndjson)
+    'VPDLXexportlogfile',   # Export a virtual log file to disk (txt / log / csv / json / html / ndjson)
 
     # ── New Public Wrapper functions (v1.02.05 — Priorität 10) ───────────
-    'VPDLXgetalllogfiles'  # List all active log files with metadata summary
-    'VPDLXresetlogfile'    # Clear all entries from a log file (preserves registration)
+    'VPDLXgetalllogfiles',  # List all active log files with metadata summary
+    'VPDLXresetlogfile',    # Clear all entries from a log file (preserves registration)
     'VPDLXfilterlogfile'   # Filter log entries by level, return structured result
 
     # ── Add new Public Wrapper function names below this line ──────────────
