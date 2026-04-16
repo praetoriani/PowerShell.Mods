@@ -47,8 +47,8 @@ RequiredAssemblies = @()
 # (PS 5.1+) before the root module is loaded. If the check fails, it emits a clear error and
 # prevents the module from loading with cryptic parse errors.
 #
-# NEW v1.02.04 (Priorität 9): ScriptsToProcess activated with httphost.precheck.ps1.
-ScriptsToProcess = @('include\httphost.precheck.ps1')
+# ScriptsToProcess activated with system.precheck.ps1.
+ScriptsToProcess = @('include\system.precheck.ps1')
 
 # Functions to export from this module.
 FunctionsToExport = @(
@@ -77,7 +77,7 @@ FileList = @(
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',
     # Additional scripts
-    'include\httphost.precheck.ps1'
+    'include\system.precheck.ps1'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess.
