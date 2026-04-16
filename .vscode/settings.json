@@ -1,0 +1,9 @@
+{
+
+    "files.associations":   {
+        "module.config":    "powershell",
+        "module.conf":      "powershell",
+        "module.pmc":       "powershell"
+    }
+
+}

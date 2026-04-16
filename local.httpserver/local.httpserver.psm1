@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    httphost.serviceworker - A simple HTTP server module for PowerShell with SPA-Support.
+    local.httpserver - A simple HTTP server module for PowerShell with SPA-Support.
 .DESCRIPTION
     This module provides a lightweight HTTP server implementation in PowerShell, designed
     to serve static files and support Single Page Applications (SPAs) with client-side routing.
     It is ideal for local development, testing, and quick file sharing without the need
     for complex server setups.
 .EXAMPLE
-    Import-Module httphost.local -ArgumentList 'C:\MyWebApp', 0, 'hidden', $false -Verbose
+    Import-Module local.httpserver -ArgumentList 'C:\MyWebApp', 0, 'hidden', $false -Verbose
 .NOTES
     Creation Date : 15.04.2026
     Last Update   : 16.04.2026
@@ -88,7 +88,7 @@ if ($PublicFunctions) {
 [hashtable]$httpHost = @{} # ← This will hold the deserialized content of config.server.json
 [hashtable]$mimetype = @{} # ← This will hold the deserialized content of config.mime.jsonscop
 
-# This is the config file for the httphost.serviceworker module.
+# This is the config file for the local.httpserver module.
 $coreJSON = Join-Path $script:root 'include\config.httphost.json'
 # Load config.httphost.json
 $jsonContent = ReadJSON -Location $coreJSON
@@ -118,4 +118,4 @@ $mimetype = $jsonContent.data
 
 
 # Module initialization message
-Write-Verbose "httphost.local module loaded successfully. Available functions: $(($PublicFunctions.BaseName) -join ', ')"
+Write-Verbose "local.httpserver module loaded successfully. Available functions: $(($PublicFunctions.BaseName) -join ', ')"
