@@ -15,3 +15,13 @@
         - PowerShell 5.1 or higher
         - No external dependencies
 #>
+# Remember the 3-Step-Enterprise-Pattern??
+
+# 1st Step: ... load the module
+Import-Module '.\local.httpserver' -Force -Verbose
+
+# 2nd Step: ... configure the module
+SetCoreConfig -PathPointer 'C:\wwwroot' -UseLogging 0 -Mode 'hidden' -UseIPC $false
+
+# 3rd Step: ... use the module
+# → Now we're ready to go ...
