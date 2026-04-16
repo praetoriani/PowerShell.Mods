@@ -7,10 +7,10 @@
     It is ideal for local development, testing, and quick file sharing without the need
     for complex server setups.
 .EXAMPLE
-    Import-Module httphost.local -ArgumentList 'C:\MyWebApp', 0, $false, $true -Verbose
+    Import-Module httphost.local -ArgumentList 'C:\MyWebApp', 0, 'hidden', $false -Verbose
 .NOTES
     Creation Date : 15.04.2026
-    Last Update   : 15.04.2026
+    Last Update   : 16.04.2026
     Version       : 1.00.00
     Author        : Praetoriani (a.k.a. M.Sczepanski)
     Website       : https://github.com/praetoriani
@@ -31,18 +31,23 @@ param(
     [Parameter(Mandatory = $false, Position = 0)]
     [ValidateNotNullOrEmpty()]
     [string]$PathPointer,
+
     # If set to 1, the module will create a logfile during runtime
     [Parameter(Mandatory = $false, Position = 1)]
     [ValidateNotNullOrEmpty()]
     [ValidateSet(0,1)]
     [int]$UseLogging = 0,
+
+    # Set the operatin mode of the HTP-Server
+    [Parameter(Mandatory = $false, Position = 2)]
+    [ValidateNotNullOrEmpty()]
+    [ValidateSet('hidden','systray','console','desktop')]
+    [string]$Mode = 'hidden',
+
     # If used, a Pipe-Server will be created for IPC (Inter-Process Communication)
     # to allow external processes to send commands to the HTTP-Server.
-    [Parameter(Mandatory = $false, Position = 2)]
-    [switch]$UseIPC,
-    # If used, a systray icon will be shown for the HTTP-Server.
     [Parameter(Mandatory = $false, Position = 3)]
-    [switch]$SystemTray
+    [switch]$UseIPC
 )
 
 # ⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆⋆
