@@ -1,4 +1,10 @@
-# local.httpserver
+<div align="center">
+  <img src="Logo.svg" alt="VPDLX Logo" width="400" />
+</div>
+
+<br />
+
+***
 
 Current Version: v1.00.00 <br>
 Current Build: 202604.017 <br>

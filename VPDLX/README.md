@@ -8,7 +8,7 @@
 
 ![Version](https://img.shields.io/badge/Version-1.02.06-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+![Platform](https://img.shields.io/badge/Platform-Windows-orange)
 
 </div>
 
