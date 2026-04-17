@@ -3,6 +3,9 @@
 *.afphoto
 *.lnk
 
+# EXCLUDE TEMPLATE FOLDER
+**/.Template/
+
 # EXCLUDE BACKUPS/LOGS FOLDER
 **/backup/
 **/backups/
