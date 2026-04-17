@@ -131,14 +131,10 @@ PowerShell.Mods/
 
 <br>
 
-<b>__________________________________________________________________________________</b><br>
-
 > [!NOTE]
-> This project is licensed under the <u>**Apache License, Version 2.0**</u>
+> This project is licensed under the <u>**Apache License, Version 2.0**</u> <br>
 > You can find the 📜 LICENSE [**here**](https://github.com/praetoriani/PowerShell.Mods/blob/main/VPDLX/LICENSE) and the corresponding 📌 NOTICE [**here**](https://github.com/praetoriani/PowerShell.Mods/blob/main/VPDLX/NOTICE)
 
-
-<b>‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾</b><br>
 
 <br><br>
 
