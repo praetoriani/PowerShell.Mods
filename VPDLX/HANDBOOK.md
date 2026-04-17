@@ -1,130 +1,131 @@
-# VPDLX API-Referenz
+# VPDLX API Reference
 
-**Virtual PowerShell Data-Logger eXtension** — Vollständige Funktionsreferenz und Entwicklerdokumentation
+**Virtual PowerShell Data-Logger eXtension** — Complete Function Reference and Developer Documentation
 
 **Version:** 1.02.06  
-**Autor:** Praetoriani (M.Sczepanski)  
+**Author:** Praetoriani (M.Sczepanski)  
 **Repository:** https://github.com/praetoriani/PowerShell.Mods/tree/main/VPDLX
 
 ---
 
-## Inhaltsverzeichnis
+## Table of Contents
 
-1. [Übersicht](#übersicht)
+1. [Overview](#overview)
 2. [Installation](#installation)
-3. [Kern-Konzepte](#kern-konzepte)
-4. [Standardisierte Rückgabewerte](#standardisierte-rückgabewerte)
-5. [Log-Level](#log-level)
-6. [Log-Format](#log-format)
-7. [Public-Funktionen](#public-funktionen)
-8. [Export-Formate](#export-formate)
-9. [Klassen-Architektur](#klassen-architektur)
-10. [Fehlerbehandlung](#fehlerbehandlung)
+3. [Core Concepts](#core-concepts)
+4. [Standardized Return Values](#standardized-return-values)
+5. [Log Levels](#log-levels)
+6. [Log Format](#log-format)
+7. [Public Functions](#public-functions)
+8. [Export Formats](#export-formats)
+9. [Class Architecture](#class-architecture)
+10. [Error Handling](#error-handling)
 11. [Best Practices](#best-practices)
 
 ---
 
-## Übersicht
+## Overview
 
-**VPDLX** (Virtual PowerShell Data-Logger eXtension) ist ein hochperformantes In-Memory-Logging-Modul für PowerShell. Es speichert Log-Einträge vollständig im RAM und ermöglicht blitzschnelle Schreibvorgänge ohne Disk-I/O-Latenz.
+**VPDLX** (Virtual PowerShell Data-Logger eXtension) is a high-performance in-memory logging module for PowerShell. It stores log entries entirely in RAM, enabling lightning-fast write operations without disk I/O latency.
 
-### Hauptmerkmale
+### Key Features
 
-- **In-Memory Logging**: Alle Daten werden in `[Logfile]`-Instanzen im RAM gespeichert
-- **Strukturiertes Log-Format**: Festes Format `[Zeitstempel] [Level] -> Nachricht`
+- **In-Memory Logging**: All data stored in `[Logfile]` instances in RAM
+- **Structured Log Format**: Fixed format `[Timestamp] [Level] -> Message`
 - **Multi-Format Export**: TXT, LOG, CSV, JSON, NDJSON, HTML
-- **8 Log-Level**: info, debug, verbose, trace, warning, error, critical, fatal
-- **Standardisierte API**: Alle Funktionen geben `[PSCustomObject]` mit `.code`, `.msg`, `.data` zurück
-- **Keine Exceptions**: Fehlerbehandlung über Rückgabecodes, kein try/catch erforderlich
-- **Filter-Funktionen**: Log-Einträge nach Level filtern
-- **UTF-8 Support**: BOM-freie UTF-8-Ausgabe für maximale Kompatibilität
+- **8 Log Levels**: info, debug, verbose, trace, warning, error, critical, fatal
+- **Standardized API**: All functions return `[PSCustomObject]` with `.code`, `.msg`, `.data`
+- **No Exceptions**: Error handling via return codes, no try/catch required
+- **Filter Functions**: Filter log entries by level
+- **UTF-8 Support**: BOM-free UTF-8 output for maximum compatibility
 
 ---
 
 ## Installation
 
 ```powershell
-# Modul importieren
+# Import the module
 Import-Module .\VPDLX.psd1
 
-# Verfügbare Funktionen anzeigen
+# List available functions
 Get-Command -Module VPDLX
 ```
 
 ---
 
-## Kern-Konzepte
+## Core Concepts
 
 ### Virtual Log Files
 
-Eine virtuelle Logdatei ist ein **benanntes Objekt** im Arbeitsspeicher:
+A virtual log file is a **named object** in memory:
 
-- **Name**: 3-64 Zeichen, alphanumerisch + `_`, `-`, `.`
-- **Eindeutigkeit**: Case-insensitive ("AppLog" = "applog")
-- **Lebensdauer**: Session-gebunden (beim Modul-Unload verloren)
-- **Speicherort**: `$script:storage` ([FileStorage]-Singleton)
+- **Name**: 3-64 characters, alphanumeric + `_`, `-`, `.`
+- **Uniqueness**: Case-insensitive ("AppLog" = "applog")
+- **Lifetime**: Session-bound (lost on module unload)
+- **Storage**: `$script:storage` ([FileStorage] singleton)
 
-### Namenskonventionen
+### Naming Conventions
 
-Alle Public-Funktionen folgen dem **VPDLX-Präfix-Schema** (kein Verb-Noun-Pattern):
+All public functions follow the **VPDLX prefix schema** (not Verb-Noun pattern):
 
 ```
 VPDLX + <Verb> + logfile
 ```
 
-Beispiele:
-- `VPDLXnewlogfile` (erstellen)
-- `VPDLXislogfile` (prüfen)
-- `VPDLXwritelogfile` (schreiben)
+Examples:
+- `VPDLXnewlogfile` (create)
+- `VPDLXislogfile` (check)
+- `VPDLXwritelogfile` (write)
 
 ---
 
-## Standardisierte Rückgabewerte
+## Standardized Return Values
 
-**Alle Public-Funktionen** (außer `VPDLXislogfile`) geben ein `[PSCustomObject]` zurück:
+**All public functions** (except `VPDLXislogfile`) return a `[PSCustomObject]`:
 
 ```powershell
 @{
-    code = [int]     # 0 = Erfolg, -1 = Fehler
-    msg  = [string]  # Human-readable Beschreibung
-    data = [object]  # Nutzdaten (Erfolg) oder $null (Fehler)
+    code = [int]     # 0 = Success, -1 = Error
+    msg  = [string]  # Human-readable description
+    data = [object]  # Payload data (success) or $null (error)
 }
 ```
 
-### Verwendung
+### Usage
 
 ```powershell
 $result = VPDLXnewlogfile -Logfile 'AppLog'
 
 if ($result.code -eq 0) {
-    # Erfolg
-    $log = $result.data  # [Logfile]-Instanz
+    # Success
+    $log = $result.data  # [Logfile] instance
     Write-Host $result.msg
 } else {
-    # Fehler
+    # Error
     Write-Warning $result.msg
 }
 ```
 
-**Vorteil**: Keine try/catch-Blöcke erforderlich, einfaches if/else-Pattern.
+**Advantage**: No try/catch blocks required, simple if/else pattern.
 
 ---
 
-## Log-Level
+## Log Levels
 
-VPDLX unterstützt **8 Log-Level** (case-insensitive):
+VPDLX supports **8 log levels** (case-insensitive):
 
-| Level | Beschreibung | Verwendung |
-|-------|--------------|------------|
-| `info` | Informativ | Normale Programmabläufe |
-| `debug` | Debug | Entwickler-Diagnoseinformationen |
-| `verbose` | Ausführlich | Detaillierte Ablaufinformationen |
-| `trace` | Trace | Sehr detaillierte Debug-Infos |
-| `warning` | Warnung | Potenzielle Probleme |
-| `error` | Fehler | Fehlerzustände || `critical` | Kritisch | Kritische Fehler, die sofortiges Handeln erfordern |
-| `fatal` | Fatal | Schwerwiegende Fehler, Programmabbruch |
+| Level | Description | Usage |
+|-------|-------------|-------|
+| `info` | Informational | Normal program flow |
+| `debug` | Debug | Developer diagnostic info |
+| `verbose` | Verbose | Detailed flow information |
+| `trace` | Trace | Very detailed debug info |
+| `warning` | Warning | Potential problems |
+| `error` | Error | Error conditions |
+| `critical` | Critical | Critical errors requiring immediate action |
+| `fatal` | Fatal | Severe errors, program termination |
 
-**Severity-Reihenfolge** (aufsteigend):
+**Severity Order** (ascending):
 
 ```
 trace < verbose < debug < info < warning < error < critical < fatal
@@ -132,15 +133,15 @@ trace < verbose < debug < info < warning < error < critical < fatal
 
 ---
 
-## Log-Format
+## Log Format
 
-Jeder Log-Eintrag folgt diesem **festen Format**:
+Every log entry follows this **fixed format**:
 
 ```
-[dd.MM.yyyy | HH:mm:ss] [LEVEL] -> Nachricht
+[dd.MM.yyyy | HH:mm:ss] [LEVEL] -> Message
 ```
 
-### Beispiel
+### Example
 
 ```
 [17.04.2026 | 14:32:15] [INFO] -> Application started successfully
@@ -149,36 +150,36 @@ Jeder Log-Eintrag folgt diesem **festen Format**:
 [17.04.2026 | 14:32:25] [FATAL] -> Unrecoverable error, shutting down
 ```
 
-**Eigenschaften**:
-- **Zeitstempel**: Exakte Uhrzeit des `Write()`-Aufrufs
+**Properties**:
+- **Timestamp**: Exact time of the `Write()` call
 - **Level**: Uppercase (INFO, WARNING, ERROR, ...)
-- **Nachricht**: User-definiert, min. 3 Zeichen, keine Newlines
+- **Message**: User-defined, min. 3 characters, no newlines
 
 ---
 
-## Public-Funktionen
+## Public Functions
 
-VPDLX exportiert **9 Public-Funktionen** über `Export-ModuleMember`:
+VPDLX exports **9 public functions** via `Export-ModuleMember`:
 
-### Übersicht
+### Overview
 
-| Funktion | Zweck | Rückgabetyp |
-|----------|-------|---------------|
-| [VPDLXnewlogfile](#vpdlxnewlogfile) | Neue Logdatei erstellen | PSCustomObject |
-| [VPDLXislogfile](#vpdlxislogfile) | Existenzprüfung | bool |
-| [VPDLXdroplogfile](#vpdlxdroplogfile) | Logdatei löschen | PSCustomObject |
-| [VPDLXwritelogfile](#vpdlxwritelogfile) | Eintrag schreiben | PSCustomObject |
-| [VPDLXreadlogfile](#vpdlxreadlogfile) | Eintrag lesen | PSCustomObject |
-| [VPDLXfilterlogfile](#vpdlxfilterlogfile) | Nach Level filtern | PSCustomObject |
-| [VPDLXexportlogfile](#vpdlxexportlogfile) | Zu Datei exportieren | PSCustomObject |
-| [VPDLXresetlogfile](#vpdlxresetlogfile) | Alle Einträge löschen | PSCustomObject |
-| [VPDLXgetalllogfiles](#vpdlxgetalllogfiles) | Alle Logdateien auflisten | PSCustomObject |
+| Function | Purpose | Return Type |
+|----------|---------|-------------|
+| [VPDLXnewlogfile](#vpdlxnewlogfile) | Create new log file | PSCustomObject |
+| [VPDLXislogfile](#vpdlxislogfile) | Existence check | bool |
+| [VPDLXdroplogfile](#vpdlxdroplogfile) | Delete log file | PSCustomObject |
+| [VPDLXwritelogfile](#vpdlxwritelogfile) | Write entry | PSCustomObject |
+| [VPDLXreadlogfile](#vpdlxreadlogfile) | Read entry | PSCustomObject |
+| [VPDLXfilterlogfile](#vpdlxfilterlogfile) | Filter by level | PSCustomObject |
+| [VPDLXexportlogfile](#vpdlxexportlogfile) | Export to file | PSCustomObject |
+| [VPDLXresetlogfile](#vpdlxresetlogfile) | Clear all entries | PSCustomObject |
+| [VPDLXgetalllogfiles](#vpdlxgetalllogfiles) | List all log files | PSCustomObject |
 
 ---
 
 ### VPDLXnewlogfile
 
-**Erstellt eine neue virtuelle Logdatei.**
+**Creates a new virtual log file.**
 
 #### Syntax
 
@@ -186,48 +187,48 @@ VPDLX exportiert **9 Public-Funktionen** über `Export-ModuleMember`:
 VPDLXnewlogfile -Logfile <string>
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der Logdatei (3-64 Zeichen, alphanumerisch + `_-.`) |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Log file name (3-64 chars, alphanumeric + `_-.`) |
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
-    code = 0        # Erfolg
+    code = 0        # Success
     msg  = "..."
-    data = [Logfile] # Die neue Logdatei-Instanz
+    data = [Logfile] # The new log file instance
 }
-# oder
+# or
 @{
-    code = -1       # Fehler
+    code = -1       # Error
     msg  = "..."
     data = $null
 }
 ```
 
-#### Fehler
+#### Errors
 
-- **Name zu kurz/lang**: "must be between 3 and 64 characters"
-- **Ungültige Zeichen**: "may only contain alphanumeric characters plus underscore, hyphen, and dot"
-- **Duplikat**: "already exists in the current session"
+- **Name too short/long**: "must be between 3 and 64 characters"
+- **Invalid characters**: "may only contain alphanumeric characters plus underscore, hyphen, and dot"
+- **Duplicate**: "already exists in the current session"
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Neue Logdatei erstellen
+# Create new log file
 $result = VPDLXnewlogfile -Logfile 'AppLog'
 
 if ($result.code -eq 0) {
     $log = $result.data
-    Write-Host "Logdatei erstellt: $($log.Name)"
+    Write-Host "Log file created: $($log.Name)"
 } else {
     Write-Warning $result.msg
 }
 
-# Fehlerfall: Duplikat
+# Error case: Duplicate
 $r1 = VPDLXnewlogfile -Logfile 'MyLog'  # code 0
 $r2 = VPDLXnewlogfile -Logfile 'MyLog'  # code -1, "already exists"
 ```
@@ -236,7 +237,7 @@ $r2 = VPDLXnewlogfile -Logfile 'MyLog'  # code -1, "already exists"
 
 ### VPDLXislogfile
 
-**Prüft, ob eine virtuelle Logdatei existiert.**
+**Checks whether a virtual log file exists.**
 
 #### Syntax
 
@@ -244,32 +245,32 @@ $r2 = VPDLXnewlogfile -Logfile 'MyLog'  # code -1, "already exists"
 VPDLXislogfile -Logfile <string>
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der zu prüfenden Logdatei |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of the log file to check |
 
-#### Rückgabe
+#### Return Value
 
-**Typ**: `bool`
+**Type**: `bool`
 
-- `$true`: Logdatei existiert
-- `$false`: Logdatei nicht gefunden oder Name null/leer
+- `$true`: Log file exists
+- `$false`: Log file not found or name null/empty
 
-**Besonderheit**: Diese Funktion gibt KEIN `[PSCustomObject]` zurück, sondern direkt `bool`.
+**Special Note**: This function returns a direct `bool`, NOT a `[PSCustomObject]`.
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Existenzprüfung vor Schreibzugriff
+# Check existence before write access
 if (VPDLXislogfile -Logfile 'AppLog') {
     $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message 'Ready'
 } else {
     $result = VPDLXnewlogfile -Logfile 'AppLog'
 }
 
-# Guard-Pattern
+# Guard pattern
 if (-not (VPDLXislogfile 'DiagLog')) {
     VPDLXnewlogfile 'DiagLog'
 }
@@ -279,7 +280,7 @@ if (-not (VPDLXislogfile 'DiagLog')) {
 
 ### VPDLXdroplogfile
 
-**Löscht eine virtuelle Logdatei permanent aus dem Speicher.**
+**Permanently deletes a virtual log file from memory.**
 
 #### Syntax
 
@@ -287,55 +288,55 @@ if (-not (VPDLXislogfile 'DiagLog')) {
 VPDLXdroplogfile -Logfile <string>
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der zu löschenden Logdatei |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of the log file to delete |
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
-    code = 0        # Erfolg
+    code = 0
     msg  = "..."
-    data = $null   # Immer $null (gelöschte Instanz hat keine Nutzdaten)
+    data = $null   # Always $null (deleted instance has no payload)
 }
-# oder
+# or
 @{
-    code = -1       # Fehler
-    msg  = "..."
+    code = -1
+    msg  = "...
     data = $null
 }
 ```
 
-#### Warnung
+#### Warning
 
-> **DESTRUCTIVE OPERATION**: Diese Aktion ist **unwiderruflich**. Alle Log-Daten gehen permanent verloren. Vor dem Aufruf ggf. `VPDLXexportlogfile` verwenden.
+> **DESTRUCTIVE OPERATION**: This action is **irreversible**. All log data is permanently lost. Use `VPDLXexportlogfile` before calling if data preservation is needed.
 
-#### Fehler
+#### Errors
 
-- **Nicht gefunden**: "does not exist in the current session"
-- **Modul nicht initialisiert**: Fehler beim Zugriff auf den internen Speicher
+- **Not found**: "does not exist in the current session"
+- **Module not initialized**: Error accessing internal storage
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Logdatei löschen
+# Delete log file
 $result = VPDLXdroplogfile -Logfile 'AppLog'
 
 if ($result.code -eq 0) {
-    Write-Host 'Logdatei erfolgreich gelöscht'
+    Write-Host 'Log file deleted successfully'
 } else {
     Write-Warning $result.msg
 }
 
-# Sicheres Pattern: Existenz prüfen vor dem Löschen
+# Safe pattern: Check existence before delete
 if (VPDLXislogfile -Logfile 'TempLog') {
     $result = VPDLXdroplogfile -Logfile 'TempLog'
 }
 
-# Fehlerfall: Logdatei existiert nicht
+# Error case: Log file doesn't exist
 $result = VPDLXdroplogfile -Logfile 'Ghost'  # code -1
 ```
 
@@ -343,7 +344,7 @@ $result = VPDLXdroplogfile -Logfile 'Ghost'  # code -1
 
 ### VPDLXwritelogfile
 
-**Schreibt einen neuen Eintrag in eine virtuelle Logdatei.**
+**Writes a new entry to a virtual log file.**
 
 #### Syntax
 
@@ -351,37 +352,37 @@ $result = VPDLXdroplogfile -Logfile 'Ghost'  # code -1
 VPDLXwritelogfile -Logfile <string> -Level <string> -Message <string>
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der Ziel-Logdatei |
-| `Level` | `string` | Ja | Log-Level (info/debug/verbose/trace/warning/error/critical/fatal) |
-| `Message` | `string` | Ja | Log-Nachricht (min. 3 Nicht-Whitespace-Zeichen, keine Newlines) |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of target log file |
+| `Level` | `string` | Yes | Log level (info/debug/verbose/trace/warning/error/critical/fatal) |
+| `Message` | `string` | Yes | Log message (min. 3 non-whitespace chars, no newlines) |
 
-#### Parameter-Details: Level
+#### Parameter Details: Level
 
-- **Validierung**: `[ValidateSet]` am PowerShell-Binding-Layer (frühe Ablehnung)
-- **Case-insensitiv**: `INFO`, `info`, `Info` sind äquivalent
-- **Tab-Completion**: Vollständig unterstützt in ISE und VS Code
+- **Validation**: `[ValidateSet]` at PowerShell binding layer (early rejection)
+- **Case-insensitive**: `INFO`, `info`, `Info` are equivalent
+- **Tab-Completion**: Fully supported in ISE and VS Code
 
-**Gültige Werte**: `info` | `debug` | `verbose` | `trace` | `warning` | `error` | `critical` | `fatal`
+**Valid values**: `info` | `debug` | `verbose` | `trace` | `warning` | `error` | `critical` | `fatal`
 
-#### Parameter-Details: Message
+#### Parameter Details: Message
 
-- Darf nicht null, leer oder nur Whitespace sein
-- Muss **mindestens 3 Nicht-Whitespace-Zeichen** enthalten
-- Darf **keine Newlines** enthalten (CR oder LF) — verhindert Log-Injection
+- Cannot be null, empty, or whitespace-only
+- Must contain **at least 3 non-whitespace characters**
+- Must **not contain newlines** (CR or LF) — prevents log injection
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
     code = 0
     msg  = "..."
-    data = [int]    # Neue Gesamtanzahl der Einträge
+    data = [int]    # New total entry count
 }
-# oder
+# or
 @{
     code = -1
     msg  = "..."
@@ -389,34 +390,34 @@ VPDLXwritelogfile -Logfile <string> -Level <string> -Message <string>
 }
 ```
 
-#### Fehler
+#### Errors
 
-- **Logdatei nicht gefunden**: "does not exist in the current session"
-- **Ungültiger Level**: "Cannot validate argument on parameter 'Level'"
-- **Nachricht zu kurz**: "must contain at least 3 non-whitespace characters"
-- **Newline in Nachricht**: "must not contain newline characters"
+- **Log file not found**: "does not exist in the current session"
+- **Invalid level**: "Cannot validate argument on parameter 'Level'"
+- **Message too short**: "must contain at least 3 non-whitespace characters"
+- **Newline in message**: "must not contain newline characters"
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Einfachen Eintrag schreiben
+# Write simple entry
 $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message 'Application started'
 
 if ($result.code -eq 0) {
-    Write-Host "Eintrag geschrieben. Gesamt: $($result.data)"
+    Write-Host "Entry written. Total: $($result.data)"
 }
 
-# Verschiedene Log-Level
+# Different log levels
 VPDLXwritelogfile -Logfile 'AppLog' -Level 'warning' -Message 'Disk space below 10%'
 VPDLXwritelogfile -Logfile 'AppLog' -Level 'error'   -Message 'Connection to DB failed'
 VPDLXwritelogfile -Logfile 'AppLog' -Level 'critical' -Message 'Service unavailable'
 VPDLXwritelogfile -Logfile 'AppLog' -Level 'fatal'   -Message 'Unrecoverable error'
 
-# Fehlerfall: Ungültiger Level (wird bereits am Binding-Layer abgelehnt)
+# Error case: Invalid level (rejected at binding layer)
 VPDLXwritelogfile -Logfile 'AppLog' -Level 'notice' -Message 'Test'
-# Fehler: "Cannot validate argument on parameter 'Level'..."
+# Error: "Cannot validate argument on parameter 'Level'..."
 
-# Fehlerfall: Nachricht mit Newline
+# Error case: Message with newline
 $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message "Line1`nLine2"
 # $result.code -> -1
 ```
@@ -425,7 +426,7 @@ $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message "Line1`nLin
 
 ### VPDLXreadlogfile
 
-**Liest einen einzelnen Eintrag aus einer virtuellen Logdatei.**
+**Reads a single entry from a virtual log file.**
 
 #### Syntax
 
@@ -433,30 +434,30 @@ $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message "Line1`nLin
 VPDLXreadlogfile -Logfile <string> -Line <int>
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der Logdatei |
-| `Line` | `int` | Ja | 1-basierte Zeilennummer |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of log file |
+| `Line` | `int` | Yes | 1-based line number |
 
-#### Parameter-Details: Line
+#### Parameter Details: Line
 
-- **1-basiert**: Erste Zeile = 1
-- **Auto-Clamping**: Werte außerhalb des gültigen Bereichs werden automatisch geclampd:
-  - Wert < 1 → wird zu 1 (erster Eintrag)
-  - Wert > Anzahl Einträge → wird zum letzten Eintrag
-- **Kein Out-of-Range-Fehler** für Integer-Eingaben
+- **1-based**: First line = 1
+- **Auto-Clamping**: Values outside valid range are automatically clamped:
+  - Value < 1 → becomes 1 (first entry)
+  - Value > entry count → becomes last entry
+- **No out-of-range error** for integer inputs
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
     code = 0
     msg  = "...read line X of Y..."
-    data = [string]    # Der Log-Eintrag (vollständiger formatierter String)
+    data = [string]    # The log entry (complete formatted string)
 }
-# oder
+# or
 @{
     code = -1
     msg  = "..."
@@ -464,22 +465,22 @@ VPDLXreadlogfile -Logfile <string> -Line <int>
 }
 ```
 
-#### Fehler
+#### Errors
 
-- **Logdatei nicht gefunden**: "does not exist"
-- **Leere Logdatei**: "contains no entries"
+- **Log file not found**: "does not exist"
+- **Empty log file**: "contains no entries"
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Zeile 3 lesen
+# Read line 3
 $result = VPDLXreadlogfile -Logfile 'AppLog' -Line 3
 
 if ($result.code -eq 0) {
-    Write-Host "Zeile 3: $($result.data)"
+    Write-Host "Line 3: $($result.data)"
 }
 
-# Alle Einträge iterieren
+# Iterate all entries
 $r = VPDLXgetalllogfiles
 $log = ($r.data.Files | Where-Object { $_.Name -eq 'AppLog' })
 $count = $log.EntryCount
@@ -489,16 +490,16 @@ for ($i = 1; $i -le $count; $i++) {
     Write-Host $entry.data
 }
 
-# Clamping in Aktion: Log hat 5 Einträge
-$r = VPDLXreadlogfile -Logfile 'AppLog' -Line 0   # Liest Eintrag #1
-$r = VPDLXreadlogfile -Logfile 'AppLog' -Line 99  # Liest Eintrag #5 (letzter)
+# Clamping in action: Log has 5 entries
+$r = VPDLXreadlogfile -Logfile 'AppLog' -Line 0   # Reads entry #1
+$r = VPDLXreadlogfile -Logfile 'AppLog' -Line 99  # Reads entry #5 (last)
 ```
 
 ---
 
 ### VPDLXfilterlogfile
 
-**Filtert Log-Einträge nach einem bestimmten Level.**
+**Filters log entries by a specific level.**
 
 #### Syntax
 
@@ -506,28 +507,28 @@ $r = VPDLXreadlogfile -Logfile 'AppLog' -Line 99  # Liest Eintrag #5 (letzter)
 VPDLXfilterlogfile -Logfile <string> -Level <string>
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der Logdatei |
-| `Level` | `string` | Ja | Level, nach dem gefiltert werden soll |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of log file |
+| `Level` | `string` | Yes | Level to filter by |
 
-**Gültige Werte für Level**: `info` | `debug` | `verbose` | `trace` | `warning` | `error` | `critical` | `fatal`
+**Valid values for Level**: `info` | `debug` | `verbose` | `trace` | `warning` | `error` | `critical` | `fatal`
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
     code = 0
     msg  = "..."
     data = [PSCustomObject]@{
-        Entries = [string[]]    # Array der gefundenen Einträge
-        Count   = [int]         # Anzahl der Treffer
-        Level   = [string]      # Gefilterter Level
+        Entries = [string[]]    # Array of found entries
+        Count   = [int]         # Number of matches
+        Level   = [string]      # Filtered level
     }
 }
-# oder
+# or
 @{
     code = -1
     msg  = "..."
@@ -535,25 +536,25 @@ VPDLXfilterlogfile -Logfile <string> -Level <string>
 }
 ```
 
-**Hinweis**: Bei code 0 kann `data.Count` auch 0 sein, wenn keine Einträge mit dem Level gefunden wurden.
+**Note**: With code 0, `data.Count` can also be 0 if no entries with the level were found.
 
-#### Fehler
+#### Errors
 
-- **Logdatei nicht gefunden**: "does not exist"
-- **Ungültiger Level**: Am Binding-Layer (ValidateSet)
+- **Log file not found**: "does not exist"
+- **Invalid level**: At binding layer (ValidateSet)
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Alle Error-Einträge filtern
+# Filter all error entries
 $result = VPDLXfilterlogfile -Logfile 'AppLog' -Level 'error'
 
 if ($result.code -eq 0) {
-    Write-Host "$($result.data.Count) Error-Einträge gefunden:"
+    Write-Host "$($result.data.Count) error entries found:"
     $result.data.Entries | ForEach-Object { Write-Host $_ }
 }
 
-# Nur Warnungen anzeigen
+# Show only warnings
 $r = VPDLXfilterlogfile -Logfile 'AppLog' -Level 'warning'
 if ($r.code -eq 0 -and $r.data.Count -gt 0) {
     $r.data.Entries | ForEach-Object { Write-Host $_ }
@@ -564,7 +565,7 @@ if ($r.code -eq 0 -and $r.data.Count -gt 0) {
 
 ### VPDLXexportlogfile
 
-**Exportiert eine virtuelle Logdatei in eine physische Datei auf der Festplatte.**
+**Exports a virtual log file to a physical file on disk.**
 
 #### Syntax
 
@@ -572,45 +573,45 @@ if ($r.code -eq 0 -and $r.data.Count -gt 0) {
 VPDLXexportlogfile -Logfile <string> -LogPath <string> -ExportAs <string> [-Override] [-NoBOM]
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der Logdatei |
-| `LogPath` | `string` | Ja | Zielverzeichnis (wird automatisch erstellt, falls nicht vorhanden) |
-| `ExportAs` | `string` | Ja | Exportformat (txt/log/csv/json/html/ndjson) |
-| `Override` | `switch` | Nein | Bestehende Datei überschreiben |
-| `NoBOM` | `switch` | Nein | UTF-8 ohne BOM erzwingen (wichtig für PS 5.1 + Unix-Tools) |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of log file |
+| `LogPath` | `string` | Yes | Target directory (auto-created if missing) |
+| `ExportAs` | `string` | Yes | Export format (txt/log/csv/json/html/ndjson) |
+| `Override` | `switch` | No | Overwrite existing file |
+| `NoBOM` | `switch` | No | Force UTF-8 without BOM (important for PS 5.1 + Unix tools) |
 
-#### Parameter-Details: ExportAs
+#### Parameter Details: ExportAs
 
-| Wert | Dateiendung | Beschreibung |
-|------|------------|-------------|
-| `txt` | `.txt` | Klartext, ein Eintrag pro Zeile |
-| `log` | `.log` | Identisch mit txt, andere Endung |
-| `csv` | `.csv` | Comma-Separated Values mit Header |
-| `json` | `.json` | JSON-Array, in Root-Objekt verpackt |
-| `html` | `.html` | Vollständiger HTML-Report mit CSS-Styling (**NEU v1.02.06**) |
-| `ndjson` | `.ndjson` | Newline-Delimited JSON (**NEU v1.02.06**) |
+| Value | Extension | Description |
+|-------|-----------|-------------|
+| `txt` | `.txt` | Plain text, one entry per line |
+| `log` | `.log` | Identical to txt, different extension |
+| `csv` | `.csv` | Comma-Separated Values with header |
+| `json` | `.json` | JSON array wrapped in root object |
+| `html` | `.html` | Complete HTML report with CSS styling (**NEW v1.02.06**) |
+| `ndjson` | `.ndjson` | Newline-Delimited JSON (**NEW v1.02.06**) |
 
-#### Datei-Naming
+#### File Naming
 
-Der Dateiname ergibt sich aus: `<Logfile-Name>.<Endung>`
+Filename is derived from: `<Logfile-Name>.<Extension>`
 
 ```
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'csv'
 -> C:\Logs\AppLog.csv
 ```
 
-#### Export-Formate im Detail
+#### Export Formats in Detail
 
-**CSV-Format** (`csv`):
+**CSV Format** (`csv`):
 ```csv
 "Timestamp","Level","Message"
 "17.04.2026 | 14:32:15","INFO","Application started"
 ```
 
-**JSON-Format** (`json`):
+**JSON Format** (`json`):
 ```json
 {
   "LogFile": "AppLog",
@@ -622,43 +623,43 @@ VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'csv'
 }
 ```
 
-**NDJSON-Format** (`ndjson`) — ein JSON-Objekt pro Zeile:
+**NDJSON Format** (`ndjson`) — one JSON object per line:
 ```
 {"Timestamp":"17.04.2026 | 14:32:15","Level":"INFO","Message":"Application started"}
 {"Timestamp":"17.04.2026 | 14:32:18","Level":"WARNING","Message":"Disk space low"}
 ```
 
-**HTML-Format** (`html`) — Selbst-enthaltener HTML-Bericht:
-- Header mit Log-Name, Export-Zeitstempel und Anzahl Einträge
-- Tabelle mit Timestamp/Level/Message
-- Level-spezifisches Row-Coloring (Rot=ERROR/FATAL, Orange=WARNING/CRITICAL, Grün=INFO, Blau=DEBUG/VERBOSE/TRACE)
-- Responsives Layout, druckbereit
+**HTML Format** (`html`) — Self-contained HTML report:
+- Header with log name, export timestamp, and entry count
+- Table with Timestamp/Level/Message columns
+- Level-specific row coloring (Red=ERROR/FATAL, Orange=WARNING/CRITICAL, Green=INFO, Blue=DEBUG/VERBOSE/TRACE)
+- Responsive layout, print-ready
 
-#### -Override Verhalten
+#### -Override Behavior
 
-| Situation | Ohne -Override | Mit -Override |
-|-----------|---------------|---------------|
-| Datei existiert nicht | Datei wird erstellt | Datei wird erstellt |
-| Datei existiert bereits | code -1 (Fehler) | Alte Datei wird gelöscht, neue erstellt |
+| Situation | Without -Override | With -Override |
+|-----------|-------------------|----------------|
+| File doesn't exist | File is created | File is created |
+| File exists | code -1 (error) | Old file deleted, new created |
 
-#### -NoBOM Verhalten
+#### -NoBOM Behavior
 
-| PowerShell-Version | Ohne -NoBOM | Mit -NoBOM |
-|-------------------|------------|------------|
-| Windows PS 5.1 | UTF-8 **mit** BOM (EF BB BF) | UTF-8 ohne BOM |
-| PowerShell 7.x | UTF-8 ohne BOM | UTF-8 ohne BOM (kein Unterschied) |
+| PowerShell Version | Without -NoBOM | With -NoBOM |
+|-------------------|----------------|-------------|
+| Windows PS 5.1 | UTF-8 **with** BOM (EF BB BF) | UTF-8 without BOM |
+| PowerShell 7.x | UTF-8 without BOM | UTF-8 without BOM (no difference) |
 
-**Empfehlung**: `-NoBOM` immer verwenden bei Verwendung mit Unix-Tools, Filebeat, Fluentd, Grafana Loki, JSON-Parsern.
+**Recommendation**: Always use `-NoBOM` when working with Unix tools, Filebeat, Fluentd, Grafana Loki, JSON parsers.
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
     code = 0
     msg  = "..."
-    data = [string]    # Vollständiger Pfad zur erstellten Datei
+    data = [string]    # Full path to created file
 }
-# oder
+# or
 @{
     code = -1
     msg  = "..."
@@ -666,33 +667,33 @@ VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'csv'
 }
 ```
 
-#### Fehler
+#### Errors
 
-- **Unbekanntes Format**: "is not a supported export format"
-- **Logdatei nicht gefunden**: "does not exist"
-- **Leere Logdatei**: "contains no entries"
-- **Datei existiert + kein -Override**: "already exists. Use -Override to overwrite"
-- **Verzeichnis-Erstellung fehlgeschlagen**: "Failed to create target directory"
+- **Unknown format**: "is not a supported export format"
+- **Log file not found**: "does not exist"
+- **Empty log file**: "contains no entries"
+- **File exists + no -Override**: "already exists. Use -Override to overwrite"
+- **Directory creation failed**: "Failed to create target directory"
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Einfacher Textexport
+# Simple text export
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'txt'
 if ($result.code -eq 0) {
-    Write-Host "Exportiert nach: $($result.data)"
+    Write-Host "Exported to: $($result.data)"
 }
 
-# CSV-Export mit Auto-Verzeichnis-Erstellung
+# CSV export with auto-directory creation
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\NewDir\Sub' -ExportAs 'csv'
 
-# JSON-Export mit Überschreiben und BOM-frei
+# JSON export with override and BOM-free
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -Override -NoBOM
 
-# HTML-Report erstellen (v1.02.06)
+# HTML report (v1.02.06)
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Reports' -ExportAs 'html'
 
-# NDJSON für Log-Streaming-Pipeline (v1.02.06)
+# NDJSON for log streaming pipeline (v1.02.06)
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
 ```
 
@@ -700,7 +701,7 @@ $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndj
 
 ### VPDLXresetlogfile
 
-**Löscht alle Einträge einer Logdatei, behält aber die Logdatei selbst.**
+**Clears all entries from a log file while keeping the log file itself.**
 
 #### Syntax
 
@@ -708,20 +709,20 @@ $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndj
 VPDLXresetlogfile -Logfile <string>
 ```
 
-#### Parameter
+#### Parameters
 
-| Parameter | Typ | Pflicht | Beschreibung |
-|-----------|-----|---------|-------------|
-| `Logfile` | `string` | Ja | Name der zurückzusetzenden Logdatei |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of log file to reset |
 
-#### Unterschied zu VPDLXdroplogfile
+#### Difference to VPDLXdroplogfile
 
-| Aktion | VPDLXresetlogfile | VPDLXdroplogfile |
+| Action | VPDLXresetlogfile | VPDLXdroplogfile |
 |--------|-------------------|------------------|
-| Einträge gelöscht | Ja | Ja |
-| Logdatei gelöscht | **Nein** (bleibt registriert) | **Ja** (komplett entfernt) |
+| Entries deleted | Yes | Yes |
+| Log file deleted | **No** (stays registered) | **Yes** (completely removed) |
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
@@ -729,7 +730,7 @@ VPDLXresetlogfile -Logfile <string>
     msg  = "..."
     data = $null
 }
-# oder
+# or
 @{
     code = -1
     msg  = "..."
@@ -737,23 +738,23 @@ VPDLXresetlogfile -Logfile <string>
 }
 ```
 
-#### Fehler
+#### Errors
 
-- **Logdatei nicht gefunden**: "does not exist"
+- **Log file not found**: "does not exist"
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Log zurücksetzen (Einträge löschen, Objekt behalten)
+# Reset log (delete entries, keep object)
 $result = VPDLXresetlogfile -Logfile 'AppLog'
 
 if ($result.code -eq 0) {
-    Write-Host 'Logdatei zurückgesetzt'
-    # Log ist weiterhin registriert, bereit für neue Einträge
+    Write-Host 'Log file reset'
+    # Log still registered, ready for new entries
     VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message 'New session started'
 }
 
-# Pattern: Log exportieren, dann zurücksetzen
+# Pattern: Export log, then reset
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Archive' -ExportAs 'json'
 VPDLXresetlogfile  -Logfile 'AppLog'
 ```
@@ -762,7 +763,7 @@ VPDLXresetlogfile  -Logfile 'AppLog'
 
 ### VPDLXgetalllogfiles
 
-**Gibt eine Übersicht aller registrierten virtuellen Logdateien zurück.**
+**Returns an overview of all registered virtual log files.**
 
 #### Syntax
 
@@ -770,27 +771,27 @@ VPDLXresetlogfile  -Logfile 'AppLog'
 VPDLXgetalllogfiles
 ```
 
-#### Parameter
+#### Parameters
 
-Keine Parameter.
+None.
 
-#### Rückgabe
+#### Return Value
 
 ```powershell
 @{
     code = 0
     msg  = "..."
     data = [PSCustomObject]@{
-        Count = [int]             # Anzahl registrierter Logdateien
-        Files = [PSCustomObject[]] # Array mit Infos zu jeder Logdatei
-        # Jedes Files-Objekt:
+        Count = [int]             # Number of registered log files
+        Files = [PSCustomObject[]] # Array with info for each log file
+        # Each Files object:
         # @{
         #     Name       = [string]
         #     EntryCount = [int]
         # }
     }
 }
-# oder
+# or
 @{
     code = -1
     msg  = "..."
@@ -798,26 +799,26 @@ Keine Parameter.
 }
 ```
 
-**Hinweis**: Bei code 0 kann `data.Count` auch 0 sein, wenn keine Logdateien registriert sind.
+**Note**: With code 0, `data.Count` can also be 0 if no log files are registered.
 
-#### Fehler
+#### Errors
 
-- Modul nicht initialisiert: Fehler beim Zugriff auf den internen Speicher
+- Module not initialized: Error accessing internal storage
 
-#### Beispiele
+#### Examples
 
 ```powershell
-# Alle Logdateien auflisten
+# List all log files
 $result = VPDLXgetalllogfiles
 
 if ($result.code -eq 0) {
-    Write-Host "$($result.data.Count) Logdateien registriert:"
+    Write-Host "$($result.data.Count) log files registered:"
     $result.data.Files | ForEach-Object {
-        Write-Host "  - $($_.Name) ($($_.EntryCount) Einträge)"
+        Write-Host "  - $($_.Name) ($($_.EntryCount) entries)"
     }
 }
 
-# Alle Logdateien exportieren
+# Export all log files
 $allLogs = VPDLXgetalllogfiles
 if ($allLogs.code -eq 0) {
     $allLogs.data.Files | ForEach-Object {
@@ -828,178 +829,178 @@ if ($allLogs.code -eq 0) {
 
 ---
 
-## Export-Formate
+## Export Formats
 
-VPDLX unterstützt **6 Export-Formate** über `VPDLXexportlogfile -ExportAs`:
+VPDLX supports **6 export formats** via `VPDLXexportlogfile -ExportAs`:
 
-### Formatvergleich
+### Format Comparison
 
-| Format | Erweiterung | Struktur | Verwendung |
-|--------|-------------|----------|------------|
-| **txt** | `.txt` | Klartext | Einfache Textansicht |
-| **log** | `.log` | Klartext | Tools, die .log-Dateien erwarten |
-| **csv** | `.csv` | Strukturiert, Header-Zeile | Excel, SQL-Import, Datenanalyse |
-| **json** | `.json` | JSON-Array, Root-Objekt | REST-APIs, Webapps, Archivierung |
-| **ndjson** | `.ndjson` | JSON, 1 Objekt pro Zeile | Filebeat, Fluentd, Logstash, Grafana Loki |
-| **html** | `.html` | HTML-Tabelle + CSS | Browser-Ansicht, E-Mail, Drucken |
+| Format | Extension | Structure | Usage |
+|--------|-----------|-----------|-------|
+| **txt** | `.txt` | Plain text | Simple text viewing |
+| **log** | `.log` | Plain text | Tools expecting .log files |
+| **csv** | `.csv` | Structured, header row | Excel, SQL import, data analysis |
+| **json** | `.json` | JSON array, root object | REST APIs, web apps, archiving |
+| **ndjson** | `.ndjson` | JSON, 1 object per line | Filebeat, Fluentd, Logstash, Grafana Loki |
+| **html** | `.html` | HTML table + CSS | Browser viewing, email, printing |
 
-### Wann welches Format?
+### When to Use Which Format?
 
-- **txt/log**: Einfaches Lesen in Texteditoren, Grepping
-- **csv**: Import in Excel, SQL-Datenbanken, PowerBI
-- **json**: REST-APIs, langfristige Archivierung, strukturierte Analyse
-- **ndjson**: Log-Streaming-Pipelines (ELK-Stack, Splunk, Grafana)
-- **html**: Management-Reports, E-Mail-Versand, Browser-Anzeige
+- **txt/log**: Simple reading in text editors, grepping
+- **csv**: Import to Excel, SQL databases, PowerBI
+- **json**: REST APIs, long-term archiving, structured analysis
+- **ndjson**: Log streaming pipelines (ELK Stack, Splunk, Grafana)
+- **html**: Management reports, email attachments, browser display
 
 ---
 
-## Klassen-Architektur
+## Class Architecture
 
-VPDLX basiert auf **3 Kernklassen** in `Classes/`:
+VPDLX is based on **3 core classes** in `Classes/`:
 
 ### [Logfile]
 
-**Hauptklasse** für virtuelle Logdateien.
+**Main class** for virtual log files.
 
-**Eigenschaften**:
-- `Name` (string, read-only): Logdatei-Name
-- `LogLevels` (Hashtable, static): Mapping aller 8 Level
+**Properties**:
+- `Name` (string, read-only): Log file name
+- `LogLevels` (Hashtable, static): Mapping of all 8 levels
 
-**Methoden**:
-- `Write(level, message)`: Eintrag hinzufügen
-- `Read(line)`: 1-basierten Eintrag lesen (Auto-Clamping)
-- `FilterByLevel(level)`: Einträge nach Level filtern
-- `GetAllEntries()`: Alle Einträge als `string[]`
-- `EntryCount()`: Anzahl der Einträge
-- `IsEmpty()`: Prüft, ob leer
-- `Reset()`: Alle Einträge löschen
-- `Destroy()`: Instanz zerstören (Destructor-Pattern)
+**Methods**:
+- `Write(level, message)`: Add entry
+- `Read(line)`: Read 1-based entry (auto-clamping)
+- `FilterByLevel(level)`: Filter entries by level
+- `GetAllEntries()`: All entries as `string[]`
+- `EntryCount()`: Number of entries
+- `IsEmpty()`: Check if empty
+- `Reset()`: Delete all entries
+- `Destroy()`: Destroy instance (destructor pattern)
 
 ### [FileStorage]
 
-**Singleton** für zentrale Logdatei-Verwaltung.
+**Singleton** for central log file management.
 
-**Eigenschaften**:
-- `_files` (Dictionary<string, Logfile>): Interner Speicher
+**Properties**:
+- `_files` (Dictionary<string, Logfile>): Internal storage
 
-**Methoden**:
-- `Add(logfile)`: Logdatei registrieren
-- `Get(name)`: Logdatei abrufen
-- `Contains(name)`: Existenzprüfung
-- `Remove(name)`: Logdatei deregistrieren
-- `GetAll()`: Alle Logdateien als Array
-- `Count()`: Anzahl registrierter Logdateien
+**Methods**:
+- `Add(logfile)`: Register log file
+- `Get(name)`: Retrieve log file
+- `Contains(name)`: Existence check
+- `Remove(name)`: Deregister log file
+- `GetAll()`: All log files as array
+- `Count()`: Number of registered log files
 
-**Verwendung im Modul**:
+**Module Usage**:
 ```powershell
 $script:storage = [FileStorage]::new()  # Singleton in VPDLX.psm1
 ```
 
 ### [FileDetails]
 
-**Metadaten-Companion** für `[Logfile]`.
+**Metadata companion** for `[Logfile]`.
 
-**Eigenschaften**:
-- `Created` (DateTime): Erstellungszeitpunkt
-- `LastUpdated` (DateTime): Letzte Änderung
-- `LastAccessed` (DateTime): Letzter Zugriff
-- `LastAccessType` (string): Art des letzten Zugriffs (Write/Read/Filter)
-- `AccessCount` (int): Anzahl Zugriffe gesamt
-- `EntryCount` (int): Anzahl Einträge (redundant mit Logfile._data.Count)
+**Properties**:
+- `Created` (DateTime): Creation time
+- `LastUpdated` (DateTime): Last modification
+- `LastAccessed` (DateTime): Last access
+- `LastAccessType` (string): Type of last access (Write/Read/Filter)
+- `AccessCount` (int): Total access count
+- `EntryCount` (int): Entry count (redundant with Logfile._data.Count)
 
-**Methoden**:
-- `RecordWrite()`: Schreibzugriff protokollieren
-- `RecordRead()`: Lesezugriff protokollieren
-- `RecordFilter()`: Filterzugriff protokollieren
+**Methods**:
+- `RecordWrite()`: Log write access
+- `RecordRead()`: Log read access
+- `RecordFilter()`: Log filter access
 
 ---
 
-## Fehlerbehandlung
+## Error Handling
 
-### Keine Exceptions!
+### No Exceptions!
 
-VPDLX wirft **keine Exceptions** in normalen Fehlersituationen. Alle Fehler werden als `code -1` zurückgegeben.
+VPDLX **never throws exceptions** in normal error situations. All errors are returned as `code -1`.
 
-**Vorteile**:
-- Kein try/catch erforderlich
-- Einfaches if/else-Pattern
-- Vorhersehbare Programmflüsse
+**Advantages**:
+- No try/catch required
+- Simple if/else pattern
+- Predictable program flow
 
 **Pattern**:
 ```powershell
 $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message 'Test'
 
 if ($result.code -ne 0) {
-    Write-Warning "Log-Fehler: $($result.msg)"
-    # Fehlerbehandlung
+    Write-Warning "Log error: $($result.msg)"
+    # Error handling
 }
 ```
 
-### Fehlerarten
+### Error Types
 
-| Fehlertyp | code | data | Beispiel msg |
-|-----------|------|------|-------------|
-| Nicht gefunden | -1 | $null | "does not exist in the current session" |
-| Duplikat | -1 | $null | "already exists" |
-| Validierung | -1 | $null | "must be between 3 and 64 characters" |
-| Leer | -1 | $null | "contains no entries" |
-| Modul-Fehler | -1 | $null | "VPDLXcore did not return a valid..." |
+| Error Type | code | data | Example msg |
+|------------|------|------|-------------|
+| Not found | -1 | $null | "does not exist in the current session" |
+| Duplicate | -1 | $null | "already exists" |
+| Validation | -1 | $null | "must be between 3 and 64 characters" |
+| Empty | -1 | $null | "contains no entries" |
+| Module error | -1 | $null | "VPDLXcore did not return a valid..." |
 
 ---
 
 ## Best Practices
 
-### 1. Immer Rückgabewerte prüfen
+### 1. Always Check Return Values
 
 ```powershell
-# ✓ GUT
+# ✓ GOOD
 $result = VPDLXnewlogfile -Logfile 'AppLog'
 if ($result.code -eq 0) {
-    # Weiter mit $result.data
+    # Continue with $result.data
 }
 
-# ✗ SCHLECHT (ignoriert Fehler)
+# ✗ BAD (ignores errors)
 VPDLXnewlogfile -Logfile 'AppLog'
 ```
 
-### 2. Existenzprüfung vor Zugriffen
+### 2. Existence Check Before Access
 
 ```powershell
-# ✓ GUT
+# ✓ GOOD
 if (-not (VPDLXislogfile 'AppLog')) {
     VPDLXnewlogfile 'AppLog'
 }
 VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message 'Test'
 
-# ✗ SCHLECHT (wirft code -1, wenn nicht vorhanden)
+# ✗ BAD (throws code -1 if doesn't exist)
 VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message 'Test'
 ```
 
-### 3. Export vor Destroy/Reset
+### 3. Export Before Destroy/Reset
 
 ```powershell
-# ✓ GUT: Daten sichern
+# ✓ GOOD: Backup data
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Archive' -ExportAs 'json'
 VPDLXdroplogfile -Logfile 'AppLog'
 
-# ✗ SCHLECHT: Daten unwiederbringlich verloren
+# ✗ BAD: Data irreversibly lost
 VPDLXdroplogfile -Logfile 'AppLog'
 ```
 
-### 4. -NoBOM bei Unix-Tools/Pipelines
+### 4. Use -NoBOM with Unix Tools/Pipelines
 
 ```powershell
-# ✓ GUT: BOM-frei für Filebeat/Fluentd
+# ✓ GOOD: BOM-free for Filebeat/Fluentd
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
 
-# ✗ Problematisch: PS 5.1 schreibt BOM, JSON-Parser können versagen
+# ✗ Problematic: PS 5.1 writes BOM, JSON parsers may fail
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json'
 ```
 
 ### 5. Structured Logging Pattern
 
 ```powershell
-# ✓ Konsistentes Structured-Logging
+# ✓ Consistent structured logging
 function Log-Action {
     param(
         [string]$Action,
@@ -1015,24 +1016,24 @@ Log-Action -Action 'UserLogin' -Data @{ User='Admin'; IP='192.168.1.1' }
 Log-Action -Action 'FileProcessed' -Data @{ File='data.csv'; Rows=1500 }
 ```
 
-### 6. Log-Rotation mit Reset
+### 6. Log Rotation with Reset
 
 ```powershell
-# Logs täglich exportieren und zurücksetzen
+# Daily log export and reset
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath "C:\Logs\Archive\AppLog_$timestamp" -ExportAs 'json'
 VPDLXresetlogfile -Logfile 'AppLog'
 ```
 
-### 7. Alle Logs beim Skript-Ende exportieren
+### 7. Export All Logs on Script Exit
 
 ```powershell
 try {
-    # Hauptskript
+    # Main script
     VPDLXnewlogfile 'AppLog'
-    # ... Ihre Logik ...
+    # ... Your logic ...
 } finally {
-    # Cleanup: Alle Logs exportieren
+    # Cleanup: Export all logs
     $allLogs = VPDLXgetalllogfiles
     if ($allLogs.code -eq 0) {
         $allLogs.data.Files | ForEach-Object {
@@ -1044,35 +1045,35 @@ try {
 
 ---
 
-## Vollständiges Beispiel
+## Complete Example
 
 ```powershell
-# VPDLX Modul laden
+# Load VPDLX module
 Import-Module .\VPDLX.psd1
 
-# Log erstellen
+# Create log
 $r = VPDLXnewlogfile -Logfile 'DeploymentLog'
 if ($r.code -ne 0) {
-    Write-Error "Konnte Log nicht erstellen: $($r.msg)"
+    Write-Error "Could not create log: $($r.msg)"
     exit 1
 }
 
-# Einträge schreiben
+# Write entries
 VPDLXwritelogfile -Logfile 'DeploymentLog' -Level 'info'     -Message 'Deployment started'
 VPDLXwritelogfile -Logfile 'DeploymentLog' -Level 'verbose' -Message 'Connecting to server'
 VPDLXwritelogfile -Logfile 'DeploymentLog' -Level 'warning' -Message 'Server latency high'
 VPDLXwritelogfile -Logfile 'DeploymentLog' -Level 'info'    -Message 'Files deployed successfully'
 
-# Einträge filtern
+# Filter entries
 $warnings = VPDLXfilterlogfile -Logfile 'DeploymentLog' -Level 'warning'
 if ($warnings.code -eq 0 -and $warnings.data.Count -gt 0) {
-    Write-Host "$($warnings.data.Count) Warnungen gefunden"
+    Write-Host "$($warnings.data.Count) warnings found"
 }
 
-# Als HTML exportieren (für Management-Report)
+# Export as HTML (for management report)
 VPDLXexportlogfile -Logfile 'DeploymentLog' -LogPath 'C:\Reports' -ExportAs 'html'
 
-# Als NDJSON exportieren (für Grafana Loki)
+# Export as NDJSON (for Grafana Loki)
 VPDLXexportlogfile -Logfile 'DeploymentLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
 
 # Cleanup
@@ -1081,12 +1082,12 @@ VPDLXdroplogfile -Logfile 'DeploymentLog'
 
 ---
 
-## Support & Mitwirken
+## Support & Contributing
 
 **Repository**: https://github.com/praetoriani/PowerShell.Mods/tree/main/VPDLX  
 **Issues**: https://github.com/praetoriani/PowerShell.Mods/issues  
-**Autor**: Praetoriani (M.Sczepanski)
+**Author**: Praetoriani (M.Sczepanski)
 
 ---
 
-*Letzte Aktualisierung: 17.04.2026 (v1.02.06)*
+*Last updated: April 17, 2026 (v1.02.06)*
