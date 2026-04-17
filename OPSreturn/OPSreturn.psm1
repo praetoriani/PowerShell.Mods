@@ -10,7 +10,7 @@
 .REMARKS
     IMPORTANT NOTE: This module follows an Enterprise-Pattern with three simple steps
     → Import the Module
-    → Configure the server via SetCoreConfig
+    → Configure the Module via SetCoreConfig
     → Start using the Module
     
 .NOTES
@@ -44,11 +44,9 @@ function SetCoreConfig {
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false, HelpMessage = "Set whether to use detailed timestamp or not", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "timestamp")]
-    [ValidateNotNullOrEmpty()]
     [bool]$timestamp,
 
     [Parameter(Mandatory = $false, HelpMessage = "Set whether to activate verbose mode or not", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "verbosed")]
-    [ValidateNotNullOrEmpty()]
     [bool]$verbosed
 )
 

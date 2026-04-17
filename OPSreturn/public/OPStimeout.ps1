@@ -3,7 +3,7 @@ function OPStimeout {
     .SYNOPSIS
         Shorthand for OPStimeout -Code fail.
     .EXAMPLE
-        return OPStimeout "Timeout during operation" -Exception $_.Exception
+        return OPSreturn "Timeout during operation" -Exception $_.Exception
     #>
     [CmdletBinding()]
     [OutputType([PSCustomObject])]

@@ -21,11 +21,6 @@ function OPSreturn {
     param(
         # PARAM: Code → Must be one of the OPScode-Enums. Defaults to -1 (fail)
         [Parameter(Mandatory = $false)]
-        [ValidateScript({
-            $validCodes = [System.Enum]::GetValues([OPScode]) | ForEach-Object { [int]$_ }
-            if ($_ -in $validCodes) { return $true }
-            throw "OPSreturn: Invalid status code '$_'. Valid values: $($validCodes -join ', ')"
-        })]
         [OPScode]$Code = [OPScode]::fail,
         
         # PARAM: Message → A short Message you want to pass to the caller
@@ -69,14 +64,3 @@ function OPSreturn {
         #timecode    = if ( $script:conf['timestamp'] -eq $true ) { (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff') + ' UTC' }
     }
 }
-
-
-
-
-
-[string]$callerSrc = try {
-    $callStack = Get-PSCallStack
-    if ($callStack.Count -gt 2)      { $callStack[2].Command }
-    elseif ($callStack.Count -gt 1)  { $callStack[1].Command }
-    else                              { '<unknown>' }
-} catch { '<unknown>' }
