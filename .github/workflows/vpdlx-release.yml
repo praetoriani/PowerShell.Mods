@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-
 # =============================================================================
 # GITHUB ACTIONS WORKFLOW FOR VPDLX RELEASES
 # =============================================================================
@@ -16,10 +15,9 @@ name: VPDLX Release
 
 # GLOBAL VARS
 env:
-  zip_filename:  "VPDLX-Release.zip"       # Filename for the ZIP archive
-  repo_folder:   "VPDLX"                   # Source folder inside the repository
-  temp_folder:   "VPDLX-Module"            # Temporary staging folder name
-  workflow_file: "vpdlx-release.yml"       # This workflow's filename
+  repo_folder:   "VPDLX"                # Source folder inside the repository
+  temp_folder:   "VPDLX-Module"         # Temporary staging folder name
+  workflow_file: "vpdlx-release.yml"    # This workflow's filename
   logo_url:      "https://raw.githubusercontent.com/praetoriani/PowerShell.Mods/main/VPDLX/VPDLX.Logo.v1.png"
 
 # TRIGGER CONFIGURATION
@@ -57,7 +55,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-
     steps:
 
       # -----------------------------------------------------------------------
@@ -68,12 +65,12 @@ jobs:
 
       # -----------------------------------------------------------------------
       # STEP 2: Validate inputs and set up release variables
+      #         (zip_filename is derived dynamically from the version label)
       # -----------------------------------------------------------------------
       - name: Setup release variables
         id: setup
         run: |
           TAG_NAME="${{ github.event.inputs.tag_name }}"
-
           echo "🔧 Manual trigger detected"
           echo "📝 Using tag: $TAG_NAME"
 
@@ -87,13 +84,18 @@ jobs:
           # Derive a human-readable version label (strip the "vpdlx-" prefix)
           VERSION_LABEL="${TAG_NAME#vpdlx-}"
 
+          # Build dynamic ZIP filename: VPDLX-<version_label>.zip
+          ZIP_FILENAME="VPDLX-${VERSION_LABEL}.zip"
+
           # Export for later steps
           echo "tag_name=$TAG_NAME"         >> $GITHUB_OUTPUT
           echo "version_label=$VERSION_LABEL" >> $GITHUB_OUTPUT
+          echo "zip_filename=$ZIP_FILENAME"  >> $GITHUB_OUTPUT
 
           echo "✅ Tag validation successful"
-          echo "🏷️  Tag   : $TAG_NAME"
-          echo "🔖  Version: $VERSION_LABEL"
+          echo "🏷️  Tag     : $TAG_NAME"
+          echo "🔖 Version  : $VERSION_LABEL"
+          echo "📦 ZIP name : $ZIP_FILENAME"
 
       # -----------------------------------------------------------------------
       # STEP 3: Create tag if it does not exist yet
@@ -102,14 +104,12 @@ jobs:
         if: github.event.inputs.create_tag == 'true'
         run: |
           TAG_NAME="${{ steps.setup.outputs.tag_name }}"
-
           git config user.name  "GitHub Actions Bot"
           git config user.email "actions@github.com"
-
           if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "⚠️  Tag '$TAG_NAME' already exists — skipping creation"
+            echo "⚠️ Tag '$TAG_NAME' already exists — skipping creation"
           else
-            echo "🏷️  Creating new tag: $TAG_NAME"
+            echo "🏷️ Creating new tag: $TAG_NAME"
             git tag "$TAG_NAME"
             git push origin "$TAG_NAME"
             echo "✅ Tag created and pushed"
@@ -120,7 +120,9 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Build VPDLX release package
         run: |
+          ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
           echo "🚀 Building release package for ${{ env.repo_folder }}"
+          echo "📦 Target archive : $ZIP_FILENAME"
 
           # Verify source folder exists
           if [ ! -d "${{ env.repo_folder }}" ]; then
@@ -137,13 +139,13 @@ jobs:
           # Copy module files — then remove excluded items
           cp -r "${{ env.repo_folder }}"/* release-temp/${{ env.temp_folder }}/
 
-          echo "🗑️  Removing excluded items..."
+          echo "🗑️ Removing excluded items..."
 
           # Excluded directories
-          rm -rf  "release-temp/${{ env.temp_folder }}/.backup"
-          rm -rf  "release-temp/${{ env.temp_folder }}/.docs"
+          rm -rf "release-temp/${{ env.temp_folder }}/.backup"
+          rm -rf "release-temp/${{ env.temp_folder }}/.docs"
 
-          # Excluded files (case-insensitive, handle both upper- and lower-case variants)
+          # Excluded files (case-insensitive)
           find "release-temp/${{ env.temp_folder }}" -maxdepth 1 \
             \( -iname ".gitignore" \
             -o -iname "PROMPT.TXT" \
@@ -157,18 +159,17 @@ jobs:
           echo "📋 Staging folder contents (to be zipped):"
           find release-temp/${{ env.temp_folder }} | sort
 
-          # Create ZIP archive
+          # Create ZIP archive with dynamic filename
           cd release-temp
-          zip -r ../${{ env.zip_filename }} "${{ env.temp_folder }}/"
+          zip -r "../$ZIP_FILENAME" "${{ env.temp_folder }}/"
           cd ..
 
           echo ""
           echo "✅ ZIP created:"
-          ls -lh ${{ env.zip_filename }}
-
+          ls -lh "$ZIP_FILENAME"
           echo ""
           echo "📦 ZIP contents:"
-          unzip -l ${{ env.zip_filename }}
+          unzip -l "$ZIP_FILENAME"
 
       # -----------------------------------------------------------------------
       # STEP 5: Create the GitHub Release
@@ -177,9 +178,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.setup.outputs.tag_name }}
-
           name: "VPDLX ${{ steps.setup.outputs.version_label }}"
-
           body: |
             <p align="center">
               <img src="${{ env.logo_url }}" alt="VPDLX Logo" width="340"/>
@@ -191,7 +190,6 @@ jobs:
 
             **Version:** `${{ steps.setup.outputs.version_label }}`
             **Tag:** `${{ steps.setup.outputs.tag_name }}`
-            **Released:** ${{ github.run_id && '' }}$(date '+%d.%m.%Y')
 
             A fully class-based virtual logging system for PowerShell.
             Create, manage, and query multiple in-memory log files simultaneously
@@ -202,7 +200,7 @@ jobs:
 
             ## 📥 Download
 
-            **📦 [`${{ env.zip_filename }}`](https://github.com/${{ github.repository }}/releases/download/${{ steps.setup.outputs.tag_name }}/${{ env.zip_filename }})**
+            **📦 [`${{ steps.setup.outputs.zip_filename }}`](https://github.com/${{ github.repository }}/releases/download/${{ steps.setup.outputs.tag_name }}/${{ steps.setup.outputs.zip_filename }})**
 
             > The archive contains the complete `VPDLX` module folder, ready to be
             > placed in any directory on your `$env:PSModulePath`.
@@ -213,9 +211,9 @@ jobs:
 
             | Requirement | Minimum |
             |---|---|
-            | PowerShell | 5.1 or higher (`Desktop` + `Core`) |
-            | OS | Windows 10 / 11 |
-            | Privileges | No administrator rights required |
+            | PowerShell  | 5.1 or higher (`Desktop` + `Core`) |
+            | OS          | Windows 10 / 11 |
+            | Privileges  | No administrator rights required |
 
             ---
 
@@ -236,12 +234,10 @@ jobs:
             ${{ github.event.inputs.release_notes != '' && format('## 📝 Additional Notes\n\n{0}\n\n---\n', github.event.inputs.release_notes) || '' }}
 
             *This release was created manually via GitHub Actions by **${{ github.actor }}**.*
-
-          files: ${{ env.zip_filename }}
+          files: ${{ steps.setup.outputs.zip_filename }}
           draft: false
           prerelease: ${{ github.event.inputs.is_prerelease }}
           fail_on_unmatched_files: true
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -252,26 +248,26 @@ jobs:
         run: |
           TAG_NAME="${{ steps.setup.outputs.tag_name }}"
           VERSION="${{ steps.setup.outputs.version_label }}"
-
+          ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
           echo "========================================================"
-          echo "  🎉  VPDLX Release created successfully!"
+          echo " 🎉 VPDLX Release created successfully!"
           echo "========================================================"
           echo ""
-          echo "  📊  Release Information"
-          echo "  ─────────────────────────────────────────────────────"
-          echo "  👤  Actor     : ${{ github.actor }}"
-          echo "  🏷️  Tag       : $TAG_NAME"
-          echo "  🔖  Version   : $VERSION"
-          echo "  📦  Archive   : ${{ env.zip_filename }}"
-          echo "  ⚙️  Pre-Release: ${{ github.event.inputs.is_prerelease }}"
-          echo "  ⏰  Timestamp : $(date '+%d.%m.%Y %H:%M:%S UTC')"
+          echo " 📊 Release Information"
+          echo " ─────────────────────────────────────────────────────"
+          echo " 👤 Actor      : ${{ github.actor }}"
+          echo " 🏷️  Tag        : $TAG_NAME"
+          echo " 🔖 Version    : $VERSION"
+          echo " 📦 Archive    : $ZIP_FILENAME"
+          echo " ⚙️  Pre-Release: ${{ github.event.inputs.is_prerelease }}"
+          echo " ⏰ Timestamp  : $(date '+%d.%m.%Y %H:%M:%S UTC')"
           echo ""
-          echo "  🌐  Release Links"
-          echo "  ─────────────────────────────────────────────────────"
-          echo "  📖  Release Page  : https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
-          echo "  💾  Direct DL     : https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/${{ env.zip_filename }}"
+          echo " 🌐 Release Links"
+          echo " ─────────────────────────────────────────────────────"
+          echo " 📖 Release Page : https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo " 💾 Direct DL    : https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$ZIP_FILENAME"
           echo ""
-          echo "  🔧  Workflow Management"
-          echo "  ─────────────────────────────────────────────────────"
-          echo "  ▶️  Run again    : https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
+          echo " 🔧 Workflow Management"
+          echo " ─────────────────────────────────────────────────────"
+          echo " ▶️  Run again    : https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
           echo "========================================================"
