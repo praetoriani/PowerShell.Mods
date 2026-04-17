@@ -1,6 +1,5 @@
-# VPDLX &mdash; Virtual PowerShell Data-Logger eXtension
-
 <div align="center">
+  <h1>VPDLX &mdash; Virtual PowerShell Data-Logger eXtension</h1> <br>
   <img src="VPDLX.Logo.v1.svg" alt="VPDLX Logo" width="480" />
 </div>
 
@@ -11,6 +10,7 @@
 ![Version](https://img.shields.io/badge/Version-1.02.06-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-orange)
+![License](https://img.shields.io/badge/License-Apache-darkgreen)
 
 </div>
 
