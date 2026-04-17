@@ -88,7 +88,7 @@ param(
 
 
 # ____________________________________________________________________________________________________
-# SECTION 2: Load the core configuration file
+#  → SECTION 2: Load the core configuration file
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
 # This is the module configuration file for local.httpserver.
@@ -97,49 +97,54 @@ $modConf = Join-Path $script:root "include\module.config"
 if (Test-Path $modConf) {
     . $modConf   # Dot-Sourcing — alle Variablen sind jetzt im aktuellen Scope verfügbar
 } else {
-    Write-Error "File not found: $modConf"
+    # Multiline-Error-Message
+    [string] $errorMessage = @(
+    "[‼] Fatal Error during init-process of local.httpserver"
+    "File: local.httpserver.psm1"
+    "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+    "Time: $((Get-Date).ToString("HH:mm:ss"))"
+    "Info:"
+    "→ File not found: $modConf"
+    ) -join "`n"
+    # drop the full error message
+    Write-Error $errorMessage
     exit 1
 }
 
+# ____________________________________________________________________________________________________
+#  → SECTION 3: Load required plugins
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+# In this section we're going to import other modules (named as plugins)
 
-<#  BACKUP OF THE ORIGINAL CONFIGURATION LOADING PROCESS BEFORE DOT-SOURCING THE MODULE.CONFIG
-[hashtable]$httpCore = @{} # ← This will hold the deserialized content of config.httphost.json
-[hashtable]$httpHost = @{} # ← This will hold the deserialized content of config.server.json
-[hashtable]$mimetype = @{} # ← This will hold the deserialized content of config.mime.jsonscop
+# looks like we got some plugins to load
+if ($httpCore.plugin.Count -ne 0) {
 
-# This is the config file for the local.httpserver module.
-$coreJSON = Join-Path $script:root 'include\config.httphost.json'
-# Load config.httphost.json
-$jsonContent = ReadJSON -Location $coreJSON
-# Exit on error
-if ($jsonContent.code -ne 0) { Write-Error $jsonContent.msg; exit 1 }
-# pass the unwraped data from the return object to obtain the plain deserialized JSON content
-$httpCore = $jsonContent.data
+    foreach ($key in $httpCore.plugin.Keys) {
 
-# Resolve relative paths in the core configuration to absolute paths based on the module directory
-$httpCore.config.http = Join-Path $script:root $httpCore.config.http
-$httpCore.config.mime = Join-Path $script:root $httpCore.config.mime
-$httpCore.config.log = Join-Path $script:root $httpCore.config.log
-
-# Load config.server.json
-$jsonContent = ReadJSON -Location $httpCore.config.http
-# Exit on error
-if ($jsonContent.code -ne 0) { Write-Error $jsonContent.msg; exit 1 }
-# pass the unwraped data from the return object to obtain the plain deserialized JSON content
-$httpHost = $jsonContent.data
-
-# Load config.mime.json
-$jsonContent = ReadJSON -Location $httpCore.config.mime
-# Exit on error
-if ($jsonContent.code -ne 0) { Write-Error $jsonContent.msg; exit 1 }
-# pass the unwraped data from the return object to obtain the plain deserialized JSON content
-$mimetype = $jsonContent.data
-#>
-
-
+        # let's make sure that those plugins do exist
+        if (Test-Path $httpCore.plugin[$key] -and -not (Get-Module -Name $httpCore.plugin[$key]) ) {
+            # we're going to load the "plugin" into global scope
+            Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
+        }
+        else {
+            # Multiline-Error-Message
+            [string] $errorMessage = @(
+            "[‼] Fatal Error during init-process of local.httpserver"
+            "File: local.httpserver.psm1"
+            "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+            "Time: $((Get-Date).ToString("HH:mm:ss"))"
+            "Info:"
+            "→ File not found: $($httpCore.plugin[$key])"
+            ) -join "`n"
+            # drop the full error message
+            Write-Error $errorMessage
+            exit 1
+        }
+    }
+}
 
 # ____________________________________________________________________________________________________
-#  → SECTION 3: Bootstrapping
+#  → SECTION 4: Bootstrapping
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # The Reason, why we do the dot-sourcing at the beginnging of the module is, that we have access to
 # all public and private functions of this module during the runtime of local.httpserver.psm1.
@@ -174,8 +179,12 @@ foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
 
 
 # Module initialization message
-Write-Verbose "‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾"
-Write-Verbose "local.httpserver module loaded successfully. Available functions:"
-Write-Verbose "$(($PublicFunctions.BaseName) -join ', ')"
-Write-Verbose "___________________________________________________________________________"
-Write-Verbose "Enjoy using local.httpserver :-)"
+[string] $finalMessage = @(
+"‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾"
+"local.httpserver module loaded successfully. Available functions:"
+"$(($PublicFunctions.BaseName) -join ', ')"
+"___________________________________________________________________________"
+"Enjoy using local.httpserver :-)"
+""
+) -join "`n"
+Write-Verbose $finalMessage
