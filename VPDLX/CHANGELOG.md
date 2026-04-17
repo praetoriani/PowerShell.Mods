@@ -5,6 +5,77 @@ This file follows a *reverse-chronological* order - the newest version is always
 
 ---
 
+## [1.02.07] - 17.04.2026
+
+### Overview
+
+Bugfix release. Resolves two critical defects that were identified during `Demo.ps1` testing after the v1.02.06 release: a wrong return-object evaluation in all nine Public Wrapper functions, and a missing `GetAllEntries()` method on the `[Logfile]` class.
+
+### Fixed - Public Wrapper Functions: Incorrect `VPDLXcore` Return Evaluation
+
+- **Root cause:** All nine Public Wrapper functions in `Public/` called `VPDLXcore -KeyID 'storage'` and then tested whether the result `-is [PSCustomObject]`. Because `VPDLXcore` **always** returns a `[PSCustomObject]` (the standardised `VPDLXreturn` envelope with `.code`, `.msg`, and `.data` fields), this condition was unconditionally `$true` — even on a healthy, fully initialised module. Every wrapper therefore immediately returned a `[FAILED]` error without ever reaching its actual logic.
+- **Fix applied to all nine wrappers:**
+  - `VPDLXnewlogfile.ps1`
+  - `VPDLXislogfile.ps1`
+  - `VPDLXdroplogfile.ps1`
+  - `VPDLXreadlogfile.ps1`
+  - `VPDLXwritelogfile.ps1`
+  - `VPDLXexportlogfile.ps1`
+  - `VPDLXgetalllogfiles.ps1`
+  - `VPDLXresetlogfile.ps1`
+  - `VPDLXfilterlogfile.ps1`
+- **Corrected pattern:** The wrappers now inspect the `.code` field of the returned envelope. A non-zero `.code` indicates a genuine internal error; only then is the failure path taken. The actual `[FileStorage]` instance is extracted from `.data`:
+
+```powershell
+$coreResult = VPDLXcore -KeyID 'storage'
+if ($coreResult.code -ne 0) {
+    return VPDLXreturn -Code -1 -Message $coreResult.msg
+}
+$storage = $coreResult.data
+```
+
+- **`VPDLXislogfile.ps1` (special case):** This function returns `[bool]` instead of a `VPDLXreturn` object. On error it now returns `$false` and emits a `Write-Warning` diagnostic instead of calling `VPDLXreturn`.
+- **`VPDLXexportlogfile.ps1` (special case):** This wrapper calls `VPDLXcore` twice — once for `'storage'` and once for `'export'`. Both call sites have been corrected with the new pattern.
+
+### Fixed - `[Logfile]` Class: `GetAllEntries()` Method Missing
+
+- **Root cause:** `Demo.ps1` STEP 07 called `$logInstance.GetAllEntries()` and `VPDLXexportlogfile` internally called `$logInstance.GetAllEntries()` as well. The method did not exist on the `[Logfile]` class — the implementation was present under the legacy name `SoakUp()`, which was never documented in the public API and was never referenced in the changelog.
+- **Symptoms:**
+  - STEP 07 threw `MethodNotFound: [Logfile] does not contain a method named 'GetAllEntries'`.
+  - STEP 13 (all four export formats: txt, log, csv, json) failed silently because `VPDLXexportlogfile` called the same missing method internally.
+- **Fix:** `SoakUp()` is retained as the primary implementation (containing `GuardDestroyed()`, `RecordSoakUp()`, and the data copy). A new thin public wrapper `GetAllEntries()` is added that delegates to `SoakUp()`:
+
+```powershell
+[string[]] SoakUp() {
+    $this.GuardDestroyed()
+    $this._details.RecordSoakUp()
+    if ($this._data.Count -eq 0) { return @() }
+    return $this._data.ToArray()
+}
+
+# Forward-compatible alias — delegates to SoakUp()
+[string[]] GetAllEntries() {
+    return $this.SoakUp()
+}
+```
+
+  This approach preserves full backwards compatibility (any code calling `SoakUp()` continues to work) while providing the clean, self-documenting name that the changelog has documented since v1.01.00.
+
+### Changed - No Version Bump
+
+- Module version remains at `1.02.07` for this patch. All changes are pure bugfixes with no new API surface, no new parameters, and no behavioural changes for correctly functioning callers.
+- `VPDLXClasses.ps1`: `GetAllEntries()` method added to `[Logfile]`.
+- All nine `Public/*.ps1` files: `VPDLXcore` result evaluation corrected.
+
+### Impact
+
+- `Demo.ps1` now runs to completion without errors across all 16 steps.
+- STEP 07 (`GetAllEntries()` class API) returns all log entries correctly.
+- STEP 13 (export to disk) succeeds for all four formats (txt, log, csv, json) as well as the two formats added in v1.02.06 (html, ndjson).
+- STEP 16 (error handling examples) was not affected by these bugs — all seven sub-scenarios produce the expected controlled error outputs.
+
+---
+
 ## [1.02.06] - 11.04.2026
 
 ### Overview
