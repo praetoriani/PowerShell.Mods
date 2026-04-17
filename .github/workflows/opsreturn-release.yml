@@ -1,0 +1,304 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# =============================================================================
+# GITHUB ACTIONS WORKFLOW FOR OPSRETURN RELEASES
+# =============================================================================
+# This workflow is triggered manually through the GitHub Actions interface.
+# It creates a GitHub Release for the OPSreturn PowerShell module, including:
+#   - A ZIP archive containing only the relevant module files
+#   - A structured release description with version info and download link
+#
+# Excluded from ZIP:
+#   .backup/  |  .docs/  |  .gitignore  |  PROMPT.TXT  |  TODO.TXT
+
+name: OPSreturn Release
+
+# GLOBAL VARS
+env:
+  repo_folder:   "OPSreturn"           # Source folder inside the repository
+  temp_folder:   "OPSreturn-Module"    # Temporary staging folder name
+  workflow_file: "opsreturn-release.yml" # This workflow's filename
+
+# TRIGGER CONFIGURATION
+# Only manual dispatch - no automatic tag trigger
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g., opsreturn-v1.00.00)'
+        required: true
+        default: 'opsreturn-v1.00.00'
+        type: string
+      create_tag:
+        description: 'Create the tag if it does not exist'
+        required: true
+        default: true
+        type: boolean
+      is_prerelease:
+        description: 'Mark this release as a pre-release'
+        required: true
+        default: false
+        type: boolean
+      release_notes:
+        description: 'Additional release notes (optional, Markdown supported)'
+        required: false
+        default: ''
+        type: string
+
+# PERMISSIONS
+permissions:
+  contents: write
+  actions: write
+
+# JOB DEFINITION
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+
+      # -----------------------------------------------------------------------
+      # STEP 1: Checkout repository
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # STEP 2: Validate inputs and set up release variables
+      #         (zip_filename is derived dynamically from the version label)
+      # -----------------------------------------------------------------------
+      - name: Setup release variables
+        id: setup
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          echo "🔧 Manual trigger detected"
+          echo "📝 Using tag: $TAG_NAME"
+
+          # Validate tag format (must start with "opsreturn-")
+          if [[ ! "$TAG_NAME" =~ ^opsreturn-.*$ ]]; then
+            echo "❌ Error: Tag name must start with 'opsreturn-'"
+            echo "❌ Provided value: $TAG_NAME"
+            exit 1
+          fi
+
+          # Derive a human-readable version label (strip the "opsreturn-" prefix)
+          VERSION_LABEL="${TAG_NAME#opsreturn-}"
+
+          # Build dynamic ZIP filename: OPSreturn-<version>.zip
+          ZIP_FILENAME="OPSreturn-${VERSION_LABEL}.zip"
+
+          # Export for later steps
+          echo "tag_name=$TAG_NAME"           >> $GITHUB_OUTPUT
+          echo "version_label=$VERSION_LABEL" >> $GITHUB_OUTPUT
+          echo "zip_filename=$ZIP_FILENAME"   >> $GITHUB_OUTPUT
+
+          echo "✅ Tag validation successful"
+          echo "🏷️  Tag     : $TAG_NAME"
+          echo "🔖  Version : $VERSION_LABEL"
+          echo "📦  ZIP name: $ZIP_FILENAME"
+
+      # -----------------------------------------------------------------------
+      # STEP 3: Create tag if it does not exist yet
+      # -----------------------------------------------------------------------
+      - name: Create tag if requested
+        if: github.event.inputs.create_tag == 'true'
+        run: |
+          TAG_NAME="${{ steps.setup.outputs.tag_name }}"
+          git config user.name  "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "⚠️  Tag '$TAG_NAME' already exists — skipping creation"
+          else
+            echo "🏷️  Creating new tag: $TAG_NAME"
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+            echo "✅ Tag created and pushed"
+          fi
+
+      # -----------------------------------------------------------------------
+      # STEP 4: Build the release ZIP (with exclusions)
+      # -----------------------------------------------------------------------
+      - name: Build OPSreturn release package
+        run: |
+          ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
+          echo "🚀 Building release package for ${{ env.repo_folder }}"
+          echo "📦 Target archive : $ZIP_FILENAME"
+
+          # Verify source folder exists
+          if [ ! -d "${{ env.repo_folder }}" ]; then
+            echo "❌ Source folder '${{ env.repo_folder }}' not found!"
+            echo "📂 Repository root contents:"
+            ls -la
+            exit 1
+          fi
+
+          # Create clean staging area
+          mkdir -p release-temp/${{ env.temp_folder }}
+          echo "📁 Staging folder created: release-temp/${{ env.temp_folder }}"
+
+          # Copy module files — then remove excluded items
+          cp -r "${{ env.repo_folder }}"/* release-temp/${{ env.temp_folder }}/
+          echo "🗑️  Removing excluded items..."
+
+          # Excluded directories
+          rm -rf "release-temp/${{ env.temp_folder }}/.backup"
+          rm -rf "release-temp/${{ env.temp_folder }}/.docs"
+
+          # Excluded files (case-insensitive)
+          find "release-temp/${{ env.temp_folder }}" -maxdepth 1 \
+            \( -iname ".gitignore" \
+            -o -iname "PROMPT.TXT" \
+            -o -iname "TODO.TXT" \) \
+            -delete
+
+          echo "✅ Exclusions applied"
+
+          # Show what will be packaged
+          echo ""
+          echo "📋 Staging folder contents (to be zipped):"
+          find release-temp/${{ env.temp_folder }} | sort
+
+          # Create ZIP archive with dynamic filename
+          cd release-temp
+          zip -r "../$ZIP_FILENAME" "${{ env.temp_folder }}/"
+          cd ..
+
+          echo ""
+          echo "✅ ZIP created:"
+          ls -lh "$ZIP_FILENAME"
+          echo ""
+          echo "📦 ZIP contents:"
+          unzip -l "$ZIP_FILENAME"
+
+      # -----------------------------------------------------------------------
+      # STEP 5: Create the GitHub Release
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.setup.outputs.tag_name }}
+          name: "OPSreturn ${{ steps.setup.outputs.version_label }}"
+          body: |
+            ---
+
+            ## 🔄 OPSreturn — Operation Status Return Module
+
+            **Version:** `${{ steps.setup.outputs.version_label }}`
+            **Tag:** `${{ steps.setup.outputs.tag_name }}`
+
+            OPSreturn provides a **unified, structured return contract** for all PowerShell functions.
+            Every function returns a consistent `PSCustomObject` with status code, message, source,
+            timestamp and optional data payload — making error handling and logging predictable
+            across entire automation projects.
+
+            ---
+
+            ## 📥 Download
+
+            **📦 [`${{ steps.setup.outputs.zip_filename }}`](https://github.com/${{ github.repository }}/releases/download/${{ steps.setup.outputs.tag_name }}/${{ steps.setup.outputs.zip_filename }})**
+
+            > The archive contains the complete `OPSreturn` module folder, ready to be
+            > placed in any directory on your `$env:PSModulePath`.
+
+            ---
+
+            ## ⚙️ System Requirements
+
+            | Requirement  | Minimum                                  |
+            |---|---|
+            | PowerShell   | 5.1 or higher (`Desktop` + `Core`)       |
+            | OS           | Windows 10 / 11                          |
+            | Privileges   | No administrator rights required         |
+
+            ---
+
+            ## 🚀 Quick Install
+
+            ```powershell
+            # 1. Extract the ZIP archive
+            # 2. Copy the OPSreturn folder to your module path, e.g.:
+            Copy-Item -Path ".\OPSreturn" -Destination "$HOME\Documents\PowerShell\Modules\OPSreturn" -Recurse
+
+            # 3. Import and configure
+            Import-Module OPSreturn
+            SetCoreConfig -ModuleName 'MyModule' -EnableLogging $true
+
+            # 4. Use in your functions
+            function Do-Something {
+                # ... your logic ...
+                return OPSsuccess -message 'Operation completed' -data $result
+            }
+            ```
+
+            ---
+
+            ## 🔄 Return Object Structure
+
+            | Field       | Type     | Description                                      |
+            |---|---|---|
+            | `status`    | Int32    | Numeric status code (see table below)            |
+            | `code`      | String   | Human-readable status name (e.g. `OPS_SUCCESS`)  |
+            | `message`   | String   | Descriptive status message                       |
+            | `source`    | String   | Caller function name (auto-resolved via CallStack)|
+            | `timecode`  | String   | Timestamp of the return event                    |
+            | `data`      | Object   | Optional payload (any type)                      |
+            | `logentry`  | String   | Pre-formatted log line for direct logging        |
+
+            ---
+
+            ## 📊 Status Codes
+
+            | Function       | Code Name      | Value |
+            |---|---|---|
+            | `OPSsuccess`   | `OPS_SUCCESS`  | 1000  |
+            | `OPSinfo`      | `OPS_INFO`     | 1100  |
+            | `OPSdebug`     | `OPS_DEBUG`    | 1200  |
+            | `OPStimeout`   | `OPS_TIMEOUT`  | 2000  |
+            | `OPSwarn`      | `OPS_WARN`     | 3000  |
+            | `OPSfail`      | `OPS_FAIL`     | 4000  |
+            | `OPSerror`     | `OPS_ERROR`    | 5000  |
+            | `OPScritical`  | `OPS_CRITICAL` | 6000  |
+            | `OPSfatal`     | `OPS_FATAL`    | 7000  |
+
+            ---
+
+            ${{ github.event.inputs.release_notes != '' && format('## 📝 Additional Notes\n\n{0}\n\n---\n', github.event.inputs.release_notes) || '' }}
+
+            *This release was created manually via GitHub Actions by **${{ github.actor }}}**.*
+          files: ${{ steps.setup.outputs.zip_filename }}
+          draft: false
+          prerelease: ${{ github.event.inputs.is_prerelease }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # STEP 6: Summary log
+      # -----------------------------------------------------------------------
+      - name: Print release summary
+        run: |
+          TAG_NAME="${{ steps.setup.outputs.tag_name }}"
+          VERSION="${{ steps.setup.outputs.version_label }}"
+          ZIP_FILENAME="${{ steps.setup.outputs.zip_filename }}"
+
+          echo "========================================================"
+          echo "  🎉 OPSreturn Release created successfully!"
+          echo "========================================================"
+          echo ""
+          echo "  📊 Release Information"
+          echo "  ─────────────────────────────────────────────────────"
+          echo "  👤 Actor      : ${{ github.actor }}"
+          echo "  🏷️  Tag        : $TAG_NAME"
+          echo "  🔖  Version   : $VERSION"
+          echo "  📦  Archive   : $ZIP_FILENAME"
+          echo "  ⚙️  Pre-Release: ${{ github.event.inputs.is_prerelease }}"
+          echo "  ⏰  Timestamp : $(date '+%d.%m.%Y %H:%M:%S UTC')"
+          echo ""
+          echo "  🌐 Release Links"
+          echo "  ─────────────────────────────────────────────────────"
+          echo "  📖 Release Page : https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo "  💾 Direct DL    : https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$ZIP_FILENAME"
+          echo ""
+          echo "  🔧 Workflow Management"
+          echo "  ─────────────────────────────────────────────────────"
+          echo "  ▶️  Run again   : https://github.com/${{ github.repository }}/actions/workflows/${{ env.workflow_file }}"
+          echo "========================================================"
