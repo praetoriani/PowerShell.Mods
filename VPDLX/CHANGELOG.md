@@ -1,11 +1,11 @@
-# VPDLX — Changelog
+# VPDLX - Changelog
 
 All notable changes to the **VPDLX** module are documented here.
-This file follows a *reverse-chronological* order — the newest version is always at the top.
+This file follows a *reverse-chronological* order - the newest version is always at the top.
 
 ---
 
-## [1.02.06] — 11.04.2026
+## [1.02.06] - 11.04.2026
 
 ### Overview
 Advanced Features release. Implements the remaining two tasks from **Priorität 10**
@@ -14,16 +14,16 @@ of the Developer ToDo-Liste: two new export formats (HTML and NDJSON) for
 class. These additions bring the total number of supported export formats to six
 and allow callers to control log verbosity at construction time.
 
-### Added — HTML Export Format (`VPDLXexportlogfile -ExportAs 'html'`)
+### Added - HTML Export Format (`VPDLXexportlogfile -ExportAs 'html'`)
 
-- **New export format key: `html`** — generates a self-contained HTML document with
-  embedded CSS styling. No external dependencies — the entire document can be opened
+- **New export format key: `html`** - generates a self-contained HTML document with
+  embedded CSS styling. No external dependencies - the entire document can be opened
   in any browser directly from disk.
 
 - **Document structure:**
   - **Header section:** Log file name, export timestamp (`dd.MM.yyyy | HH:mm:ss`),
     and total entry count.
-  - **Data table:** Three columns — `Timestamp`, `Level`, and `Message`. Each row
+  - **Data table:** Three columns - `Timestamp`, `Level`, and `Message`. Each row
     represents one log entry.
   - **Footer:** VPDLX module version stamp.
 
@@ -52,7 +52,7 @@ and allow callers to control log verbosity at construction time.
 - **Print-friendly:** The CSS includes a print media query that preserves the table
   layout and level colours when the document is printed or saved as PDF from a browser.
 
-- **Respects `-NoBOM` and `-Override` switches** — same behaviour as all other export
+- **Respects `-NoBOM` and `-Override` switches** - same behaviour as all other export
   formats.
 
 **Usage example:**
@@ -66,11 +66,11 @@ if ($r.code -eq 0) { Start-Process $r.data }   # opens in default browser
 $r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html' -NoBOM
 ```
 
-### Added — NDJSON Export Format (`VPDLXexportlogfile -ExportAs 'ndjson'`)
+### Added - NDJSON Export Format (`VPDLXexportlogfile -ExportAs 'ndjson'`)
 
-- **New export format key: `ndjson`** — Newline-Delimited JSON. Each log entry is
+- **New export format key: `ndjson`** - Newline-Delimited JSON. Each log entry is
   serialised as a single compact JSON object on its own line. There is no root
-  wrapper, no opening `[`, and no trailing `]` — just one JSON object per line.
+  wrapper, no opening `[`, and no trailing `]` - just one JSON object per line.
 
 - **Output format:**
   ```
@@ -84,15 +84,15 @@ $r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html' -N
   log data into modern observability pipelines. Each line is a valid, independent
   JSON document that can be parsed without reading the entire file. This makes it
   ideal for:
-  - **Elasticsearch / Logstash** — `json` codec reads NDJSON natively
-  - **AWS Kinesis / CloudWatch** — one record per line
-  - **Grafana Loki** — direct NDJSON ingestion
-  - **Kafka** — one message per line
-  - **`jq` command-line processing** — `cat log.ndjson | jq .Level`
-  - **Streaming uploads** — send lines as they arrive, no buffering needed
+  - **Elasticsearch / Logstash** - `json` codec reads NDJSON natively
+  - **AWS Kinesis / CloudWatch** - one record per line
+  - **Grafana Loki** - direct NDJSON ingestion
+  - **Kafka** - one message per line
+  - **`jq` command-line processing** - `cat log.ndjson | jq .Level`
+  - **Streaming uploads** - send lines as they arrive, no buffering needed
 
 - **Entry parsing:** Uses the same parsing logic as the existing CSV and JSON export
-  blocks — each log line is split into Timestamp, Level, and Message components.
+  blocks - each log line is split into Timestamp, Level, and Message components.
   Each parsed entry is converted via `ConvertTo-Json -Compress` to produce a single
   compact line.
 
@@ -108,11 +108,11 @@ $r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson'
 $r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
 ```
 
-### Added — Configurable Minimum Log Level (`[Logfile]` Constructor Overload)
+### Added - Configurable Minimum Log Level (`[Logfile]` Constructor Overload)
 
 - **New constructor overload: `[Logfile]::new([string] $name, [string] $minLevel)`**
   Creates a new virtual log file with a minimum severity threshold. Any `Write()` or
-  `Print()` call with a level below the threshold is silently discarded — no exception
+  `Print()` call with a level below the threshold is silently discarded - no exception
   is thrown, no side effects occur (no metadata update, no entry count change).
 
 - **Severity ranking** (low → high):
@@ -131,19 +131,19 @@ $r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' 
   This ranking is exposed as a static hashtable: `[Logfile]::LevelSeverity`.
 
 - **New hidden instance fields:**
-  - `$_minLevelIndex` (`[int]`) — the numeric severity threshold. `-1` means no
+  - `$_minLevelIndex` (`[int]`) - the numeric severity threshold. `-1` means no
     filter is active (all entries accepted). Set to the severity index of the
     configured minimum level (e.g. `4` for `warning`).
-  - `$_minLevelName` (`[string]`) — the human-readable name of the configured
+  - `$_minLevelName` (`[string]`) - the human-readable name of the configured
     minimum level (e.g. `'warning'`). Empty string when no filter is active.
 
-- **New hidden method: `_InitLogfile()`** — shared initialisation logic used by both
+- **New hidden method: `_InitLogfile()`** - shared initialisation logic used by both
   constructors. Contains all the code that was previously in the single-argument
   constructor (name validation, storage registration, FileDetails creation, data
   list initialisation). This follows the DRY principle and ensures both constructors
   behave identically for the common initialisation path.
 
-- **New public method: `GetMinLogLevel()`** — returns the configured minimum level
+- **New public method: `GetMinLogLevel()`** - returns the configured minimum level
   name as a `[string]`, or `'none'` if no filter is active.
 
 - **`Write()` filtering behaviour:** At the top of `Write()`, before any validation
@@ -158,7 +158,7 @@ $r = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' 
 
 - **`Print()` filtering behaviour:** At the top of `Print()`, the same severity
   check is performed. If the batch level is below the minimum, the entire batch is
-  silently discarded — after parameter validation (null/empty checks) but before
+  silently discarded - after parameter validation (null/empty checks) but before
   message validation and entry formatting.
 
 - **`ToString()` updated:** When a minimum level filter is active, `ToString()`
@@ -195,20 +195,20 @@ $devLog.GetMinLogLevel()    # → 'none'
 # → @{ trace = 0; debug = 1; verbose = 2; info = 3; warning = 4; error = 5; critical = 6; fatal = 7 }
 ```
 
-### Changed — Export Format Table (Updated)
+### Changed - Export Format Table (Updated)
 
 The complete list of supported export formats as of v1.02.06:
 
 | Key      | Extension  | Description                                                         |
 |----------|------------|---------------------------------------------------------------------|
-| `txt`    | `.txt`     | Plain text — each log line written as-is                            |
+| `txt`    | `.txt`     | Plain text - each log line written as-is                            |
 | `log`    | `.log`     | Same as `txt` with `.log` extension                                 |
 | `csv`    | `.csv`     | RFC 4180-compliant: `"Timestamp","Level","Message"`                 |
 | `json`   | `.json`    | JSON object: `{ LogFile, ExportedAt, EntryCount, Entries[] }`       |
 | `html`   | `.html`    | Self-contained HTML document with embedded CSS **(new)**             |
-| `ndjson` | `.ndjson`  | Newline-Delimited JSON — one object per line **(new)**               |
+| `ndjson` | `.ndjson`  | Newline-Delimited JSON - one object per line **(new)**               |
 
-### Changed — Manifest & Module Updates
+### Changed - Manifest & Module Updates
 
 - **`VPDLX.psd1`:**
   - `ModuleVersion` updated from `1.02.05` to `1.02.06`.
@@ -248,7 +248,7 @@ The complete list of supported export formats as of v1.02.06:
 
 ---
 
-## [1.02.05] — 11.04.2026
+## [1.02.05] - 11.04.2026
 
 ### Overview
 New Wrapper Functions & Module Statistics release. Implements four features from
@@ -259,9 +259,9 @@ complete the public wrapper API, giving callers standardised, safe access to
 every major log file operation without needing to interact with the class API
 directly.
 
-### Added — `VPDLXgetalllogfiles` (List All Active Log Files)
+### Added - `VPDLXgetalllogfiles` (List All Active Log Files)
 
-- **New file: `Public\VPDLXgetalllogfiles.ps1`** — a parameterless public wrapper
+- **New file: `Public\VPDLXgetalllogfiles.ps1`** - a parameterless public wrapper
   that returns a summary of every virtual log file currently registered in the
   module’s in-memory storage.
 - Iterates all registered names via `FileStorage.GetNames()`, retrieves each
@@ -278,9 +278,9 @@ directly.
   | `AccessCount`  | `int`      | Total interaction count since creation      |
 
 - **Return contract (via `VPDLXreturn`):**
-  - `code  0` — success; `.data` holds `[PSCustomObject[]]` (empty array `@()` if
+  - `code  0` - success; `.data` holds `[PSCustomObject[]]` (empty array `@()` if
     no log files are registered).
-  - `code -1` — failure; `.msg` describes the reason.
+  - `code -1` - failure; `.msg` describes the reason.
 - **Read-only operation:** Calls only public getter methods on `[FileDetails]`
   and `[Logfile]`. Does **not** increment `axcount` or update `lastacc` on any
   log file. Safe for monitoring and dashboard use.
@@ -296,28 +296,28 @@ if ($result.code -eq 0) {
 }
 ```
 
-### Added — `VPDLXresetlogfile` (Clear Log File Entries)
+### Added - `VPDLXresetlogfile` (Clear Log File Entries)
 
-- **New file: `Public\VPDLXresetlogfile.ps1`** — a public wrapper that clears all
+- **New file: `Public\VPDLXresetlogfile.ps1`** - a public wrapper that clears all
   entries from a named virtual log file while preserving the log file itself
   (its registration, name, and metadata skeleton).
 - Wraps the `[Logfile].Reset()` method in the standardised error-handling and
   return-object pattern established by all other VPDLX public wrappers.
 - **Parameter:**
-  - `-Logfile` (mandatory, position 0) — the name of the log file to reset.
+  - `-Logfile` (mandatory, position 0) - the name of the log file to reset.
     Case-insensitive lookup, leading/trailing whitespace trimmed.
 - **Return contract (via `VPDLXreturn`):**
-  - `code  0` — success; `.data` holds the entry count **before** the reset
+  - `code  0` - success; `.data` holds the entry count **before** the reset
     (so the caller knows how many entries were cleared).
-  - `code -1` — failure; `.msg` describes the reason.
+  - `code -1` - failure; `.msg` describes the reason.
 - **Key behaviour:**
   - The log file remains registered in `FileStorage` and can immediately accept
     new entries after reset.
   - `_details.ApplyReset()` updates: `updated`, `lastacc`, `acctype` (→ `'Reset'`),
     `axcount` (+1), `entries` (→ 0). The `created` timestamp is preserved.
 - **Difference from `VPDLXdroplogfile`:**
-  - `VPDLXresetlogfile` — clears DATA, keeps the log file alive.
-  - `VPDLXdroplogfile` — destroys EVERYTHING (data + metadata + registration).
+  - `VPDLXresetlogfile` - clears DATA, keeps the log file alive.
+  - `VPDLXdroplogfile` - destroys EVERYTHING (data + metadata + registration).
 
 **Usage example:**
 
@@ -330,21 +330,21 @@ if ($export.code -eq 0) {
 }
 ```
 
-### Added — `VPDLXfilterlogfile` (Filter Entries by Level)
+### Added - `VPDLXfilterlogfile` (Filter Entries by Level)
 
-- **New file: `Public\VPDLXfilterlogfile.ps1`** — a public wrapper that retrieves
+- **New file: `Public\VPDLXfilterlogfile.ps1`** - a public wrapper that retrieves
   all log entries matching a specific log level from a named virtual log file.
 - Wraps the `[Logfile].FilterByLevel()` method in the standardised error-handling
   and return-object pattern.
 - **Parameters:**
-  - `-Logfile` (mandatory, position 0) — the name of the log file to filter.
-  - `-Level` (mandatory, position 1) — the log level to filter for. Validated by
+  - `-Logfile` (mandatory, position 0) - the name of the log file to filter.
+  - `-Level` (mandatory, position 1) - the log level to filter for. Validated by
     `[ValidateSet]` at the binding layer (provides tab-completion in interactive
     sessions and editors).
     Accepted values: `info`, `debug`, `verbose`, `trace`, `warning`, `error`,
     `critical`, `fatal` (case-insensitive).
 - **Return contract (via `VPDLXreturn`):**
-  - `code  0` — success; `.data` holds a `[PSCustomObject]` with:
+  - `code  0` - success; `.data` holds a `[PSCustomObject]` with:
 
     | Property  | Type        | Description                        |
     |-----------|-------------|------------------------------------|
@@ -352,11 +352,11 @@ if ($export.code -eq 0) {
     | `Count`   | `int`       | Number of matches                  |
     | `Level`   | `string`    | The level that was filtered        |
 
-  - `code -1` — failure; `.msg` describes the reason.
+  - `code -1` - failure; `.msg` describes the reason.
 - **Matching strategy (from `[Logfile].FilterByLevel()`):** Each log line is
   checked with `String.Contains()` against the uppercase bracket notation
-  (e.g. `[WARNING]`). This is a fixed-string comparison — faster than regex.
-- Updates `_details.RecordFilterByLevel()` on the log file — modifies `lastacc`,
+  (e.g. `[WARNING]`). This is a fixed-string comparison - faster than regex.
+- Updates `_details.RecordFilterByLevel()` on the log file - modifies `lastacc`,
   `acctype` (→ `'FilterByLevel'`), and `axcount`.
 
 **Usage example:**
@@ -369,7 +369,7 @@ if ($result.code -eq 0 -and $result.data.Count -gt 0) {
 }
 ```
 
-### Added — `VPDLXcore -KeyID 'stats'` (Module-Wide Statistics)
+### Added - `VPDLXcore -KeyID 'stats'` (Module-Wide Statistics)
 
 - **New `switch` case in `VPDLXcore`** (defined in `VPDLX.psm1`, Section 5) —
   returns a `[PSCustomObject]` containing aggregated module-wide statistics.
@@ -396,7 +396,7 @@ Write-Host "Active logs: $($stats.ActiveLogfiles), Total entries: $($stats.Total
 Write-Host "Largest: $($stats.MaxEntriesLog) ($($stats.MaxEntries) entries)"
 ```
 
-### Changed — Manifest & Module Updates
+### Changed - Manifest & Module Updates
 
 - **`VPDLX.psd1`:**
   - `ModuleVersion` updated from `1.02.04` to `1.02.05`.
@@ -421,14 +421,14 @@ Write-Host "Largest: $($stats.MaxEntriesLog) ($($stats.MaxEntries) entries)"
 
 | Function              | Parameters                  | `.data` on Success                                |
 |-----------------------|-----------------------------|---------------------------------------------------|
-| `VPDLXgetalllogfiles` | *(none)*                    | `PSCustomObject[]` — one per log file              |
-| `VPDLXresetlogfile`   | `-Logfile <name>`           | `int` — entries cleared                            |
+| `VPDLXgetalllogfiles` | *(none)*                    | `PSCustomObject[]` - one per log file              |
+| `VPDLXresetlogfile`   | `-Logfile <name>`           | `int` - entries cleared                            |
 | `VPDLXfilterlogfile`  | `-Logfile <name> -Level <l>`| `PSCustomObject { Entries, Count, Level }`         |
 | `VPDLXcore -KeyID 'stats'` | *(via KeyID)*          | `PSCustomObject { ActiveLogfiles, TotalEntries, … }`|
 
 ---
 
-## [1.02.04] — 11.04.2026
+## [1.02.04] - 11.04.2026
 
 ### Overview
 Performance & Quality improvement release. Implements all three tasks from
@@ -437,19 +437,19 @@ a configurable maximum message length, and a BOM-free UTF-8 export option.
 These changes harden the module against edge-case failures and improve
 interoperability with external log-processing tools.
 
-### Added — Pre-Import Environment Validation (`VPDLX.Precheck.ps1`)
+### Added - Pre-Import Environment Validation (`VPDLX.Precheck.ps1`)
 
-- **New file: `VPDLX.Precheck.ps1`** — a lightweight pre-import script that
+- **New file: `VPDLX.Precheck.ps1`** - a lightweight pre-import script that
   validates the PowerShell environment before the root module (`VPDLX.psm1`)
   is loaded.
 
-- **Registered via `ScriptsToProcess` in `VPDLX.psd1`** — PowerShell executes
+- **Registered via `ScriptsToProcess` in `VPDLX.psd1`** - PowerShell executes
   this script automatically when `Import-Module VPDLX` is called, before any
   class definitions or function files are processed.
 
 - **Check performed: PowerShell version >= 5.1.**
   VPDLX uses PowerShell 5 class syntax, generic collections, and
-  TypeAccelerator registration — all of which require at least PS 5.1.
+  TypeAccelerator registration - all of which require at least PS 5.1.
   Running on PS 4.0 or earlier would produce cryptic parse errors that do not
   clearly indicate the root cause. The precheck script catches this early and
   emits a clear, actionable error message:
@@ -464,10 +464,10 @@ interoperability with external log-processing tools.
   to continue loading and fail later with confusing errors. Stopping here
   gives the user a single, clear diagnostic message.
 
-- **Silent on success** — when the check passes, the precheck produces no
+- **Silent on success** - when the check passes, the precheck produces no
   output (only a `Write-Verbose` message for diagnostic tracing).
 
-### Added — Configurable Maximum Message Length
+### Added - Configurable Maximum Message Length
 
 - **New static property: `[Logfile]::MaxMessageLength`** (default: `8192`).
   This property defines the upper bound for the length of a single log
@@ -484,13 +484,13 @@ interoperability with external log-processing tools.
   all entries in a `List<string>` in RAM, a single oversized message could
   consume significant memory and degrade performance for the entire session.
 
-- **Configurable at runtime** — callers can adjust the limit without
+- **Configurable at runtime** - callers can adjust the limit without
   modifying source code:
   ```powershell
   [Logfile]::MaxMessageLength = 16384   # double the default
   [Logfile]::MaxMessageLength = 1024    # stricter limit for production
   ```
-  The minimum sensible value is `10` — setting it lower would conflict with
+  The minimum sensible value is `10` - setting it lower would conflict with
   the existing "at least 3 non-whitespace characters" rule.
 
 - **Validation order in `ValidateMessage()`** (all four rules):
@@ -499,11 +499,11 @@ interoperability with external log-processing tools.
   3. Must not contain newline characters (CR or LF)
   4. Must not exceed `[Logfile]::MaxMessageLength` characters **(new)**
 
-- **Backwards compatible** — the default limit of 8192 characters is generous
+- **Backwards compatible** - the default limit of 8192 characters is generous
   enough that no existing caller should be affected. Messages shorter than
   8192 characters pass without any change in behaviour.
 
-### Added — BOM-Free UTF-8 Export (`-NoBOM` Switch)
+### Added - BOM-Free UTF-8 Export (`-NoBOM` Switch)
 
 - **New switch parameter: `-NoBOM` on `VPDLXexportlogfile`.**
   When specified, forces BOM-free UTF-8 encoding on all PowerShell versions,
@@ -543,7 +543,7 @@ interoperability with external log-processing tools.
   VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -NoBOM
   ```
 
-- **Applies to all four export formats** — `txt`, `log`, `csv`, and `json`
+- **Applies to all four export formats** - `txt`, `log`, `csv`, and `json`
   all respect the `-NoBOM` switch. The encoding logic is encapsulated in a
   single internal helper scriptblock so all formats share the same
   implementation.
@@ -557,7 +557,7 @@ interoperability with external log-processing tools.
 
 ---
 
-## [1.02.03] — 11.04.2026
+## [1.02.03] - 11.04.2026
 
 ### Overview
 Critical bugfix release targeting the `Destroy()` and `ToString()` methods in
@@ -566,13 +566,13 @@ Critical bugfix release targeting the `Destroy()` and `ToString()` methods in
 with the defensive `GuardDestroyed()` contract that every other public method
 already follows.
 
-### Fixed — `Destroy()` Hardening (Issue #1 + Issue #6)
+### Fixed - `Destroy()` Hardening (Issue #1 + Issue #6)
 
 - **`Destroy()` now calls `GuardDestroyed()` at the very beginning** (Issue #1).
   Previously, calling `Destroy()` a second time on an already-destroyed instance
   silently succeeded instead of throwing `ObjectDisposedException`. This was
   inconsistent with every other public method in the class. The redundant
-  `if ($null -ne $this._data)` conditional has been removed — `GuardDestroyed()`
+  `if ($null -ne $this._data)` conditional has been removed - `GuardDestroyed()`
   makes it unnecessary.
 
 - **`Destroy()` now wraps `storage.Remove()` in `try/catch/finally`** (Issue #6).
@@ -585,17 +585,17 @@ already follows.
   regardless of whether `Remove()` succeeds or throws. The `catch` block emits
   a `Write-Verbose` diagnostic instead of re-throwing.
 
-### Fixed — `ToString()` Post-Destroy Safety (Issue #3)
+### Fixed - `ToString()` Post-Destroy Safety (Issue #3)
 
 - **`ToString()` now calls `GuardDestroyed()` at the top** (Issue #3).
   Previously, `ToString()` contained a partial null-check for `_data` but
   unconditionally accessed `_details.GetCreated()`. After `Destroy()`, this
   caused an unhelpful `NullReferenceException` instead of the expected
   `ObjectDisposedException`. The partial `if/else` construct has been removed
-  — with `GuardDestroyed()` in place, both `_data` and `_details` are guaranteed
+  - with `GuardDestroyed()` in place, both `_data` and `_details` are guaranteed
   non-null when the return statement executes.
 
-### Fixed — `FilterByLevel()` Call-Order + Label (Issue #2 + Issue #4)
+### Fixed - `FilterByLevel()` Call-Order + Label (Issue #2 + Issue #4)
 
 - **`RecordFilter()` call moved from before to after the `foreach` loop** (Issue #2).
   In `Logfile.FilterByLevel()`, the metadata-recording call
@@ -607,17 +607,17 @@ already follows.
 
 - **`RecordFilter()` renamed to `RecordFilterByLevel()`** (Issue #4).
   The hidden method `RecordFilter()` in `[FileDetails]` set
-  `_lastAccessType = 'Filter'` — a generic label that did not clearly identify
+  `_lastAccessType = 'Filter'` - a generic label that did not clearly identify
   which operation was performed. The method has been renamed to
   `RecordFilterByLevel()` and the label updated to `'FilterByLevel'`, matching
   the public method name. The single call-site in `Logfile.ps1` has been updated
   accordingly.
 
-### Fixed — `FunctionsToExport` Single Source of Truth (Issue #5)
+### Fixed - `FunctionsToExport` Single Source of Truth (Issue #5)
 
 - **`Export-ModuleMember` call removed from `VPDLX.psm1` Section 7** (Issue #5).
   When a `.psd1` manifest is present, PowerShell ignores any `Export-ModuleMember`
-  calls in the `.psm1` file — the manifest's `FunctionsToExport` array takes
+  calls in the `.psm1` file - the manifest's `FunctionsToExport` array takes
   precedence. The `Export-ModuleMember -Function $PublicFunctions` call was
   therefore misleading and has been replaced with an explanatory comment.
 
@@ -626,7 +626,7 @@ already follows.
   manifest, clearly marking it as the authoritative list and instructing future
   developers to add new public functions there.
 
-### Fixed — `VPDLXreturn` Status Code Extensibility (Issue #8)
+### Fixed - `VPDLXreturn` Status Code Extensibility (Issue #8)
 
 - **`[ValidateSet(0, -1)]` replaced with `[ValidateRange(-99, 99)]`** (Issue #8).
   The `$Code` parameter in `VPDLXreturn.ps1` was hard-coded to accept only `0`
@@ -639,7 +639,7 @@ already follows.
   - `1..99` = partial success / warning codes
   - `-2..-99` = typed / categorised error codes
 
-### Improved — `Print()` Batch Validation Diagnostics (Issue #7)
+### Improved - `Print()` Batch Validation Diagnostics (Issue #7)
 
 - **Pre-validation loop now tracks the 0-based element index** (Issue #7).
   When `ValidateMessage()` throws `ArgumentException` inside `Print()`, the
@@ -648,10 +648,10 @@ already follows.
   parameter name `'messages'`. The preview is truncated to 40 characters,
   and control characters (`\r`, `\n`) are escaped to their literal
   backslash representations so they are visible in the error output.
-  `ValidateMessage()` itself remains unchanged — the improvement is fully
+  `ValidateMessage()` itself remains unchanged - the improvement is fully
   isolated to `Print()`.
 
-### Fixed — FileStorage Type Safety via Class Consolidation (Issue #9)
+### Fixed - FileStorage Type Safety via Class Consolidation (Issue #9)
 
 - **Three separate class files merged into `Classes/VPDLXClasses.ps1`** (Issue #9).
   `FileDetails.ps1`, `FileStorage.ps1`, and `Logfile.ps1` have been consolidated
@@ -664,7 +664,7 @@ already follows.
   instead of silently succeeding.
 
 - **`FileStorage.Get()` returns `[Logfile]` instead of `[object]`.**
-  Callers no longer need to cast the result — IntelliSense and static type
+  Callers no longer need to cast the result - IntelliSense and static type
   checking work correctly on the returned reference.
 
 - **`FileStorage.Add()` accepts `[Logfile]` instead of `[object]`.**
@@ -676,7 +676,7 @@ already follows.
 
 - **`VPDLX.psd1` `FileList`** updated to reference the new consolidated file.
 
-### Added — `FileStorage.DestroyAll()` + `OnRemove` Integration (Issue #10)
+### Added - `FileStorage.DestroyAll()` + `OnRemove` Integration (Issue #10)
 
 - **`FileStorage.DestroyAll()` method added** (Issue #10).
   Iterates over all registered `[Logfile]` instances, calls `Destroy()` on
@@ -696,46 +696,46 @@ already follows.
   how many instances were destroyed.
 
 ### Changed
-- Version stays at `1.02.03` — all fixes are bundled into the same release.
+- Version stays at `1.02.03` - all fixes are bundled into the same release.
 - Developer ToDo-Liste updated: all Prioritäten (1–8) marked as completed.
 - Old class files (`FileDetails.ps1`, `FileStorage.ps1`, `Logfile.ps1`)
   replaced by consolidated `Classes/VPDLXClasses.ps1`.
 
 ---
 
-## [1.01.02] — 06.04.2026
+## [1.01.02] - 06.04.2026
 
 ### Overview
-Introduces the complete **Public Wrapper Layer** — a set of standalone `.ps1` files
+Introduces the complete **Public Wrapper Layer** - a set of standalone `.ps1` files
 in `Public/` that expose safe, standardised PowerShell functions on top of the
 class-based internals from v1.01.00. Each wrapper follows an identical defensive
 pipeline pattern and returns a consistent `{ code, msg, data }` object via
 `VPDLXreturn`. This release also adds the first physical export capability:
 `VPDLXexportlogfile` writes a virtual log file to disk in one of four formats.
 
-### Added — Public Wrapper Functions
+### Added - Public Wrapper Functions
 
 | Function | Replaces (v1.00.00) | Description |
 |---|---|---|
 | `VPDLXnewlogfile` | `CreateNewLogfile` | Creates a new named virtual log file via `[Logfile]::new()`. Returns `code 0` + the new instance name in `.data` on success. |
-| `VPDLXislogfile` | — *(new)* | Checks whether a named log file exists in `$script:storage` via `.Contains()`. Returns `$true` / `$false` directly (not a return object). |
+| `VPDLXislogfile` | - *(new)* | Checks whether a named log file exists in `$script:storage` via `.Contains()`. Returns `$true` / `$false` directly (not a return object). |
 | `VPDLXdroplogfile` | `DeleteLogfile` | Calls `.Destroy()` on the named instance and removes it from storage. Five-stage defensive pipeline including double-verification of removal. |
 | `VPDLXreadlogfile` | `ReadLogfileEntry` | Reads a specific line (1-based index) via `.Read()`. Index is automatically clamped; effective line number is reported in `.msg`. Returns the log line as `string` in `.data`. |
 | `VPDLXwritelogfile` | `WriteLogfileEntry` | Appends a formatted entry via `.Write(level, message)`. Level validated by `[ValidateSet]` at binding layer AND by `[Logfile].ValidateLevel()` internally. Returns new `EntryCount()` in `.data`. |
-| `VPDLXexportlogfile` | — *(new)* | Exports a virtual log file to a physical file on disk. See *Export Function* section below. |
+| `VPDLXexportlogfile` | - *(new)* | Exports a virtual log file to a physical file on disk. See *Export Function* section below. |
 
-### Added — Export Function (`VPDLXexportlogfile`)
+### Added - Export Function (`VPDLXexportlogfile`)
 
 `VPDLXexportlogfile` is the centrepiece of v1.01.02. It executes an 8-stage pipeline:
 
-1. **Pre-flight** — retrieves `$script:storage` and `$script:export` via `VPDLXcore`
-2. **Format validation** — `ExportAs` is validated at runtime against `$script:export` keys (dynamic, not a static `[ValidateSet]`)
-3. **Existence check** — confirms the named log file is registered in storage
-4. **Instance retrieval** — `Get()` with null-guard
-5. **Empty-log guard** — rejects export of logs with zero entries
-6. **Directory creation** — creates the full `LogPath` tree automatically (`New-Item -Force`) if it does not yet exist
-7. **Override logic** — without `-Override`: blocks overwrite; with `-Override`: removes existing file before writing
-8. **Serialisation + write** — format-specific serialisation, then `Set-Content -Encoding UTF8`
+1. **Pre-flight** - retrieves `$script:storage` and `$script:export` via `VPDLXcore`
+2. **Format validation** - `ExportAs` is validated at runtime against `$script:export` keys (dynamic, not a static `[ValidateSet]`)
+3. **Existence check** - confirms the named log file is registered in storage
+4. **Instance retrieval** - `Get()` with null-guard
+5. **Empty-log guard** - rejects export of logs with zero entries
+6. **Directory creation** - creates the full `LogPath` tree automatically (`New-Item -Force`) if it does not yet exist
+7. **Override logic** - without `-Override`: blocks overwrite; with `-Override`: removes existing file before writing
+8. **Serialisation + write** - format-specific serialisation, then `Set-Content -Encoding UTF8`
 
 **Parameters:**
 
@@ -757,7 +757,7 @@ pipeline pattern and returns a consistent `{ code, msg, data }` object via
 
 **Output naming convention:** `<LogPath>\<Logfile><extension>` (e.g. `C:\Logs\AppLog.csv`)
 
-### Added — Wrapper Design Conventions
+### Added - Wrapper Design Conventions
 All six Public Wrapper functions share the following design conventions:
 - **Defensive pipeline:** every stage runs in order; any failure returns immediately with `code -1` and a descriptive `.msg`
 - **Scope bridge:** all wrappers access module internals via `VPDLXcore` (dot-sourced functions cannot read `$script:*` variables directly)
@@ -767,7 +767,7 @@ All six Public Wrapper functions share the following design conventions:
 
 ---
 
-## [1.01.01] — 06.04.2026
+## [1.01.01] - 06.04.2026
 
 ### Overview
 Bugfix release. Corrects a critical TypeAccelerator registration error introduced
@@ -786,7 +786,7 @@ after a standard `Import-Module VPDLX` call.
 
 ---
 
-## [1.01.00] — 06.04.2026
+## [1.01.00] - 06.04.2026
 
 ### Overview
 Complete architectural rewrite. The previous function-based API (v1.00.00) has
@@ -803,20 +803,20 @@ been replaced by a fully class-based OOP architecture. **This is a breaking chan
 - In-memory storage moved from a `$script:LogfileRegistry` hashtable to a
   dedicated `[FileStorage]` class instance (`$script:storage`).
 
-### Added — Architecture
-- Class `[Logfile]` — central user-facing class; replaces all v1.00 functions.
-- Class `[FileStorage]` — module-level singleton registry for all active `[Logfile]` instances.
-- Class `[FileDetails]` — metadata companion for each `[Logfile]` instance.
-- Private function `VPDLXreturn` — standardised return-object factory `{ code, msg, data }`.
-- Public function `VPDLXcore` — controlled read-only accessor for module-scope variables
+### Added - Architecture
+- Class `[Logfile]` - central user-facing class; replaces all v1.00 functions.
+- Class `[FileStorage]` - module-level singleton registry for all active `[Logfile]` instances.
+- Class `[FileDetails]` - metadata companion for each `[Logfile]` instance.
+- Private function `VPDLXreturn` - standardised return-object factory `{ code, msg, data }`.
+- Public function `VPDLXcore` - controlled read-only accessor for module-scope variables
   (`appinfo`, `storage`, `export`).
-- Module-scope variable `$script:export` — hashtable of supported export formats
+- Module-scope variable `$script:export` - hashtable of supported export formats
   (`txt`, `csv`, `json`, `log`) for use by future export functions.
-- TypeAccelerator registration on module load — all three classes available as
+- TypeAccelerator registration on module load - all three classes available as
   `[Logfile]`, `[FileDetails]`, `[FileStorage]` after `Import-Module` (no `using module` required).
-- TypeAccelerator cleanup in `OnRemove` handler — no type conflicts on module re-import.
+- TypeAccelerator cleanup in `OnRemove` handler - no type conflicts on module re-import.
 
-### Added — Log Levels
+### Added - Log Levels
 | Identifier | Shortcut method | Output prefix |
 |---|---|---|
 | `info`     | `.Info()`       | `[INFO]`     |
@@ -828,7 +828,7 @@ been replaced by a fully class-based OOP architecture. **This is a breaking chan
 | `critical` | `.Critical()`   | `[CRITICAL]` |
 | `fatal`    | `.Fatal()`      | `[FATAL]`    |
 
-### Added — `[Logfile]` Methods
+### Added - `[Logfile]` Methods
 | Method | Description |
 |---|---|
 | `Write(level, message)` | Appends a single formatted entry |
@@ -844,9 +844,9 @@ been replaced by a fully class-based OOP architecture. **This is a breaking chan
 | `GetDetails()` | Returns the `[FileDetails]` companion object |
 | `ToString()` | Returns a one-line summary string |
 | `GuardDestroyed()` | Internal safety guard called at the start of every method |
-| Shortcut methods | `.Info()`, `.Debug()`, `.Verbose()`, `.Trace()`, `.Warning()`, `.Error()`, `.Critical()`, `.Fatal()` — thin wrappers around `Write()` |
+| Shortcut methods | `.Info()`, `.Debug()`, `.Verbose()`, `.Trace()`, `.Warning()`, `.Error()`, `.Critical()`, `.Fatal()` - thin wrappers around `Write()` |
 
-### Added — `[FileDetails]` Fields
+### Added - `[FileDetails]` Fields
 | Field key | Getter method | Description |
 |---|---|---|
 | `created` | `GetCreated()` | Timestamp of instance creation |
@@ -856,7 +856,7 @@ been replaced by a fully class-based OOP architecture. **This is a breaking chan
 | `entries` | `GetEntries()` | Current number of log entries |
 | `axcount` | `GetAxcount()` | Total number of interactions since creation (never reset unless `Destroy()` is called) |
 
-### Added — Log Entry Format
+### Added - Log Entry Format
 ```
 [dd.MM.yyyy | HH:mm:ss]  [LEVEL]     ->  MESSAGE
 ```
@@ -873,7 +873,7 @@ Example:
   so `acctype` accurately reflects whether the last write was a single `Write()`
   or a batch `Print()` call.
 - `FilterByLevel()` rewritten: replaced `Where-Object` pipeline with a
-  `foreach` loop and `String.Contains()` — no regex overhead, lower pipeline cost.
+  `foreach` loop and `String.Contains()` - no regex overhead, lower pipeline cost.
 - Newline characters (`\r`, `\n`) are explicitly rejected in message validation
   to prevent log injection into exported files.
 
@@ -888,17 +888,17 @@ Example:
 
 ---
 
-## [1.00.00] — 05.04.2026
+## [1.00.00] - 05.04.2026
 
 ### Overview
 Initial release of the VPDLX module. Function-based architecture.
 
 ### Added
-- Public function `CreateNewLogfile([string] $Name)` — creates a new in-memory log file.
-- Public function `WriteLogfileEntry([string] $Name, [string] $Level, [string] $Message)` — writes a single log entry.
-- Public function `ReadLogfileEntry([string] $Name, [int] $Line)` — reads a specific line.
-- Public function `ResetLogfile([string] $Name)` — clears all entries.
-- Public function `DeleteLogfile([string] $Name)` — removes the log file from memory.
+- Public function `CreateNewLogfile([string] $Name)` - creates a new in-memory log file.
+- Public function `WriteLogfileEntry([string] $Name, [string] $Level, [string] $Message)` - writes a single log entry.
+- Public function `ReadLogfileEntry([string] $Name, [int] $Line)` - reads a specific line.
+- Public function `ResetLogfile([string] $Name)` - clears all entries.
+- Public function `DeleteLogfile([string] $Name)` - removes the log file from memory.
 - 8 log levels: `DEBUG`, `INFO`, `VERBOSE`, `TRACE`, `WARNING`, `ERROR`, `CRITICAL`, `FATAL`
   (uppercase identifiers, case-sensitive).
 - In-memory storage via `$script:LogfileRegistry` hashtable.

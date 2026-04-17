@@ -12,25 +12,25 @@
     Architecture overview (v1.02.06):
 
       Classes/
-          VPDLXClasses.ps1  — consolidated class file containing all three classes:
+          VPDLXClasses.ps1  - consolidated class file containing all three classes:
                                FileDetails  (metadata companion)
                                FileStorage  (central registry with DestroyAll)
                                Logfile      (core user-facing class)
 
       Private/
-          VPDLXreturn.ps1   — factory function for standardised { code, msg, data }
+          VPDLXreturn.ps1   - factory function for standardised { code, msg, data }
                                return objects used by all Public Wrapper functions
 
       Public/
-          VPDLXnewlogfile.ps1      — create a new virtual log file
-          VPDLXislogfile.ps1       — check whether a named log file exists
-          VPDLXdroplogfile.ps1     — permanently delete a named log file
-          VPDLXreadlogfile.ps1     — read a specific line from a log file
-          VPDLXwritelogfile.ps1    — append a new entry to a log file
-          VPDLXexportlogfile.ps1   — export a virtual log file to disk (txt/log/csv/json/html/ndjson)
-          VPDLXgetalllogfiles.ps1  — list all active log files with metadata (v1.02.05)
-          VPDLXresetlogfile.ps1    — clear all entries from a log file (v1.02.05)
-          VPDLXfilterlogfile.ps1   — filter log entries by level (v1.02.05)
+          VPDLXnewlogfile.ps1      - create a new virtual log file
+          VPDLXislogfile.ps1       - check whether a named log file exists
+          VPDLXdroplogfile.ps1     - permanently delete a named log file
+          VPDLXreadlogfile.ps1     - read a specific line from a log file
+          VPDLXwritelogfile.ps1    - append a new entry to a log file
+          VPDLXexportlogfile.ps1   - export a virtual log file to disk (txt/log/csv/json/html/ndjson)
+          VPDLXgetalllogfiles.ps1  - list all active log files with metadata (v1.02.05)
+          VPDLXresetlogfile.ps1    - clear all entries from a log file (v1.02.05)
+          VPDLXfilterlogfile.ps1   - filter log entries by level (v1.02.05)
 
     TypeAccelerators:
         [FileDetails], [FileStorage], and [Logfile] are registered as
@@ -49,10 +49,10 @@
         [VPDLX.Logfile]::new(), not [Logfile]::new().
 
     Module-scope variables:
-        $script:appinfo  — read-only module metadata hashtable
-        $script:storage  — the single [FileStorage] instance; managed by
+        $script:appinfo  - read-only module metadata hashtable
+        $script:storage  - the single [FileStorage] instance; managed by
                            VPDLX internals; not directly exposed to callers
-        $script:export   — supported export file extension definitions
+        $script:export   - supported export file extension definitions
 
     VPDLXcore:
         A thin accessor function that returns module-scope variables in a
@@ -77,10 +77,10 @@
         - VPDLXexportlogfile: Added HTML export format (self-contained, styled
           HTML document with level-specific row colouring, responsive layout).
         - VPDLXexportlogfile: Added NDJSON export format (Newline-Delimited JSON,
-          one object per line — ideal for log-streaming pipelines).
+          one object per line - ideal for log-streaming pipelines).
         - $script:export extended with 'html' and 'ndjson' keys.
         - [Logfile] class: Added configurable minimum log level. New constructor
-          overload Logfile([string] $name, [string] $minLevel) — entries below
+          overload Logfile([string] $name, [string] $minLevel) - entries below
           the minimum are silently discarded. New static [Logfile]::LevelSeverity
           hashtable and public GetMinLogLevel() method.
       Updated: VPDLX.psd1 (FunctionsToExport unchanged, Version, ReleaseNotes)
@@ -97,7 +97,7 @@
 
     v1.02.04 (11.04.2026):
       Performance & Quality improvements (Priorität 9).
-      - Added VPDLX.Precheck.ps1 — validates PS >= 5.1 before module load.
+      - Added VPDLX.Precheck.ps1 - validates PS >= 5.1 before module load.
         Registered via ScriptsToProcess in the module manifest.
       - Added configurable maximum message length in ValidateMessage().
         Default: 8192 characters; configurable via [Logfile]::MaxMessageLength.
@@ -141,7 +141,7 @@
 #>
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 1 — Module-scope metadata and configuration
+# SECTION 1 - Module-scope metadata and configuration
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # Read-only module metadata. Accessible externally via: VPDLXcore -KeyID 'appinfo'
@@ -171,7 +171,7 @@ $script:export = @{
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 2 — Class loading (order is critical)
+# SECTION 2 - Class loading (order is critical)
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # All three VPDLX classes (FileDetails, FileStorage, Logfile) are defined in a
@@ -206,7 +206,7 @@ foreach ($ClassFile in $script:ClassFiles) {
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 3 — Module-level FileStorage singleton
+# SECTION 3 - Module-level FileStorage singleton
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # This singleton is the single source of truth for all active Logfile instances.
@@ -216,7 +216,7 @@ $script:storage = [FileStorage]::new()
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 4 — Private and Public function loading
+# SECTION 4 - Private and Public function loading
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # Private functions (helpers) are loaded first so they are available
@@ -238,12 +238,12 @@ foreach ($FuncFile in @($PrivateFunctions + $PublicFunctions)) {
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 5 — VPDLXcore accessor
+# SECTION 5 - VPDLXcore accessor
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 <#
 .SYNOPSIS
-    VPDLXcore — Read-only accessor for module-scoped VPDLX variables.
+    VPDLXcore - Read-only accessor for module-scoped VPDLX variables.
 
 .DESCRIPTION
     Dot-sourced scripts in the Public/ directory cannot directly access
@@ -315,7 +315,7 @@ function VPDLXcore {
             # Returns module-wide statistics as a structured PSCustomObject.
             # Collects: total active log files, sum of all entries across all
             # log files, maximum and minimum entry counts, and the module version.
-            # This is a read-only operation — no log file state is modified.
+            # This is a read-only operation - no log file state is modified.
             'stats' {
                 [int] $logfileCount   = $script:storage.Count()
                 [int] $totalEntries   = 0
@@ -376,7 +376,7 @@ function VPDLXcore {
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 6 — TypeAccelerator registration
+# SECTION 6 - TypeAccelerator registration
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # PowerShell classes defined inside a module are NOT automatically available
@@ -410,7 +410,7 @@ foreach ($Type in $script:ExportableTypes) {
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 7 — Module export declarations
+# SECTION 7 - Module export declarations
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # FIX v1.02.03 (Issue #5):
@@ -419,7 +419,7 @@ foreach ($Type in $script:ExportableTypes) {
 #   REASON: When a module manifest (.psd1) is present and its FunctionsToExport
 #   key is set to an explicit list, PowerShell uses the MANIFEST as the
 #   authoritative filter and silently ignores Export-ModuleMember. The dynamic
-#   discovery logic below was therefore entirely inert — any function not also
+#   discovery logic below was therefore entirely inert - any function not also
 #   listed in VPDLX.psd1 was silently suppressed, with no error or warning.
 #
 #   SINGLE SOURCE OF TRUTH: VPDLX.psd1 → FunctionsToExport
@@ -432,7 +432,7 @@ foreach ($Type in $script:ExportableTypes) {
 
 
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-# SECTION 8 — Module OnRemove handler (cleanup)
+# SECTION 8 - Module OnRemove handler (cleanup)
 # ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
 
 # Executed automatically when 'Remove-Module VPDLX' is called.
@@ -441,7 +441,7 @@ foreach ($Type in $script:ExportableTypes) {
 #   2. Removes the TypeAccelerators that were registered at load time.
 #
 # FIX v1.02.03 (Issue #10):
-#   Added Step 1 — DestroyAll(). Previously, module unload only removed
+#   Added Step 1 - DestroyAll(). Previously, module unload only removed
 #   TypeAccelerators but left all Logfile instances orphaned in memory.
 $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
 
@@ -451,7 +451,7 @@ $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
     if ($null -ne $script:storage -and $script:storage.Count() -gt 0) {
         try {
             $script:storage.DestroyAll()
-            Write-Verbose "VPDLX: DestroyAll() completed — all logfile instances destroyed."
+            Write-Verbose "VPDLX: DestroyAll() completed - all logfile instances destroyed."
         }
         catch {
             Write-Verbose "VPDLX OnRemove: DestroyAll() encountered an error: $($_.Exception.Message)"

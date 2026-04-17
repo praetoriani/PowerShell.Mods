@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLX.Precheck — Pre-import environment validation for the VPDLX module.
+    VPDLX.Precheck - Pre-import environment validation for the VPDLX module.
 
 .DESCRIPTION
     This script is executed automatically by PowerShell before the root module
@@ -10,13 +10,13 @@
     Purpose:
       Validate that the current PowerShell host meets the minimum requirements
       for VPDLX. If the requirements are not met, the script emits a clear,
-      actionable error message and returns early — preventing the module from
+      actionable error message and returns early - preventing the module from
       loading in an environment where it would fail with cryptic errors later.
 
     Checks performed:
       1. PowerShell version >= 5.1
          VPDLX uses PowerShell 5 class syntax, generic collections, and
-         TypeAccelerator registration — all of which require at least PS 5.1.
+         TypeAccelerator registration - all of which require at least PS 5.1.
          Running on PS 4.0 or earlier produces parse errors that do not
          clearly indicate the root cause.
 
@@ -78,5 +78,5 @@ if ($psMajor -lt 5 -or ($psMajor -eq 5 -and $psMinor -lt 1)) {
 
 # ── All checks passed ──────────────────────────────────────────────────────────
 # The module loader (VPDLX.psm1) will continue with class and function loading.
-# No output is produced on success — the precheck is silent when everything is OK.
-Write-Verbose "VPDLX Precheck: PowerShell $psMajor.$psMinor detected — requirements met."
+# No output is produced on success - the precheck is silent when everything is OK.
+Write-Verbose "VPDLX Precheck: PowerShell $psMajor.$psMinor detected - requirements met."

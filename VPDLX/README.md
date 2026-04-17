@@ -14,7 +14,7 @@
 
 ---
 
-**VPDLX** (Virtual PowerShell Data-Logger eXtension) is a PowerShell module that provides a fully class-based, **in-memory** virtual logging system. Instead of writing log entries to disk immediately, VPDLX keeps any number of named log instances alive in RAM for the duration of the current PowerShell session — enabling fast, structured, and flexible logging without immediate file-system I/O.
+**VPDLX** (Virtual PowerShell Data-Logger eXtension) is a PowerShell module that provides a fully class-based, **in-memory** virtual logging system. Instead of writing log entries to disk immediately, VPDLX keeps any number of named log instances alive in RAM for the duration of the current PowerShell session - enabling fast, structured, and flexible logging without immediate file-system I/O.
 
 When you are ready to persist a log, the built-in export function writes it to disk in your choice of format with a single command.
 
@@ -68,7 +68,7 @@ Import-Module .\VPDLX\VPDLX.psd1
 ```
 
 After import:
-- The three classes `[Logfile]`, `[FileDetails]`, and `[FileStorage]` are registered as **TypeAccelerators** and are immediately usable — no `using module` syntax required.
+- The three classes `[Logfile]`, `[FileDetails]`, and `[FileStorage]` are registered as **TypeAccelerators** and are immediately usable - no `using module` syntax required.
 - All **Public Wrapper functions** (`VPDLXnewlogfile`, `VPDLXislogfile`, etc.) are exported and available in your session.
 
 To unload the module and clean up all TypeAccelerators:
@@ -222,7 +222,7 @@ VPDLXwritelogfile -Logfile <string> -Level <string> -Message <string>
 | Parameter | Type | Mandatory | Description |
 |---|---|---|---|
 | `Logfile` | `string` | yes | Name of the log file to write to |
-| `Level` | `string` | yes | Log level — see [Log Levels](#log-levels) for valid values |
+| `Level` | `string` | yes | Log level - see [Log Levels](#log-levels) for valid values |
 | `Message` | `string` | yes | Log message (min. 3 non-whitespace chars; no newlines) |
 
 **Returns:** `code 0` + new total entry count as `int` in `.data` on success.
@@ -256,19 +256,19 @@ VPDLXexportlogfile -Logfile <string> -LogPath <string> -ExportAs <string> [-Over
 
 | Value | Extension | Output |
 |---|---|---|
-| `txt` | `.txt` | Plain text — each log line written as-is |
+| `txt` | `.txt` | Plain text - each log line written as-is |
 | `log` | `.log` | Same as `txt`, with `.log` extension |
 | `csv` | `.csv` | RFC 4180-compliant with header `"Timestamp","Level","Message"` |
 | `json` | `.json` | JSON object `{ LogFile, ExportedAt, EntryCount, Entries[] }` |
 | `html` | `.html` | Self-contained HTML document with embedded CSS, level-coloured rows (v1.02.06) |
-| `ndjson` | `.ndjson` | Newline-Delimited JSON — one compact JSON object per line (v1.02.06) |
+| `ndjson` | `.ndjson` | Newline-Delimited JSON - one compact JSON object per line (v1.02.06) |
 
-**Output file naming:** `<LogPath>\<Logfile><extension>` — e.g. `C:\Logs\AppLog.csv`
+**Output file naming:** `<LogPath>\<Logfile><extension>` - e.g. `C:\Logs\AppLog.csv`
 
 **Returns:** `code 0` + full path to the created file as `string` in `.data` on success.
 
 ```powershell
-# Export as CSV — creates directory if missing
+# Export as CSV - creates directory if missing
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'csv'
 if ($result.code -eq 0) { Write-Host "Saved to: $($result.data)" }
 
@@ -278,11 +278,11 @@ $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'jso
 # Export with BOM-free UTF-8 (recommended for Unix tools and log aggregators)
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'json' -NoBOM
 
-# Export as HTML — opens in any browser (v1.02.06)
+# Export as HTML - opens in any browser (v1.02.06)
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html'
 if ($result.code -eq 0) { Start-Process $result.data }
 
-# Export as NDJSON — one JSON object per line, ideal for log pipelines (v1.02.06)
+# Export as NDJSON - one JSON object per line, ideal for log pipelines (v1.02.06)
 $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
 ```
 
@@ -290,7 +290,7 @@ $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndj
 
 > **HTML export note (v1.02.06):** The HTML format generates a self-contained document with embedded CSS. Log entries are displayed in a styled table with level-specific row colouring (green for INFO, blue for DEBUG, orange background for WARNING, red background for ERROR/CRITICAL/FATAL). All message content is HTML-encoded for XSS safety. The document is print-friendly.
 
-> **NDJSON export note (v1.02.06):** NDJSON (Newline-Delimited JSON) writes one compact JSON object per line — no root wrapper or array. This format is the standard for streaming log data into Elasticsearch, Logstash, Kafka, AWS Kinesis, and Grafana Loki. Each line is independently parseable, making it ideal for `jq` processing: `cat log.ndjson | jq .Level`.
+> **NDJSON export note (v1.02.06):** NDJSON (Newline-Delimited JSON) writes one compact JSON object per line - no root wrapper or array. This format is the standard for streaming log data into Elasticsearch, Logstash, Kafka, AWS Kinesis, and Grafana Loki. Each line is independently parseable, making it ideal for `jq` processing: `cat log.ndjson | jq .Level`.
 
 ---
 
@@ -362,8 +362,8 @@ if ($export.code -eq 0) {
 ```
 
 > **Difference from VPDLXdroplogfile:**
-> - `VPDLXresetlogfile` — clears the data, keeps the log file alive and reusable.
-> - `VPDLXdroplogfile` — destroys the entire log file permanently (data + metadata + registration).
+> - `VPDLXresetlogfile` - clears the data, keeps the log file alive and reusable.
+> - `VPDLXdroplogfile` - destroys the entire log file permanently (data + metadata + registration).
 
 ---
 
@@ -402,7 +402,7 @@ if ($result.code -eq 0 -and $result.data.Count -gt 0) {
 # Alert on critical entries
 $criticals = VPDLXfilterlogfile -Logfile 'ProdLog' -Level 'critical'
 if ($criticals.data.Count -gt 0) {
-    Write-Warning "CRITICAL entries detected — exporting log."
+    Write-Warning "CRITICAL entries detected - exporting log."
     VPDLXexportlogfile -Logfile 'ProdLog' -LogPath 'C:\Logs' -ExportAs 'json'
 }
 ```
@@ -423,23 +423,23 @@ VPDLX into a larger module.
 The central user-facing class. Each instance represents one named virtual log file.
 
 ```powershell
-# Standard constructor — all log levels accepted
+# Standard constructor - all log levels accepted
 $log = [Logfile]::new('MyAppLog')
 
-# Constructor with minimum log level (v1.02.06) — entries below the threshold are silently discarded
+# Constructor with minimum log level (v1.02.06) - entries below the threshold are silently discarded
 $prodLog = [Logfile]::new('ProdLog', 'warning')
 ```
 
 **Name rules:** 3–64 characters; allowed characters: `a-z A-Z 0-9 _ - .`; uniqueness is case-insensitive.
 
-**Minimum log level (v1.02.06):** When a minimum level is specified, `Write()` and `Print()` silently discard entries whose severity is below the threshold. No exception is thrown — the call simply returns without side effects. Severity ranking (low → high): `trace(0)` < `debug(1)` < `verbose(2)` < `info(3)` < `warning(4)` < `error(5)` < `critical(6)` < `fatal(7)`.
+**Minimum log level (v1.02.06):** When a minimum level is specified, `Write()` and `Print()` silently discard entries whose severity is below the threshold. No exception is thrown - the call simply returns without side effects. Severity ranking (low → high): `trace(0)` < `debug(1)` < `verbose(2)` < `info(3)` < `warning(4)` < `error(5)` < `critical(6)` < `fatal(7)`.
 
 #### Write Methods
 
 | Method | Signature | Description |
 |---|---|---|
 | `Write` | `Write([string] $level, [string] $message)` | Appends a single formatted entry |
-| `Print` | `Print([string] $level, [string[]] $messages)` | Batch write; transactional — all entries are pre-validated before any are written |
+| `Print` | `Print([string] $level, [string[]] $messages)` | Batch write; transactional - all entries are pre-validated before any are written |
 | `Info` | `Info([string] $message)` | Shortcut for `Write('info', ...)` |
 | `Debug` | `Debug([string] $message)` | Shortcut for `Write('debug', ...)` |
 | `Verbose` | `Verbose([string] $message)` | Shortcut for `Write('verbose', ...)` |
@@ -500,7 +500,7 @@ Read-only metadata companion for each `[Logfile]` instance. Obtain via `$log.Get
 
 ### FileStorage
 
-Module-level singleton registry. Not typically called directly — use `VPDLXcore -KeyID 'storage'` to access it.
+Module-level singleton registry. Not typically called directly - use `VPDLXcore -KeyID 'storage'` to access it.
 
 | Method | Signature | Description |
 |---|---|---|
@@ -581,10 +581,10 @@ Example output:
 [06.04.2026 | 09:00:02]  [DEBUG]     ->  Config loaded from C:\App\config.json.
 [06.04.2026 | 09:00:03]  [WARNING]   ->  Disk usage at 81 percent.
 [06.04.2026 | 09:00:04]  [ERROR]     ->  Database connection failed on attempt 1.
-[06.04.2026 | 09:00:05]  [FATAL]     ->  Unrecoverable exception — terminating.
+[06.04.2026 | 09:00:05]  [FATAL]     ->  Unrecoverable exception - terminating.
 ```
 
-The timestamp is captured at the moment each entry is written. Messages may not contain newline characters (`\r` or `\n`) — this is enforced to prevent log injection in exported files.
+The timestamp is captured at the moment each entry is written. Messages may not contain newline characters (`\r` or `\n`) - this is enforced to prevent log injection in exported files.
 
 ---
 
@@ -655,7 +655,7 @@ Import-Module .\VPDLX\VPDLX.psd1
 # Create a production log that only records warnings and above
 $prodLog = [Logfile]::new('ProdLog', 'warning')
 
-$prodLog.Info('Ignored — below minimum level.')    # silently discarded
+$prodLog.Info('Ignored - below minimum level.')    # silently discarded
 $prodLog.Warning('Disk usage at 85 percent.')        # recorded
 $prodLog.Error('Connection timeout.')                # recorded
 

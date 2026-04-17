@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXfilterlogfile — Public wrapper: retrieves log entries matching a specific level.
+    VPDLXfilterlogfile - Public wrapper: retrieves log entries matching a specific level.
 
 .DESCRIPTION
     VPDLXfilterlogfile is the public-facing wrapper for filtering the entries of
@@ -15,16 +15,16 @@
              a. Validates the level against [Logfile]::LogLevels.
              b. Constructs the bracket marker (e.g. 'warning' -> '[WARNING]').
              c. Iterates all log entries and collects those containing the marker.
-             d. Calls _details.RecordFilterByLevel() — updates metadata
+             d. Calls _details.RecordFilterByLevel() - updates metadata
                 (last accessed, access type = 'FilterByLevel', access count).
              e. Returns the matching entries as [string[]] (never $null).
       5. Returns a standardised [PSCustomObject] via VPDLXreturn:
 
-             code  0   — success; .data holds a [PSCustomObject] with:
-                           Entries  [string[]]  — matching log lines
-                           Count    [int]        — number of matches
-                           Level    [string]     — the level that was filtered
-             code -1   — failure; .msg describes the reason; .data is $null
+             code  0   - success; .data holds a [PSCustomObject] with:
+                           Entries  [string[]]  - matching log lines
+                           Count    [int]        - number of matches
+                           Level    [string]     - the level that was filtered
+             code -1   - failure; .msg describes the reason; .data is $null
 
     SUPPORTED LOG LEVELS:
         info, debug, verbose, trace, warning, error, critical, fatal
@@ -35,11 +35,11 @@
     MATCHING STRATEGY (implemented in [Logfile].FilterByLevel()):
         Each log line is checked with String.Contains() against the uppercase
         bracket notation of the level (e.g. '[WARNING]'). This is a fixed-string
-        comparison — faster than regex and avoids PowerShell pipeline overhead.
+        comparison - faster than regex and avoids PowerShell pipeline overhead.
 
     INTERNAL DEPENDENCIES:
-        - VPDLXcore    (root module accessor — exposes $script:storage)
-        - VPDLXreturn  (return object factory — Private/)
+        - VPDLXcore    (root module accessor - exposes $script:storage)
+        - VPDLXreturn  (return object factory - Private/)
         - [FileStorage].Get()            (retrieves the [Logfile] instance by name)
         - [Logfile].FilterByLevel()      (performs the actual filter operation)
         - [Logfile].EntryCount()         (used to report total count for context)
@@ -58,9 +58,9 @@
 
 .OUTPUTS
     [PSCustomObject] with three properties:
-        code  [int]    —  0 on success, -1 on failure
-        msg   [string] —  human-readable status or error description
-        data  [object] —  [PSCustomObject] with Entries, Count, Level on success;
+        code  [int]    -  0 on success, -1 on failure
+        msg   [string] -  human-readable status or error description
+        data  [object] -  [PSCustomObject] with Entries, Count, Level on success;
                            $null on failure
 
 .EXAMPLE
@@ -81,15 +81,15 @@
     }
 
 .EXAMPLE
-    # Combine with export — filter critical entries then export full log
+    # Combine with export - filter critical entries then export full log
     $criticals = VPDLXfilterlogfile -Logfile 'ProdLog' -Level 'critical'
     if ($criticals.data.Count -gt 0) {
-        Write-Warning "CRITICAL entries detected — exporting log."
+        Write-Warning "CRITICAL entries detected - exporting log."
         VPDLXexportlogfile -Logfile 'ProdLog' -LogPath 'C:\Logs' -ExportAs 'json'
     }
 
 .EXAMPLE
-    # No matches — returns code 0 with Count = 0 and empty Entries array
+    # No matches - returns code 0 with Count = 0 and empty Entries array
     $result = VPDLXfilterlogfile -Logfile 'CleanLog' -Level 'fatal'
     # $result.code       -> 0
     # $result.data.Count -> 0
@@ -102,7 +102,7 @@
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 11.04.2026
     Updated : 11.04.2026
-    Scope   : Public — exported via FunctionsToExport in VPDLX.psd1
+    Scope   : Public - exported via FunctionsToExport in VPDLX.psd1
 #>
 
 function VPDLXfilterlogfile {
@@ -127,7 +127,7 @@ function VPDLXfilterlogfile {
         [string] $Level
     )
 
-    # ── Step 1: Pre-flight — verify module storage is accessible ────────────
+    # ── Step 1: Pre-flight - verify module storage is accessible ────────────
     # VPDLXcore bridges the scope gap between dot-sourced Public/ functions
     # and the $script:* variables that live in VPDLX.psm1's root module scope.
     try {
@@ -175,7 +175,7 @@ function VPDLXfilterlogfile {
     # ── Step 4: Execute the filter via [Logfile].FilterByLevel() ──────────
     # FilterByLevel() performs its own level validation (defence-in-depth),
     # constructs the bracket marker, iterates all entries, and collects
-    # matches. It returns [string[]] — never $null (empty array if no matches).
+    # matches. It returns [string[]] - never $null (empty array if no matches).
     # The normalised (lowercase) level is passed for consistent processing.
     [string] $normalizedLevel = $Level.Trim().ToLower()
 
@@ -183,7 +183,7 @@ function VPDLXfilterlogfile {
         [string[]] $filteredEntries = $logInstance.FilterByLevel($normalizedLevel)
     }
     catch [System.ArgumentException] {
-        # Level validation failure inside FilterByLevel() — should not occur
+        # Level validation failure inside FilterByLevel() - should not occur
         # because [ValidateSet] already rejects bad levels, but defence-in-depth.
         return VPDLXreturn -Code -1 -Message (
             "VPDLXfilterlogfile: Filter validation failed for log file '$trimmedName'. " +
@@ -192,7 +192,7 @@ function VPDLXfilterlogfile {
     }
     catch [System.ObjectDisposedException] {
         # The [Logfile] instance was destroyed between our Contains() check and
-        # the FilterByLevel() call. Race condition — report clearly.
+        # the FilterByLevel() call. Race condition - report clearly.
         return VPDLXreturn -Code -1 -Message (
             "VPDLXfilterlogfile: Log file '$trimmedName' was destroyed before " +
             'the filter could complete. Set any held references to $null.'

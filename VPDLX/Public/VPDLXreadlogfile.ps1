@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXreadlogfile — Public wrapper: reads a single line from a virtual log file.
+    VPDLXreadlogfile - Public wrapper: reads a single line from a virtual log file.
 
 .DESCRIPTION
     VPDLXreadlogfile is the public-facing wrapper for reading a specific log
@@ -15,11 +15,11 @@
              - Values below 1  → treated as 1 (first entry)
              - Values above the entry count → treated as the last entry
          This means VPDLXreadlogfile never returns an out-of-range error for
-         any integer input — only an empty-log error when there are no entries.
+         any integer input - only an empty-log error when there are no entries.
       5. Returns a standardised [PSCustomObject] via VPDLXreturn:
 
-             code  0   — success; .data holds the retrieved log line [string]
-             code -1   — failure; .msg describes the reason; .data is $null
+             code  0   - success; .data holds the retrieved log line [string]
+             code -1   - failure; .msg describes the reason; .data is $null
 
     LINE CLAMPING BEHAVIOUR:
         The underlying [Logfile].Read() method intentionally clamps the line
@@ -35,8 +35,8 @@
             Line = 99  → clamped to 5  → returns entry #5
 
     INTERNAL DEPENDENCIES:
-        - VPDLXcore    (root module accessor — exposes $script:storage)
-        - VPDLXreturn  (return object factory — Private/)
+        - VPDLXcore    (root module accessor - exposes $script:storage)
+        - VPDLXreturn  (return object factory - Private/)
         - [FileStorage].Get()     (retrieves the [Logfile] instance by name)
         - [Logfile].Read()        (performs the actual line retrieval)
         - [Logfile].EntryCount()  (used to report total entries in .msg)
@@ -56,9 +56,9 @@
 
 .OUTPUTS
     [PSCustomObject] with three properties:
-        code  [int]    —  0 on success, -1 on failure
-        msg   [string] —  human-readable status or error description
-        data  [object] —  the retrieved log line [string] on success,
+        code  [int]    -  0 on success, -1 on failure
+        msg   [string] -  human-readable status or error description
+        data  [object] -  the retrieved log line [string] on success,
                            $null on failure
 
 .EXAMPLE
@@ -71,7 +71,7 @@
     }
 
 .EXAMPLE
-    # Iterate over all entries using EntryCount — standard read loop pattern
+    # Iterate over all entries using EntryCount - standard read loop pattern
     $check = VPDLXislogfile -Logfile 'AppLog'
     if ($check) {
         $storage = VPDLXcore -KeyID 'storage'
@@ -83,13 +83,13 @@
     }
 
 .EXAMPLE
-    # Clamping in action — line 999 on a 5-entry log returns the last entry
+    # Clamping in action - line 999 on a 5-entry log returns the last entry
     $result = VPDLXreadlogfile -Logfile 'AppLog' -Line 999
     # $result.code -> 0
     # $result.data -> content of entry #5 (last)
 
 .EXAMPLE
-    # Attempt to read from an empty log — returns code -1
+    # Attempt to read from an empty log - returns code -1
     $result = VPDLXreadlogfile -Logfile 'EmptyLog' -Line 1
     # $result.code -> -1
     # $result.msg  -> "... contains no entries ..."
@@ -101,7 +101,7 @@
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
     Updated : 06.04.2026
-    Scope   : Public — exported via Export-ModuleMember in VPDLX.psm1
+    Scope   : Public - exported via Export-ModuleMember in VPDLX.psm1
 #>
 
 function VPDLXreadlogfile {
@@ -119,7 +119,7 @@ function VPDLXreadlogfile {
         [int] $Line
     )
 
-    # ── Step 1: Pre-flight — verify module storage is accessible ────────────
+    # ── Step 1: Pre-flight - verify module storage is accessible ────────────
     # VPDLXcore bridges the scope gap between dot-sourced Public/ functions
     # and the $script:* variables that live in VPDLX.psm1's root module scope.
     try {
@@ -154,7 +154,7 @@ function VPDLXreadlogfile {
 
     # ── Step 3: Retrieve the [Logfile] instance ────────────────────────────
     # Contains() confirmed the entry exists, so Get() should never return $null
-    # here. We guard anyway for internal consistency — same defensive pattern
+    # here. We guard anyway for internal consistency - same defensive pattern
     # as VPDLXdroplogfile.
     [object] $logInstance = $storage.Get($trimmedName)
 

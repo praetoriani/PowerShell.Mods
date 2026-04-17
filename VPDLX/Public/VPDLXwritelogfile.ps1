@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXwritelogfile — Public wrapper: writes a new entry to a virtual log file.
+    VPDLXwritelogfile - Public wrapper: writes a new entry to a virtual log file.
 
 .DESCRIPTION
     VPDLXwritelogfile is the public-facing wrapper for appending a single
@@ -17,12 +17,12 @@
              c. Builds a formatted log line:
                     [dd.MM.yyyy | HH:mm:ss]  [LEVEL]  ->  MESSAGE
              d. Appends the line to the internal List<string>.
-             e. Calls _details.RecordWrite() — updates metadata (last updated,
+             e. Calls _details.RecordWrite() - updates metadata (last updated,
                 access type, access count, entry count).
       5. Returns a standardised [PSCustomObject] via VPDLXreturn:
 
-             code  0   — success; .data holds the new total entry count [int]
-             code -1   — failure; .msg describes the reason; .data is $null
+             code  0   - success; .data holds the new total entry count [int]
+             code -1   - failure; .msg describes the reason; .data is $null
 
     LOG LINE FORMAT:
         Every written entry follows this fixed format (defined in [Logfile]):
@@ -43,12 +43,12 @@
     MESSAGE CONSTRAINTS (enforced by [Logfile].ValidateMessage()):
         - Must not be null, empty, or whitespace-only.
         - Must contain at least 3 non-whitespace characters.
-        - Must not contain newline characters (CR or LF) — prevents log
+        - Must not contain newline characters (CR or LF) - prevents log
           injection attacks in exported files.
 
     INTERNAL DEPENDENCIES:
-        - VPDLXcore    (root module accessor — exposes $script:storage)
-        - VPDLXreturn  (return object factory — Private/)
+        - VPDLXcore    (root module accessor - exposes $script:storage)
+        - VPDLXreturn  (return object factory - Private/)
         - [FileStorage].Get()   (retrieves the [Logfile] instance by name)
         - [Logfile].Write()     (performs the actual entry append)
         - [Logfile].EntryCount() (used to report the new total in .data)
@@ -74,13 +74,13 @@
 
 .OUTPUTS
     [PSCustomObject] with three properties:
-        code  [int]    —  0 on success, -1 on failure
-        msg   [string] —  human-readable status or error description
-        data  [object] —  the new total entry count [int] on success,
+        code  [int]    -  0 on success, -1 on failure
+        msg   [string] -  human-readable status or error description
+        data  [object] -  the new total entry count [int] on success,
                            $null on failure
 
 .EXAMPLE
-    # Basic usage — write an info entry and check the result
+    # Basic usage - write an info entry and check the result
     $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message 'Application started.'
     if ($result.code -eq 0) {
         Write-Host "Entry written. Total entries: $($result.data)"
@@ -98,12 +98,12 @@
     if ($result.code -ne 0) { Write-Error $result.msg }
 
 .EXAMPLE
-    # Invalid level — rejected at the [ValidateSet] binding layer
+    # Invalid level - rejected at the [ValidateSet] binding layer
     $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'notice' -Message 'Test.'
     # PowerShell emits: "Cannot validate argument on parameter 'Level'..."
 
 .EXAMPLE
-    # Message with newline — rejected by [Logfile].ValidateMessage()
+    # Message with newline - rejected by [Logfile].ValidateMessage()
     $result = VPDLXwritelogfile -Logfile 'AppLog' -Level 'info' -Message "Line1`nLine2"
     # $result.code -> -1
     # $result.msg  -> "... must not contain newline characters ..."
@@ -115,7 +115,7 @@
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
     Updated : 06.04.2026
-    Scope   : Public — exported via Export-ModuleMember in VPDLX.psm1
+    Scope   : Public - exported via Export-ModuleMember in VPDLX.psm1
 #>
 
 function VPDLXwritelogfile {
@@ -129,7 +129,7 @@ function VPDLXwritelogfile {
 
         # The log level for the new entry.
         # [ValidateSet] provides early, binding-layer rejection of unknown levels
-        # AND tab-completion in interactive sessions and editors — so callers
+        # AND tab-completion in interactive sessions and editors - so callers
         # get immediate feedback without reaching the module logic at all.
         # NOTE: [ValidateSet] is case-insensitive by default in PowerShell.
         [Parameter(Mandatory = $true, Position = 1)]
@@ -148,7 +148,7 @@ function VPDLXwritelogfile {
         [string] $Message
     )
 
-    # ── Step 1: Pre-flight — verify module storage is accessible ────────────
+    # ── Step 1: Pre-flight - verify module storage is accessible ────────────
     # VPDLXcore bridges the scope gap between dot-sourced Public/ functions
     # and the $script:* variables that live in VPDLX.psm1's root module scope.
     try {
@@ -195,9 +195,9 @@ function VPDLXwritelogfile {
 
     # ── Step 4: Write the entry via [Logfile].Write() ──────────────────────
     # [Logfile].Write() performs two validations internally:
-    #   - ValidateLevel()   — rejects unknown level strings (already caught
+    #   - ValidateLevel()   - rejects unknown level strings (already caught
     #                          by [ValidateSet] above, but defence-in-depth)
-    #   - ValidateMessage() — rejects null/empty/whitespace, messages shorter
+    #   - ValidateMessage() - rejects null/empty/whitespace, messages shorter
     #                          than 3 non-whitespace chars, and messages that
     #                          contain CR or LF (log injection prevention)
     # Both throw [System.ArgumentException] on violation.
@@ -212,7 +212,7 @@ function VPDLXwritelogfile {
         $logInstance.Write($normalizedLevel, $Message)
     }
     catch [System.ArgumentException] {
-        # Validation failure inside [Logfile].Write() — level or message invalid.
+        # Validation failure inside [Logfile].Write() - level or message invalid.
         return VPDLXreturn -Code -1 -Message (
             "VPDLXwritelogfile: Write validation failed for log file '$trimmedName'. " +
             $_.Exception.Message
@@ -220,7 +220,7 @@ function VPDLXwritelogfile {
     }
     catch [System.ObjectDisposedException] {
         # The [Logfile] instance was destroyed between our Contains() check and
-        # the Write() call. Race condition — report clearly.
+        # the Write() call. Race condition - report clearly.
         return VPDLXreturn -Code -1 -Message (
             "VPDLXwritelogfile: Log file '$trimmedName' was destroyed before " +
             'the write could complete. Set any held references to $null.'
@@ -238,7 +238,7 @@ function VPDLXwritelogfile {
     # ── Step 5: Return success ────────────────────────────────────────────────
     # The new total entry count is returned in .data so callers can track how
     # many entries the log now contains without a separate lookup.
-    # EntryCount() is a simple _data.Count call — O(1), no exception risk.
+    # EntryCount() is a simple _data.Count call - O(1), no exception risk.
     [int] $newCount = $logInstance.EntryCount()
 
     return VPDLXreturn -Code 0 `

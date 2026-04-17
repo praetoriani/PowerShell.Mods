@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXgetalllogfiles — Public wrapper: retrieves a summary of all active virtual log files.
+    VPDLXgetalllogfiles - Public wrapper: retrieves a summary of all active virtual log files.
 
 .DESCRIPTION
     VPDLXgetalllogfiles is the public-facing wrapper that returns an overview of
@@ -18,18 +18,18 @@
          each [Logfile] instance, and collects the following properties per
          log file into a [PSCustomObject]:
 
-             Name         [string]  — the log file name (case-preserved)
-             EntryCount   [int]     — current number of log entries
-             Created      [string]  — creation timestamp (dd.MM.yyyy | HH:mm:ss)
-             Updated      [string]  — last write/reset timestamp
-             LastAccessed [string]  — last read/filter/export timestamp
-             AccessCount  [int]     — total interaction count since creation
+             Name         [string]  - the log file name (case-preserved)
+             EntryCount   [int]     - current number of log entries
+             Created      [string]  - creation timestamp (dd.MM.yyyy | HH:mm:ss)
+             Updated      [string]  - last write/reset timestamp
+             LastAccessed [string]  - last read/filter/export timestamp
+             AccessCount  [int]     - total interaction count since creation
 
       4. Returns a standardised [PSCustomObject] via VPDLXreturn:
 
-             code  0   — success; .data holds [PSCustomObject[]] with one entry
+             code  0   - success; .data holds [PSCustomObject[]] with one entry
                           per registered log file (or an empty array if none exist)
-             code -1   — failure; .msg describes the reason; .data is $null
+             code -1   - failure; .msg describes the reason; .data is $null
 
     NOTE ON METADATA INTERACTION:
         This function reads metadata via the public getters on [FileDetails]
@@ -40,8 +40,8 @@
         monitoring or dashboard purposes without affecting log file state.
 
     INTERNAL DEPENDENCIES:
-        - VPDLXcore    (root module accessor — exposes $script:storage)
-        - VPDLXreturn  (return object factory — Private/)
+        - VPDLXcore    (root module accessor - exposes $script:storage)
+        - VPDLXreturn  (return object factory - Private/)
         - [FileStorage].GetNames()   (retrieves all registered log file names)
         - [FileStorage].Get()        (retrieves a [Logfile] instance by name)
         - [Logfile].EntryCount()     (current entry count)
@@ -52,18 +52,18 @@
 
 .OUTPUTS
     [PSCustomObject] with three properties:
-        code  [int]    —  0 on success, -1 on failure
-        msg   [string] —  human-readable status or error description
-        data  [object] —  [PSCustomObject[]] array on success (one object per
+        code  [int]    -  0 on success, -1 on failure
+        msg   [string] -  human-readable status or error description
+        data  [object] -  [PSCustomObject[]] array on success (one object per
                            log file, or empty array if none exist); $null on failure
 
     Each element of .data has the following properties:
-        Name         [string]  — log file name
-        EntryCount   [int]     — number of stored entries
-        Created      [string]  — creation timestamp
-        Updated      [string]  — last modification timestamp
-        LastAccessed [string]  — last read/filter timestamp
-        AccessCount  [int]     — total interaction count
+        Name         [string]  - log file name
+        EntryCount   [int]     - number of stored entries
+        Created      [string]  - creation timestamp
+        Updated      [string]  - last modification timestamp
+        LastAccessed [string]  - last read/filter timestamp
+        AccessCount  [int]     - total interaction count
 
 .EXAMPLE
     # List all active log files
@@ -94,7 +94,7 @@
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 11.04.2026
     Updated : 11.04.2026
-    Scope   : Public — exported via FunctionsToExport in VPDLX.psd1
+    Scope   : Public - exported via FunctionsToExport in VPDLX.psd1
 #>
 
 function VPDLXgetalllogfiles {
@@ -102,7 +102,7 @@ function VPDLXgetalllogfiles {
     [OutputType([PSCustomObject])]
     param ()
 
-    # ── Step 1: Pre-flight — verify module storage is accessible ────────────
+    # ── Step 1: Pre-flight - verify module storage is accessible ────────────
     # VPDLXcore bridges the scope gap between dot-sourced Public/ functions
     # and $script:* variables in VPDLX.psm1. A PSCustomObject return from
     # VPDLXcore (code -1) signals that the module is in a broken state.
@@ -126,7 +126,7 @@ function VPDLXgetalllogfiles {
 
     # ── Step 2: Handle empty storage ───────────────────────────────────────
     # Return early with an empty array if no log files are registered.
-    # This is still a success case (code 0) — the caller simply has no logs yet.
+    # This is still a success case (code 0) - the caller simply has no logs yet.
     if ($storage.Count() -eq 0) {
         return VPDLXreturn -Code 0 `
             -Message 'VPDLXgetalllogfiles: No log files registered in the current session.' `
@@ -147,17 +147,17 @@ function VPDLXgetalllogfiles {
             [object] $logInstance = $storage.Get($logName)
 
             if ($null -eq $logInstance) {
-                # Internal inconsistency — GetNames() listed a name but Get()
+                # Internal inconsistency - GetNames() listed a name but Get()
                 # returned $null. Skip this entry and continue with others.
                 Write-Verbose (
-                    "VPDLXgetalllogfiles: Skipping '$logName' — Get() returned `$null " +
+                    "VPDLXgetalllogfiles: Skipping '$logName' - Get() returned `$null " +
                     'despite being listed by GetNames(). Possible storage inconsistency.'
                 )
                 continue
             }
 
             # Read metadata via the [FileDetails] companion object.
-            # These are pure getter calls — they do NOT modify the log file state.
+            # These are pure getter calls - they do NOT modify the log file state.
             $details = $logInstance.GetDetails()
 
             $summaries.Add([PSCustomObject] [ordered] @{
@@ -171,15 +171,15 @@ function VPDLXgetalllogfiles {
         }
         catch [System.ObjectDisposedException] {
             # The instance was destroyed between GetNames() and our Get()/read.
-            # This is a rare race condition — skip and continue.
+            # This is a rare race condition - skip and continue.
             Write-Verbose (
-                "VPDLXgetalllogfiles: Skipping '$logName' — instance was destroyed " +
+                "VPDLXgetalllogfiles: Skipping '$logName' - instance was destroyed " +
                 'during enumeration (ObjectDisposedException).'
             )
             continue
         }
         catch {
-            # Unexpected error for this particular log file — skip and continue
+            # Unexpected error for this particular log file - skip and continue
             # rather than failing the entire enumeration.
             Write-Verbose (
                 "VPDLXgetalllogfiles: Skipping '$logName' due to unexpected error: " +

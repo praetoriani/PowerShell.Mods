@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXClasses — All VPDLX class definitions in a single file.
+    VPDLXClasses - All VPDLX class definitions in a single file.
 
 .DESCRIPTION
     This file consolidates the three VPDLX classes (FileDetails, FileStorage,
@@ -21,17 +21,17 @@
     return type, providing full type safety and IntelliSense support.
 
     Class definition order (dependency chain):
-      1. FileDetails  — no dependencies
-      2. FileStorage  — references [Logfile] (now resolved within the same file)
-      3. Logfile      — references [FileDetails] and [FileStorage]
+      1. FileDetails  - no dependencies
+      2. FileStorage  - references [Logfile] (now resolved within the same file)
+      3. Logfile      - references [FileDetails] and [FileStorage]
 
     PREVIOUS STRUCTURE (v1.02.03 and earlier):
-      Classes/FileDetails.ps1   — loaded 1st
-      Classes/FileStorage.ps1   — loaded 2nd (could NOT reference [Logfile])
-      Classes/Logfile.ps1       — loaded 3rd
+      Classes/FileDetails.ps1   - loaded 1st
+      Classes/FileStorage.ps1   - loaded 2nd (could NOT reference [Logfile])
+      Classes/Logfile.ps1       - loaded 3rd
 
     CURRENT STRUCTURE (this file):
-      Classes/VPDLXClasses.ps1  — single file, all three classes
+      Classes/VPDLXClasses.ps1  - single file, all three classes
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
@@ -40,7 +40,7 @@
     Created : 05.04.2026
     Updated : 11.04.2026
 
-    FEATURE (11.04.2026, v1.02.06 — Priorität 10):
+    FEATURE (11.04.2026, v1.02.06 - Priorität 10):
       Added configurable minimum log level. When specified during
       construction, log entries below the minimum severity are silently
       discarded by Write() and Print(). This enables callers to control
@@ -48,10 +48,10 @@
       New constructor overload: Logfile([string] $name, [string] $minLevel)
       New hidden instance field: $_minLevelIndex (-1 = no filter, default)
       New static property: [Logfile]::LevelSeverity (severity ranking)
-      New public method: GetMinLogLevel() — returns the configured minimum
+      New public method: GetMinLogLevel() - returns the configured minimum
       level name or 'none' if no filter is active.
 
-    QUALITY (11.04.2026, v1.02.04 — Priorität 9):
+    QUALITY (11.04.2026, v1.02.04 - Priorität 9):
       Added configurable maximum message length to ValidateMessage().
       Default limit is 8192 characters, configurable via the static
       property [Logfile]::MaxMessageLength. Messages exceeding the limit
@@ -82,7 +82,7 @@
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
-# ║  CLASS 1 — FileDetails                                                    ║
+# ║  CLASS 1 - FileDetails                                                    ║
 # ║  Metadata container for a single Logfile instance.                         ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
 
@@ -112,7 +112,7 @@ class FileDetails {
     hidden [int]    $_entries
 
     # Running counter of ALL interactions since the Logfile instance was created.
-    # This counter is NEVER reset during the lifetime of the instance — it is
+    # This counter is NEVER reset during the lifetime of the instance - it is
     # only zeroed when the Logfile is destroyed via Destroy().
     hidden [int]    $_axcount
 
@@ -189,8 +189,8 @@ class FileDetails {
 
     # Resets mutable metadata fields to their post-reset state.
     # _created and _axcount are intentionally preserved:
-    #   _created  — reflects the original instantiation time and must survive Reset()
-    #   _axcount  — must never be reset during the Logfile lifetime
+    #   _created  - reflects the original instantiation time and must survive Reset()
+    #   _axcount  - must never be reset during the Logfile lifetime
     hidden [void] ApplyReset() {
         [string] $ts          = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
         $this._updated        = $ts
@@ -224,7 +224,7 @@ class FileDetails {
     # This value is never reset during the lifetime of the Logfile.
     [int]    GetAxcount()       { return $this._axcount }
 
-    # Returns a formatted one-line summary — useful for quick console inspection.
+    # Returns a formatted one-line summary - useful for quick console inspection.
     [string] ToString() {
         return (
             "FileDetails | Created: $($this._created) | " +
@@ -236,7 +236,7 @@ class FileDetails {
         )
     }
 
-    # Returns all metadata as an ordered dictionary — useful for export or JSON.
+    # Returns all metadata as an ordered dictionary - useful for export or JSON.
     [System.Collections.Specialized.OrderedDictionary] ToHashtable() {
         $ht = [ordered] @{
             created        = $this._created
@@ -252,7 +252,7 @@ class FileDetails {
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
-# ║  CLASS 2 — FileStorage                                                    ║
+# ║  CLASS 2 - FileStorage                                                    ║
 # ║  Central registry for all active Logfile instances.                        ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
 
@@ -297,7 +297,7 @@ class FileStorage {
     #
     # FIX v1.02.03 (Issue #9):
     #   Parameter type changed from [object] to [Logfile]. Combined with the
-    #   typed Dictionary, this guarantees compile-time type safety — passing a
+    #   typed Dictionary, this guarantees compile-time type safety - passing a
     #   non-Logfile object to Add() is now a type error instead of silently
     #   inserting the wrong type into the registry.
     [void] Add([string] $name, [Logfile] $instance) {
@@ -355,7 +355,7 @@ class FileStorage {
     #   - Each Destroy() call is wrapped in try/catch so that a failure on one
     #     instance does not prevent cleanup of the remaining instances.
     #   - A final Clear() on both _registry and _names is performed as a safety
-    #     measure — individual Destroy() calls already remove entries via
+    #     measure - individual Destroy() calls already remove entries via
     #     Remove(), but Clear() ensures no orphaned references remain if an
     #     exception occurred during iteration.
     #
@@ -385,7 +385,7 @@ class FileStorage {
                 catch {
                     # If Destroy() fails for any reason (e.g. already destroyed,
                     # or an unexpected runtime error), log a verbose warning but
-                    # continue to the next instance — one failure must not prevent
+                    # continue to the next instance - one failure must not prevent
                     # cleanup of the remaining instances.
                     Write-Verbose (
                         "VPDLX: DestroyAll() could not destroy logfile '$name': " +
@@ -414,7 +414,7 @@ class FileStorage {
     #
     # FIX v1.02.03 (Issue #9):
     #   Return type changed from [object] to [Logfile]. Callers no longer need
-    #   to cast the result — IntelliSense and static type checking work
+    #   to cast the result - IntelliSense and static type checking work
     #   correctly on the returned reference. The previous [object] return type
     #   was a workaround for the PowerShell 5.1 forward-reference limitation
     #   (FileStorage was loaded before Logfile). With all classes in a single
@@ -453,7 +453,7 @@ class FileStorage {
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
-# ║  CLASS 3 — Logfile                                                         ║
+# ║  CLASS 3 - Logfile                                                         ║
 # ║  Core user-facing class of the VPDLX module.                              ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
 
@@ -506,7 +506,7 @@ class Logfile {
     # Callers can adjust this value at any time:
     #   [Logfile]::MaxMessageLength = 16384   # double the default
     #   [Logfile]::MaxMessageLength = 1024    # stricter limit
-    # The minimum accepted value is 10 — setting it lower than 10 would
+    # The minimum accepted value is 10 - setting it lower than 10 would
     # conflict with the existing "at least 3 non-whitespace characters" rule
     # and make the validator confusing.
     #
@@ -521,7 +521,7 @@ class Logfile {
     # All supported log levels and their formatted output prefixes.
     # Keys are lowercase identifiers; values are fixed-width prefix strings
     # that appear in each log line after the timestamp.
-    # Column alignment is intentional — all prefixes share the same total width.
+    # Column alignment is intentional - all prefixes share the same total width.
     static [hashtable] $LogLevels = @{
         info     = '  [INFO]      ->  '
         debug    = '  [DEBUG]     ->  '
@@ -547,8 +547,8 @@ class Logfile {
     # by Write() and Print().
     #
     # Parameters:
-    #   name     — Logfile name (same rules as primary constructor)
-    #   minLevel — Minimum log level (case-insensitive). Must be one of:
+    #   name     - Logfile name (same rules as primary constructor)
+    #   minLevel - Minimum log level (case-insensitive). Must be one of:
     #              trace, debug, verbose, info, warning, error, critical, fatal.
     #              Pass '' or $null to disable filtering (same as primary constructor).
     #
@@ -570,8 +570,8 @@ class Logfile {
     # is the standard workaround.
     #
     # Parameters:
-    #   name     — The logfile name to validate and register
-    #   minLevel — The minimum log level string, or '' for no filter
+    #   name     - The logfile name to validate and register
+    #   minLevel - The minimum log level string, or '' for no filter
     hidden [void] _InitLogfile([string] $name, [string] $minLevel) {
 
         # ── Validate: not null / empty / whitespace ──────────────────────────
@@ -583,7 +583,7 @@ class Logfile {
         }
 
         # BUGFIX: PowerShell 5.1 does not allow direct reassignment of a
-        # constructor parameter variable ($name = $name.Trim()) — the parser
+        # constructor parameter variable ($name = $name.Trim()) - the parser
         # misinterprets this as a property-set attempt and raises:
         #   'The property cannot be set. Use "$this.Name"'
         # Solution: assign the trimmed value to a new local variable.
@@ -623,7 +623,7 @@ class Logfile {
         # NEW v1.02.06 (Priorität 10).
         # If a minimum level is provided, validate it against the known
         # log levels and resolve its severity index. If empty or $null,
-        # set to -1 (no filter — all levels accepted).
+        # set to -1 (no filter - all levels accepted).
         [int]    $resolvedMinIndex = -1
         [string] $resolvedMinName  = ''
 
@@ -697,7 +697,7 @@ class Logfile {
     #   4. Must not exceed [Logfile]::MaxMessageLength characters (memory protection).
     #
     # IMPROVEMENT v1.02.04 (Priorität 9):
-    #   Added rule 4 — configurable maximum message length. The default limit
+    #   Added rule 4 - configurable maximum message length. The default limit
     #   is 8192 characters (see [Logfile]::MaxMessageLength). Messages that
     #   exceed the limit are rejected with a descriptive ArgumentException
     #   that includes the actual length and the configured maximum, so the
@@ -723,7 +723,7 @@ class Logfile {
                 'message'
             )
         }
-        # Maximum length check — protects against accidental memory flooding.
+        # Maximum length check - protects against accidental memory flooding.
         # The limit is configurable via [Logfile]::MaxMessageLength (default: 8192).
         # NEW v1.02.04 (Priorität 9).
         [int] $maxLen = [Logfile]::MaxMessageLength
@@ -756,8 +756,8 @@ class Logfile {
     # Appends a single formatted log entry to the internal data list.
     #
     # Parameters:
-    #   level   — One of the supported log levels (case-insensitive)
-    #   message — The human-readable log message (min 3 non-whitespace chars,
+    #   level   - One of the supported log levels (case-insensitive)
+    #   message - The human-readable log message (min 3 non-whitespace chars,
     #             no newline characters)
     #
     # Side-effects:
@@ -771,7 +771,7 @@ class Logfile {
 
         # Minimum log level check (v1.02.06).
         # If a minimum level is configured, silently discard entries whose
-        # severity is below the threshold. No error, no side-effects — the
+        # severity is below the threshold. No error, no side-effects - the
         # entry is simply not written. This allows callers to use the same
         # logging code in all environments and control verbosity at the
         # logfile level.
@@ -797,8 +797,8 @@ class Logfile {
     # state (transactional semantics).
     #
     # Parameters:
-    #   level    — One of the supported log levels (case-insensitive)
-    #   messages — Non-empty array of message strings; each must pass
+    #   level    - One of the supported log levels (case-insensitive)
+    #   messages - Non-empty array of message strings; each must pass
     #              ValidateMessage()
     #
     # Side-effects (only after ALL messages pass validation):
@@ -865,7 +865,7 @@ class Logfile {
             }
         }
 
-        # All validation passed — append all entries.
+        # All validation passed - append all entries.
         foreach ($msg in $messages) {
             $this._data.Add($this.BuildEntry($normalizedLevel, $msg))
         }
@@ -942,14 +942,14 @@ class Logfile {
     # Matching strategy:
     #   - The normalised level is converted to its uppercase bracket notation
     #     (e.g. 'warning' -> '[WARNING]').
-    #   - Each line is checked with String.Contains() — faster than a regex
+    #   - Each line is checked with String.Contains() - faster than a regex
     #     pipeline for simple fixed-string searches and avoids PowerShell
     #     pipeline overhead on large logs.
     #
     # Returns an empty array (never $null) if no matching lines are found.
     #
     # Parameters:
-    #   level — One of the supported log levels (case-insensitive)
+    #   level - One of the supported log levels (case-insensitive)
     #
     # Side-effects:
     #   - _details.RecordFilterByLevel() is called  -> updates 'lastacc', 'acctype', 'axcount'
@@ -966,7 +966,7 @@ class Logfile {
         [string] $marker          = "[$($normalizedLevel.ToUpper())]"
 
         # Use a typed List and a direct foreach loop with .Contains() instead
-        # of Where-Object pipeline — avoids regex overhead and pipeline cost.
+        # of Where-Object pipeline - avoids regex overhead and pipeline cost.
         $results = [System.Collections.Generic.List[string]]::new()
         foreach ($line in $this._data) {
             if ($line.Contains($marker)) {
@@ -1018,7 +1018,7 @@ class Logfile {
     # BUGFIX v1.02.03 (Issue #1 + Issue #6):
     #   - GuardDestroyed() is now called first, preventing silent double-
     #     destroy. The previous 'if ($null -ne $this._data)' guard has been
-    #     removed — GuardDestroyed() makes it redundant.
+    #     removed - GuardDestroyed() makes it redundant.
     #   - storage.Remove() is wrapped in try/catch/finally. The finally block
     #     unconditionally clears _data and sets both _data and _details to
     #     $null, guaranteeing consistent cleanup even if Remove() throws
@@ -1098,7 +1098,7 @@ class Logfile {
 
     # Returns the configured minimum log level name for this logfile.
     # If no minimum level is configured (default), returns 'none'.
-    # This is a read-only accessor — the minimum level is immutable
+    # This is a read-only accessor - the minimum level is immutable
     # once set during construction.
     #
     # NEW v1.02.06 (Priorität 10).
@@ -1121,13 +1121,13 @@ class Logfile {
         return $this._details
     }
 
-    # Returns a one-line summary string — shown automatically when the object
+    # Returns a one-line summary string - shown automatically when the object
     # is output to the console without a method call.
     #
     # BUGFIX v1.02.03 (Issue #3):
     #   GuardDestroyed() is now called at the top, consistent with all other
     #   public methods. The previous partial null-check for _data has been
-    #   removed — with GuardDestroyed() in place, _data and _details are
+    #   removed - with GuardDestroyed() in place, _data and _details are
     #   guaranteed non-null. Calling ToString() on a destroyed instance now
     #   throws ObjectDisposedException instead of a misleading
     #   NullReferenceException from the unguarded _details.GetCreated() call.

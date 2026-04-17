@@ -95,7 +95,7 @@ ScriptsToProcess = @('VPDLX.Precheck.ps1')
 #
 #   --> When adding a new Public function, add its name HERE.
 #
-# Note: PowerShell classes are NOT exported here — they are made globally available
+# Note: PowerShell classes are NOT exported here - they are made globally available
 # via TypeAccelerators registered in VPDLX.psm1 at load time.
 FunctionsToExport = @(
     # Infrastructure accessor (controlled read-only access to module-scoped variables)
@@ -114,7 +114,7 @@ FunctionsToExport = @(
     # Logfile export
     'VPDLXexportlogfile',   # Export a virtual log file to disk (txt / log / csv / json / html / ndjson)
 
-    # ── New Public Wrapper functions (v1.02.05 — Priorität 10) ───────────
+    # ── New Public Wrapper functions (v1.02.05 - Priorität 10) ───────────
     'VPDLXgetalllogfiles',  # List all active log files with metadata summary
     'VPDLXresetlogfile',    # Clear all entries from a log file (preserves registration)
     'VPDLXfilterlogfile'   # Filter log entries by level, return structured result
@@ -183,9 +183,9 @@ New:
       File extension: .html
 
   NDJSON export format (VPDLXexportlogfile -ExportAs 'ndjson')
-      Newline-Delimited JSON — each log entry is serialised as a single
+      Newline-Delimited JSON - each log entry is serialised as a single
       compact JSON object on its own line using ConvertTo-Json -Compress.
-      No root wrapper or array — ideal for streaming to log pipelines
+      No root wrapper or array - ideal for streaming to log pipelines
       (Elasticsearch, Logstash, Kafka, AWS Kinesis, Grafana Loki).
       Each object contains Timestamp, Level, and Message properties.
       File extension: .ndjson
@@ -197,11 +197,11 @@ New:
         trace(0) < debug(1) < verbose(2) < info(3) < warning(4)
         < error(5) < critical(6) < fatal(7)
       Write() and Print() silently return when a message's level is
-      below the configured minimum — no exception, no side effects.
+      below the configured minimum - no exception, no side effects.
       New static property: [Logfile]::LevelSeverity (severity hashtable)
       New hidden fields: $_minLevelIndex (int, -1 = no filter),
         $_minLevelName (string)
-      New public method: GetMinLogLevel() — returns the configured
+      New public method: GetMinLogLevel() - returns the configured
         minimum level name or 'none' if no filter is active.
       ToString() appends '| MinLevel: <name>' when a filter is active.
       The original single-argument constructor is unchanged and creates
@@ -241,7 +241,7 @@ New:
   VPDLXcore -KeyID 'stats'
       Returns module-wide statistics: ActiveLogfiles, TotalEntries,
       MaxEntries, MaxEntriesLog, MinEntries, MinEntriesLog, and
-      ModuleVersion. Read-only — no log file state is modified.
+      ModuleVersion. Read-only - no log file state is modified.
 
 v1.02.04  (11.04.2026)
 ----------------------
@@ -272,58 +272,58 @@ call-order and label corrected; export configuration conflict resolved;
 VPDLXreturn status code range extended.
 
 Fixed:
-  Destroy() — GuardDestroyed() at entry (Issue #1)
+  Destroy() - GuardDestroyed() at entry (Issue #1)
       Calling Destroy() on an already-destroyed instance now correctly
       throws ObjectDisposedException instead of silently succeeding.
       The redundant 'if ($null -ne $this._data)' check has been removed.
 
-  Destroy() — try/catch/finally around storage.Remove() (Issue #6)
+  Destroy() - try/catch/finally around storage.Remove() (Issue #6)
       FileStorage.Remove() may throw InvalidOperationException if the
       name is not found (e.g. due to state desynchronisation via VPDLXcore).
       The finally block now unconditionally clears _data and sets both
       _data and _details to $null, guaranteeing cleanup regardless of
       whether Remove() succeeds or throws.
 
-  ToString() — GuardDestroyed() at entry (Issue #3)
+  ToString() - GuardDestroyed() at entry (Issue #3)
       Calling ToString() on a destroyed instance (explicitly or via
       string interpolation) now throws ObjectDisposedException instead
       of a misleading NullReferenceException. The partial null-check
-      for _data has been removed — GuardDestroyed() makes it redundant.
+      for _data has been removed - GuardDestroyed() makes it redundant.
 
-  FilterByLevel() — RecordFilter() call-order fix (Issue #2)
+  FilterByLevel() - RecordFilter() call-order fix (Issue #2)
       The metadata-recording call was placed before the foreach loop.
       Moved to after the loop so metadata is recorded only on successful
       completion.
 
-  FilterByLevel() — RecordFilter() renamed + label fix (Issue #4)
+  FilterByLevel() - RecordFilter() renamed + label fix (Issue #4)
       Hidden method RecordFilter() renamed to RecordFilterByLevel().
       Label string changed from 'Filter' to 'FilterByLevel' to match
       the public method name.
 
-  FunctionsToExport — single source of truth (Issue #5)
+  FunctionsToExport - single source of truth (Issue #5)
       Export-ModuleMember call removed from VPDLX.psm1 Section 7 (the
       manifest takes precedence). SINGLE SOURCE OF TRUTH comment block
       added to FunctionsToExport in VPDLX.psd1.
 
-  VPDLXreturn — status code range extended (Issue #8)
+  VPDLXreturn - status code range extended (Issue #8)
       [ValidateSet(0, -1)] replaced with [ValidateRange(-99, 99)].
       Status code conventions documented: 0 = success, -1 = general
       failure, 1..99 = partial success, -2..-99 = typed errors.
 
-  Print() — batch validation diagnostics improved (Issue #7)
+  Print() - batch validation diagnostics improved (Issue #7)
       The pre-validation loop now tracks the 0-based element index.
       When validation fails, the enriched ArgumentException includes
       the index and a safe preview of the offending value (truncated
       to 40 chars, CR/LF escaped as \r/\n).
 
-  Class consolidation — forward-reference resolved (Issue #9)
+  Class consolidation - forward-reference resolved (Issue #9)
       FileDetails.ps1, FileStorage.ps1, Logfile.ps1 merged into
       Classes\VPDLXClasses.ps1. FileStorage now uses
       Dictionary[string, Logfile] instead of Dictionary[string, object].
-      Get() returns [Logfile], Add() accepts [Logfile] — full type
+      Get() returns [Logfile], Add() accepts [Logfile] - full type
       safety and IntelliSense support.
 
-  DestroyAll() — batch cleanup + OnRemove integration (Issue #10)
+  DestroyAll() - batch cleanup + OnRemove integration (Issue #10)
       FileStorage.DestroyAll() iterates all registered instances,
       calls Destroy() on each (with per-instance try/catch), then
       clears the registry. OnRemove in VPDLX.psm1 now calls
@@ -358,7 +358,7 @@ New Public Wrapper functions (dot-sourced from Public\):
   VPDLXexportlogfile
       Writes a virtual log file as a physical file on disk.
       Parameters: Logfile (mandatory), LogPath (mandatory), ExportAs (mandatory),
-                  Override (optional switch — overwrites existing file).
+                  Override (optional switch - overwrites existing file).
       Supported formats: txt, log, csv, json.
       Auto-creates the target directory if it does not exist.
       Returns: VPDLXreturn object { code, msg, data }

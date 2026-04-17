@@ -156,7 +156,7 @@ if (-not (Test-Path $modulePath)) {
     exit -1
 }
 
-Import-Module $modulePath -Force
+Import-Module $modulePath -Force -Verbose
 
 Write-Host '  [OK] Module imported successfully.' -ForegroundColor Green
 Write-Host '  [OK] TypeAccelerators registered: [Logfile], [FileDetails], [FileStorage]' -ForegroundColor Green

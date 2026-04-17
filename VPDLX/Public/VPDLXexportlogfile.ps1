@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXexportlogfile — Public wrapper: exports a virtual log file to disk.
+    VPDLXexportlogfile - Public wrapper: exports a virtual log file to disk.
 
 .DESCRIPTION
     VPDLXexportlogfile is the primary export function introduced in VPDLX
@@ -9,38 +9,38 @@
 
     The function executes an 8-stage pipeline:
 
-      Stage 1  — Pre-flight       : verify module storage is accessible
-      Stage 2  — Format check     : validate ExportAs against $script:export
-      Stage 3  — Existence check  : confirm the named log file exists
-      Stage 4  — Instance fetch   : retrieve the [Logfile] instance from storage
-      Stage 5  — Content check    : guard against exporting an empty log
-      Stage 6  — Path preparation : create the target directory if it does not exist
-      Stage 7  — Override logic   : handle the -Override switch
-      Stage 8  — Write to disk    : serialise the log entries and flush to file
+      Stage 1  - Pre-flight       : verify module storage is accessible
+      Stage 2  - Format check     : validate ExportAs against $script:export
+      Stage 3  - Existence check  : confirm the named log file exists
+      Stage 4  - Instance fetch   : retrieve the [Logfile] instance from storage
+      Stage 5  - Content check    : guard against exporting an empty log
+      Stage 6  - Path preparation : create the target directory if it does not exist
+      Stage 7  - Override logic   : handle the -Override switch
+      Stage 8  - Write to disk    : serialise the log entries and flush to file
 
     SUPPORTED EXPORT FORMATS:
         The ExportAs parameter must match a key defined in $script:export:
 
-            txt   —  Plain text. Each log line is written as-is.
+            txt   -  Plain text. Each log line is written as-is.
                      File extension: .txt
 
-            log   —  Identical to txt format but with .log extension.
+            log   -  Identical to txt format but with .log extension.
                      Suitable for tools that expect a .log file.
                      File extension: .log
 
-            csv   —  Comma-Separated Values. Each log entry is parsed and
+            csv   -  Comma-Separated Values. Each log entry is parsed and
                      written as a structured row:
                      "Timestamp","Level","Message"
                      "06.04.2026 | 19:58:00","INFO","Application started."
                      File extension: .csv
 
-            json  —  JSON array of objects. Each entry becomes:
+            json  -  JSON array of objects. Each entry becomes:
                      { "Timestamp": "...", "Level": "...", "Message": "..." }
                      The full array is wrapped in a root object:
                      { "LogFile": "<name>", "ExportedAt": "...", "Entries": [...] }
                      File extension: .json
 
-            html  —  Formatted HTML log report with embedded CSS styling.
+            html  -  Formatted HTML log report with embedded CSS styling.
                      Generates a self-contained HTML document with:
                      - A header section showing log file name, export timestamp,
                        and total entry count
@@ -51,11 +51,11 @@
                      File extension: .html
                      NEW v1.02.06.
 
-            ndjson — Newline-Delimited JSON (one JSON object per line).
+            ndjson - Newline-Delimited JSON (one JSON object per line).
                      Each log entry becomes a single-line JSON object:
                      {"Timestamp":"...","Level":"...","Message":"..."}
                      Unlike the 'json' format, there is NO root wrapper object
-                     and NO array brackets — each line is an independent, valid
+                     and NO array brackets - each line is an independent, valid
                      JSON document. This format is ideal for log streaming
                      pipelines (Filebeat, Fluentd, Logstash, Grafana Loki) and
                      tools that process JSON line-by-line.
@@ -117,19 +117,19 @@
         Added -NoBOM switch parameter for BOM-free UTF-8 export.
 
     FEATURE v1.02.06 (Priorität 10):
-        Added HTML export format — self-contained, styled HTML document
+        Added HTML export format - self-contained, styled HTML document
         with level-specific row colouring, responsive layout, and a
         summary header. Suitable for browser viewing, email, and printing.
 
-        Added NDJSON (Newline-Delimited JSON) export format — one JSON
+        Added NDJSON (Newline-Delimited JSON) export format - one JSON
         object per line, no wrapper. Ideal for log-streaming pipelines
         (ELK, Splunk, Grafana Loki) and tools that process JSON records
         line-by-line.
 
     INTERNAL DEPENDENCIES:
-        - VPDLXcore     (root module accessor — exposes $script:storage,
+        - VPDLXcore     (root module accessor - exposes $script:storage,
                          $script:export)
-        - VPDLXreturn   (return object factory — Private/)
+        - VPDLXreturn   (return object factory - Private/)
         - [FileStorage].Contains() / .Get()  (log file lookup)
         - [Logfile].IsEmpty() / .EntryCount() / .GetAllEntries()
                               (content access)
@@ -180,9 +180,9 @@
 
 .OUTPUTS
     [PSCustomObject] with three properties:
-        code  [int]    —  0 on success, -1 on failure
-        msg   [string] —  human-readable status or error description
-        data  [object] —  the full path to the created file [string] on success,
+        code  [int]    -  0 on success, -1 on failure
+        msg   [string] -  human-readable status or error description
+        data  [object] -  the full path to the created file [string] on success,
                            $null on failure
 
 .EXAMPLE
@@ -220,13 +220,13 @@
     # Export as a styled HTML report (v1.02.06)
     $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'html'
     # -> C:\Logs\AppLog.html
-    # Open in any browser — level-coloured rows, responsive table, print-ready.
+    # Open in any browser - level-coloured rows, responsive table, print-ready.
 
 .EXAMPLE
     # Export as NDJSON for log-streaming pipelines (v1.02.06)
     $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson'
     # -> C:\Logs\AppLog.ndjson
-    # Each line is an independent JSON object — ready for Filebeat, Fluentd, etc.
+    # Each line is an independent JSON object - ready for Filebeat, Fluentd, etc.
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
@@ -235,14 +235,14 @@
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
     Updated : 11.04.2026
-    Scope   : Public — exported via FunctionsToExport in VPDLX.psd1
+    Scope   : Public - exported via FunctionsToExport in VPDLX.psd1
 
     CHANGES (11.04.2026, v1.02.06):
-      - Added HTML export format — self-contained, styled HTML document
+      - Added HTML export format - self-contained, styled HTML document
         with level-specific row colouring (red for ERROR/FATAL, orange for
         WARNING/CRITICAL, green for INFO, blue for DEBUG/VERBOSE/TRACE).
         Responsive layout suitable for browser viewing and printing.
-      - Added NDJSON (Newline-Delimited JSON) export format — one JSON
+      - Added NDJSON (Newline-Delimited JSON) export format - one JSON
         object per line, no root wrapper. Each line is an independent,
         valid JSON document. Ideal for log-streaming pipelines.
 
@@ -269,7 +269,7 @@ function VPDLXexportlogfile {
         # Target format. Runtime-validated against $script:export keys.
         # [ValidateSet] is intentionally NOT used here because the valid set
         # lives in $script:export and we want validation to reflect that
-        # single source of truth dynamically — not a static list duplicated
+        # single source of truth dynamically - not a static list duplicated
         # in the parameter declaration.
         [Parameter(Mandatory = $true, Position = 2)]
         [ValidateNotNullOrEmpty()]
@@ -287,7 +287,7 @@ function VPDLXexportlogfile {
         [switch] $NoBOM
     )
 
-    # ── Stage 1: Pre-flight — verify module storage and export map ───────────
+    # ── Stage 1: Pre-flight - verify module storage and export map ───────────
     # Both $script:storage and $script:export are required. Fetch them in a
     # single try/catch. If either VPDLXcore call fails the module is broken.
     try {
@@ -318,7 +318,7 @@ function VPDLXexportlogfile {
 
     # ── Stage 2: Validate ExportAs against $script:export ───────────────────
     # Runtime validation against the live hashtable ensures this check always
-    # mirrors the supported format list — no static [ValidateSet] duplication.
+    # mirrors the supported format list - no static [ValidateSet] duplication.
     [string] $formatKey = $ExportAs.Trim().ToLower()
 
     if (-not $exportMap.ContainsKey($formatKey)) {
@@ -351,7 +351,7 @@ function VPDLXexportlogfile {
     if ($null -eq $logInstance) {
         return VPDLXreturn -Code -1 -Message (
             "VPDLXexportlogfile: Log file '$trimmedName' was found by Contains() " +
-            'but Get() returned $null. Internal storage inconsistency — please report.'
+            'but Get() returned $null. Internal storage inconsistency - please report.'
         )
     }
 
@@ -398,7 +398,7 @@ function VPDLXexportlogfile {
     # ── Stage 7: Override logic ────────────────────────────────────────────────
     # Without -Override: block export if a file already exists at the target path.
     # With -Override:    delete the existing file before writing the new one.
-    #                    If deletion fails, abort — never write a partial file.
+    #                    If deletion fails, abort - never write a partial file.
     if (Test-Path -LiteralPath $targetFile -PathType Leaf) {
         if (-not $Override) {
             return VPDLXreturn -Code -1 -Message (
@@ -407,7 +407,7 @@ function VPDLXexportlogfile {
             )
         }
 
-        # -Override was specified — remove the existing file first.
+        # -Override was specified - remove the existing file first.
         try {
             Remove-Item -LiteralPath $targetFile -Force -ErrorAction Stop
         }
@@ -519,7 +519,7 @@ function VPDLXexportlogfile {
                             $lvl = 'UNKNOWN'
                         }
                     } else {
-                        # Unparseable line — preserve as raw message
+                        # Unparseable line - preserve as raw message
                         $msg = $entry
                         $ts  = ''
                         $lvl = 'RAW'
@@ -655,7 +655,7 @@ function VPDLXexportlogfile {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VPDLX Log Report — $([System.Net.WebUtility]::HtmlEncode($trimmedName))</title>
+    <title>VPDLX Log Report - $([System.Net.WebUtility]::HtmlEncode($trimmedName))</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Consolas, 'Courier New', monospace; background: #f5f5f5; color: #1a1a1a; padding: 24px; }
@@ -706,7 +706,7 @@ $($htmlRows.ToString().TrimEnd())
             # ── ndjson: Newline-Delimited JSON (one object per line) ───────
             # NEW v1.02.06 (Priorität 10).
             # Each log entry is serialised as a single-line JSON object.
-            # No root wrapper, no array brackets — each line is an
+            # No root wrapper, no array brackets - each line is an
             # independent, valid JSON document. This format is the standard
             # for log-streaming pipelines (Filebeat, Fluentd, Logstash,
             # Grafana Loki) and any tool that processes JSON records
@@ -741,7 +741,7 @@ $($htmlRows.ToString().TrimEnd())
 
                     # Build a single-line JSON object per entry.
                     # ConvertTo-Json -Compress produces a single line with no
-                    # whitespace padding — exactly what NDJSON requires.
+                    # whitespace padding - exactly what NDJSON requires.
                     $entryObj = [ordered]@{
                         Timestamp = $ts
                         Level     = $lvl

@@ -1,15 +1,15 @@
 <#
 .SYNOPSIS
-    VPDLXreturn — Standardised return object factory for VPDLX.
+    VPDLXreturn - Standardised return object factory for VPDLX.
 
 .DESCRIPTION
     Every operation inside VPDLX that needs to communicate a result to the
     caller uses VPDLXreturn to build a consistent [PSCustomObject] with three
     well-known properties:
 
-        code  [int]     —  status code (see convention below)
-        msg   [string]  —  human-readable status or error description
-        data  [object]  —  optional payload (any type); $null when not applicable
+        code  [int]     -  status code (see convention below)
+        msg   [string]  -  human-readable status or error description
+        data  [object]  -  optional payload (any type); $null when not applicable
 
     Status code convention:
          0       = Success
@@ -56,7 +56,7 @@
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
     Updated : 11.04.2026
-    Scope   : Private — used exclusively by VPDLX internals
+    Scope   : Private - used exclusively by VPDLX internals
 
     CHANGES (11.04.2026):
       - Replaced [ValidateSet(0, -1)] with [ValidateRange(-99, 99)] on

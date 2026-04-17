@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXdroplogfile — Public wrapper: permanently destroys a virtual log file.
+    VPDLXdroplogfile - Public wrapper: permanently destroys a virtual log file.
 
 .DESCRIPTION
     VPDLXdroplogfile is the public-facing wrapper for completely and
@@ -19,8 +19,8 @@
          receive [System.ObjectDisposedException] if a method is called on it.
       4. Returns a standardised [PSCustomObject] via VPDLXreturn:
 
-             code  0   — success; log file was found and destroyed; .data is $null
-             code -1   — failure; .msg describes the reason (not found, storage
+             code  0   - success; log file was found and destroyed; .data is $null
+             code -1   - failure; .msg describes the reason (not found, storage
                           unavailable, unexpected error); .data is $null
 
     WARNING:
@@ -39,8 +39,8 @@
           - want a single ‘drop by name’ operation with built-in error handling.
 
     INTERNAL DEPENDENCIES:
-        - VPDLXcore    (root module accessor — exposes $script:storage)
-        - VPDLXreturn  (return object factory — Private/)
+        - VPDLXcore    (root module accessor - exposes $script:storage)
+        - VPDLXreturn  (return object factory - Private/)
         - [FileStorage].Get()     (retrieves the [Logfile] instance by name)
         - [Logfile].Destroy()     (performs the actual removal and cleanup)
         The VPDLX.psm1 load order guarantees all are available when this
@@ -55,12 +55,12 @@
 
 .OUTPUTS
     [PSCustomObject] with three properties:
-        code  [int]    —  0 on success, -1 on failure
-        msg   [string] —  human-readable status or error description
-        data  [object] —  always $null (destroyed instances carry no payload)
+        code  [int]    -  0 on success, -1 on failure
+        msg   [string] -  human-readable status or error description
+        data  [object] -  always $null (destroyed instances carry no payload)
 
 .EXAMPLE
-    # Basic usage — drop a log file by name
+    # Basic usage - drop a log file by name
     $result = VPDLXdroplogfile -Logfile 'AppLog'
     if ($result.code -eq 0) {
         Write-Host 'Log file dropped successfully.'
@@ -75,7 +75,7 @@
     }
 
 .EXAMPLE
-    # Attempt to drop a non-existent log file — returns code -1
+    # Attempt to drop a non-existent log file - returns code -1
     $result = VPDLXdroplogfile -Logfile 'Ghost'
     # $result.code  -> -1
     # $result.msg   -> "... 'Ghost' does not exist ..."
@@ -87,7 +87,7 @@
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
     Updated : 06.04.2026
-    Scope   : Public — exported via Export-ModuleMember in VPDLX.psm1
+    Scope   : Public - exported via Export-ModuleMember in VPDLX.psm1
 #>
 
 function VPDLXdroplogfile {
@@ -100,7 +100,7 @@ function VPDLXdroplogfile {
         [string] $Logfile
     )
 
-    # ── Step 1: Pre-flight — verify module storage is accessible ────────────
+    # ── Step 1: Pre-flight - verify module storage is accessible ────────────
     # VPDLXcore bridges the scope gap between dot-sourced Public/ functions
     # and $script:* variables in VPDLX.psm1. A PSCustomObject return from
     # VPDLXcore (code -1) signals that the module is in a broken state.
@@ -125,7 +125,7 @@ function VPDLXdroplogfile {
     # ── Step 2: Trim name and verify the log file exists ───────────────────
     # Trim to match the normalisation applied in [Logfile]::new() and the
     # other public wrappers. Then guard early with a clear, user-friendly
-    # message if the log file is not registered — avoids a raw exception
+    # message if the log file is not registered - avoids a raw exception
     # from FileStorage.Get() or Logfile.Destroy().
     [string] $trimmedName = $Logfile.Trim()
 
@@ -153,9 +153,9 @@ function VPDLXdroplogfile {
 
     # ── Step 4: Destroy the [Logfile] instance ─────────────────────────────
     # [Logfile].Destroy() performs three actions atomically:
-    #   1. Calls $script:storage.Remove(this.Name)  — deregisters from FileStorage
-    #   2. Calls _data.Clear() and sets _data = $null  — releases log content
-    #   3. Sets _details = $null  — releases companion metadata object
+    #   1. Calls $script:storage.Remove(this.Name)  - deregisters from FileStorage
+    #   2. Calls _data.Clear() and sets _data = $null  - releases log content
+    #   3. Sets _details = $null  - releases companion metadata object
     # After this call the instance is a "zombie" object: it still exists as a
     # .NET reference if the caller holds one, but every method call on it will
     # throw [System.ObjectDisposedException] via the GuardDestroyed() check.
@@ -166,7 +166,7 @@ function VPDLXdroplogfile {
         $logInstance.Destroy()
     }
     catch [System.ObjectDisposedException] {
-        # The instance was already destroyed before this call — for example
+        # The instance was already destroyed before this call - for example
         # if the caller previously called .Destroy() directly on their reference.
         # The log file is gone either way; treat as success with a note.
         return VPDLXreturn -Code 0 -Message (

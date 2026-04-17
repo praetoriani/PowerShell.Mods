@@ -1,4 +1,4 @@
-# VPDLX — Quick Start Guide
+# VPDLX - Quick Start Guide
 
 > **Module version:** 1.02.06
 > **Prerequisites:** PowerShell 5.1 or PowerShell 7.x
@@ -9,7 +9,7 @@ the underlying **class-based API** for advanced scenarios.
 
 ---
 
-## Step 1 — Import the module
+## Step 1 - Import the module
 
 ```powershell
 Import-Module .\VPDLX.psd1
@@ -18,21 +18,21 @@ Import-Module .\VPDLX.psd1
 > **Note:** Since v1.02.04 the module ships with `VPDLX.Precheck.ps1` (registered in
 > `ScriptsToProcess`). This script runs automatically before the module loads and
 > verifies that your PowerShell version meets the minimum requirement (5.1).
-> If the check fails you will see a descriptive error message — no silent breakage.
+> If the check fails you will see a descriptive error message - no silent breakage.
 
 After import, three things are available in your session:
 
-- **Type accelerators** — `[Logfile]`, `[FileDetails]`, `[FileStorage]` (no `using module` needed)
-- **Public Wrapper functions** — `VPDLXnewlogfile`, `VPDLXislogfile`, `VPDLXdroplogfile`,
+- **Type accelerators** - `[Logfile]`, `[FileDetails]`, `[FileStorage]` (no `using module` needed)
+- **Public Wrapper functions** - `VPDLXnewlogfile`, `VPDLXislogfile`, `VPDLXdroplogfile`,
   `VPDLXreadlogfile`, `VPDLXwritelogfile`, `VPDLXexportlogfile`,
   `VPDLXgetalllogfiles`, `VPDLXresetlogfile`, `VPDLXfilterlogfile`
-- **Module accessor** — `VPDLXcore`
+- **Module accessor** - `VPDLXcore`
 
 ---
 
-## Step 2 — Create a virtual log file
+## Step 2 - Create a virtual log file
 
-### Recommended — Public Wrapper
+### Recommended - Public Wrapper
 
 ```powershell
 $r = VPDLXnewlogfile -Logfile 'MyFirstLog'
@@ -47,7 +47,7 @@ if ($r.code -eq 0) {
 }
 ```
 
-### Alternative — Class API (direct)
+### Alternative - Class API (direct)
 
 ```powershell
 $log = [Logfile]::new('MyFirstLog')
@@ -61,7 +61,7 @@ $log = [Logfile]::new('MyFirstLog')
 
 ---
 
-## Step 3 — Check whether a log file exists
+## Step 3 - Check whether a log file exists
 
 ```powershell
 $exists = VPDLXislogfile -Logfile 'MyFirstLog'
@@ -74,7 +74,7 @@ if ($exists) {
 
 ---
 
-## Step 4 — Write log entries
+## Step 4 - Write log entries
 
 ### Via Public Wrapper
 
@@ -97,7 +97,7 @@ $log.Trace('Variable $count = 42 at line 87.')
 $log.Warning('Disk usage has exceeded 80 percent.')
 $log.Error('HTTP request returned status 503.')
 $log.Critical('Primary database cluster is unreachable.')
-$log.Fatal('Unrecoverable exception — process will terminate.')
+$log.Fatal('Unrecoverable exception - process will terminate.')
 ```
 
 ### Via `Write()` (generic)
@@ -105,11 +105,11 @@ $log.Fatal('Unrecoverable exception — process will terminate.')
 ```powershell
 $log.Write('info',    'Application started successfully.')
 $log.Write('debug',   'Configuration file loaded from C:\App\config.json.')
-$log.Write('warning', 'Retry limit is set to 0 — retries are disabled.')
+$log.Write('warning', 'Retry limit is set to 0 - retries are disabled.')
 $log.Write('error',   'Failed to connect to the database on first attempt.')
 ```
 
-### Batch write — `Print()`
+### Batch write - `Print()`
 
 ```powershell
 $messages = @(
@@ -158,13 +158,13 @@ number throws an `ArgumentException`.
 | `critical` | `.Critical()`     | `[CRITICAL]` |
 | `fatal`    | `.Fatal()`        | `[FATAL]`    |
 
-Level identifiers are **case-insensitive** — `'INFO'`, `'Info'`, and `'info'` all work.
+Level identifiers are **case-insensitive** - `'INFO'`, `'Info'`, and `'info'` all work.
 
 ---
 
-## Step 5 — Read log entries
+## Step 5 - Read log entries
 
-### Read a specific line — `VPDLXreadlogfile` / `Read()`
+### Read a specific line - `VPDLXreadlogfile` / `Read()`
 
 ```powershell
 # Public Wrapper (1-based index; out-of-range values are clamped automatically)
@@ -175,14 +175,14 @@ Write-Host $r.data
 $log.Read(1)
 ```
 
-### Read everything — `GetAllEntries()`
+### Read everything - `GetAllEntries()`
 
 ```powershell
 $allLines = $log.GetAllEntries()
 $allLines | ForEach-Object { Write-Host $_ }
 ```
 
-### Filter by level — `FilterByLevel()`
+### Filter by level - `FilterByLevel()`
 
 ```powershell
 $errors = $log.FilterByLevel('error')
@@ -200,13 +200,13 @@ if ($log.HasEntries()) {
 }
 
 if ($log.IsEmpty()) {
-    Write-Host 'Log is empty — nothing to display.'
+    Write-Host 'Log is empty - nothing to display.'
 }
 ```
 
 ---
 
-## Step 6 — Export to disk
+## Step 6 - Export to disk
 
 `VPDLXexportlogfile` writes a virtual log file as a physical file.
 The target directory is created automatically if it does not exist.
@@ -238,7 +238,7 @@ $r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'html
 if ($r.code -eq 0) { Start-Process $r.data }   # opens in default browser
 
 # Export as NDJSON for log-streaming pipelines (v1.02.06)
-# One JSON object per line — ideal for Elasticsearch, Logstash, Kafka, Loki
+# One JSON object per line - ideal for Elasticsearch, Logstash, Kafka, Loki
 $r = VPDLXexportlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBOM
 
 # Check the result
@@ -253,7 +253,7 @@ Supported export formats: `txt`, `log`, `csv`, `json`, `html`, `ndjson`
 
 ---
 
-## Step 7 — Inspect metadata
+## Step 7 - Inspect metadata
 
 ```powershell
 $details = $log.GetDetails()
@@ -284,7 +284,7 @@ $details.ToHashtable()
 
 Since v1.02.06, the `[Logfile]` class supports a configurable minimum log level.
 When specified during construction, log entries below the given severity are
-silently discarded by `Write()` and `Print()` — no exception is thrown.
+silently discarded by `Write()` and `Print()` - no exception is thrown.
 
 ```powershell
 # Create a production log that only records warnings and above
@@ -318,7 +318,7 @@ $prodLog.GetMinLogLevel()   # → 'warning'
 The ranking is also available as a static property: `[Logfile]::LevelSeverity`
 
 ```powershell
-# Create a log with no filter (default behaviour — unchanged)
+# Create a log with no filter (default behaviour - unchanged)
 $devLog = [Logfile]::new('DevLog')
 $devLog.GetMinLogLevel()    # → 'none'
 ```
@@ -464,8 +464,8 @@ press `<Enter>` before continuing, so you can read each result at your own pace.
   instances inside `ForEach-Object -Parallel` or `Start-ThreadJob` without external
   synchronisation. See `README.md` for the full list of known limitations.
 - After calling `.Destroy()` or `VPDLXdroplogfile`, always set the variable to `$null`.
-  Subsequent method calls on a destroyed instance — including `ToString()` and
-  implicit string interpolation — throw `ObjectDisposedException` (fixed in v1.02.03).
+  Subsequent method calls on a destroyed instance - including `ToString()` and
+  implicit string interpolation - throw `ObjectDisposedException` (fixed in v1.02.03).
 - Individual message length is capped by `[Logfile]::MaxMessageLength` (default 8 192).
   There is no built-in **entry count** limit. Very large logs accumulate in RAM for
   the duration of the PowerShell session.

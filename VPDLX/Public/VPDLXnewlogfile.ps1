@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VPDLXnewlogfile — Public wrapper: creates a new virtual log file.
+    VPDLXnewlogfile - Public wrapper: creates a new virtual log file.
 
 .DESCRIPTION
     VPDLXnewlogfile is the public-facing wrapper for creating a new named
@@ -13,8 +13,8 @@
       3. Returns a standardised [PSCustomObject] via VPDLXreturn so callers
          can branch on .code without catching exceptions:
 
-             code  0   — success; .data holds the new [Logfile] instance
-             code -1   — failure; .msg describes the reason; .data is $null
+             code  0   - success; .data holds the new [Logfile] instance
+             code -1   - failure; .msg describes the reason; .data is $null
 
     This design separates error handling from business logic: callers do not
     need try/catch blocks and can rely on a predictable return contract.
@@ -24,16 +24,16 @@
         hyphen). All public wrapper functions are prefixed with 'VPDLX'
         followed by a lowercase verb-descriptor compound:
             VPDLXnewlogfile    (this function)
-            VPDLXislogfile     (existence check — future)
-            VPDLXdroplogfile   (removal — future)
-            VPDLXreadlogfile   (read a line — future)
-            VPDLXwritelogfile  (write a line — future)
-            VPDLXexportlogfile (export to disk — future)
+            VPDLXislogfile     (existence check - future)
+            VPDLXdroplogfile   (removal - future)
+            VPDLXreadlogfile   (read a line - future)
+            VPDLXwritelogfile  (write a line - future)
+            VPDLXexportlogfile (export to disk - future)
 
     INTERNAL DEPENDENCIES:
-        - VPDLXcore    (root module accessor — exposes $script:storage)
-        - VPDLXreturn  (return object factory — Private/)
-        - [Logfile]    (core class — Classes/Logfile.ps1)
+        - VPDLXcore    (root module accessor - exposes $script:storage)
+        - VPDLXreturn  (return object factory - Private/)
+        - [Logfile]    (core class - Classes/Logfile.ps1)
         The VPDLX.psm1 load order guarantees all three are available when
         this file is dot-sourced.
 
@@ -50,12 +50,12 @@
 
 .OUTPUTS
     [PSCustomObject] with three properties:
-        code  [int]    — 0 on success, -1 on failure
-        msg   [string] — human-readable status or error description
-        data  [object] — the new [Logfile] instance on success, $null on failure
+        code  [int]    - 0 on success, -1 on failure
+        msg   [string] - human-readable status or error description
+        data  [object] - the new [Logfile] instance on success, $null on failure
 
 .EXAMPLE
-    # Basic usage — create a new log file and check the result
+    # Basic usage - create a new log file and check the result
     $result = VPDLXnewlogfile -Logfile 'AppLog'
     if ($result.code -eq 0) {
         Write-Host "Log file created: $($result.data.Name)"
@@ -66,12 +66,12 @@
     }
 
 .EXAMPLE
-    # Duplicate-name attempt — returns code -1 with a descriptive message
+    # Duplicate-name attempt - returns code -1 with a descriptive message
     $r1 = VPDLXnewlogfile -Logfile 'MyLog'   # code 0
     $r2 = VPDLXnewlogfile -Logfile 'MyLog'   # code -1, already exists
 
 .EXAMPLE
-    # Invalid name — too short
+    # Invalid name - too short
     $result = VPDLXnewlogfile -Logfile 'AB'
     # $result.code  -> -1
     # $result.msg   -> "... must be between 3 and 64 characters ..."
@@ -83,7 +83,7 @@
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
     Updated : 06.04.2026
-    Scope   : Public — exported via Export-ModuleMember in VPDLX.psm1
+    Scope   : Public - exported via Export-ModuleMember in VPDLX.psm1
 #>
 
 function VPDLXnewlogfile {
@@ -97,7 +97,7 @@ function VPDLXnewlogfile {
         [string] $Logfile
     )
 
-    # ── Step 1: Pre-flight — verify the VPDLX core is accessible ─────────────
+    # ── Step 1: Pre-flight - verify the VPDLX core is accessible ─────────────
     # VPDLXcore bridges the scope gap between dot-sourced Public/ functions and
     # the $script:* variables that live in VPDLX.psm1's root module scope.
     # If VPDLXcore itself returns an error object (code -1), the module is in
@@ -107,7 +107,7 @@ function VPDLXnewlogfile {
         $storage = VPDLXcore -KeyID 'storage'
     }
     catch {
-        # VPDLXcore threw — very unlikely but guard defensively.
+        # VPDLXcore threw - very unlikely but guard defensively.
         return VPDLXreturn -Code -1 -Message (
             "VPDLXnewlogfile: Unable to access module storage via VPDLXcore. " +
             "Ensure the VPDLX module is loaded correctly. " +
