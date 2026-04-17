@@ -143,8 +143,38 @@ if ($httpCore.plugin.Count -ne 0) {
     }
 }
 
+
 # ____________________________________________________________________________________________________
-#  → SECTION 4: Bootstrapping
+#  → SECTION 4: Logfile initialisation
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+# we're going to create a new virtual logfile ans store the reference on it in global scope
+
+# Create new log file
+$newLogfile = VPDLXnewlogfile -Logfile $httpHost.logfile
+
+if ($newLogfile.code -ne 0) {
+
+    # Multiline-Error-Message
+    [string] $errorMessage = @(
+    "[‼] Fatal Error during init-process of local.httpserver"
+    "File: local.httpserver.psm1"
+    "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+    "Time: $((Get-Date).ToString("HH:mm:ss"))"
+    "Info:"
+    "→ $($newLogfile.msg)"
+    ) -join "`n"
+    # drop the full error message
+    Write-Error $errorMessage
+    exit 1
+}
+
+# Check existence before write access
+if (VPDLXislogfile -Logfile $httpHost.logfile) {
+    $result = VPDLXwritelogfile -Logfile $httpHost.logfile -Level 'info' -Message 'Logfile successfully initialized'
+}
+
+# ____________________________________________________________________________________________________
+#  → SECTION 5: Bootstrapping
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # The Reason, why we do the dot-sourcing at the beginnging of the module is, that we have access to
 # all public and private functions of this module during the runtime of local.httpserver.psm1.
