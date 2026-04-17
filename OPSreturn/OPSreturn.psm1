@@ -29,7 +29,6 @@
 # ____________________________________________________________________________________________________
 #  → SECTION 1: MODULE CONFIGURATION
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-# In this section we're defining the absolute minimum configuration for local.httpserver to work.
 # This configuration can be accessed/changed via the SetCoreCofing function and is stored in the
 # $Script:Config variable.
 
@@ -47,12 +46,12 @@ param(
     [Parameter(Mandatory = $false, HelpMessage = "Set whether to use detailed timestamp or not", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "timestamp")]
     [ValidateNotNullOrEmpty()]
     [ValidateSet($true,$false)]
-    [string]$timestamp,
+    [bool]$timestamp,
 
     [Parameter(Mandatory = $false, HelpMessage = "Set whether to activate verbose mode or not", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "verbosed")]
     [ValidateNotNullOrEmpty()]
     [ValidateSet($true,$false)]
-    [string]$verbosed
+    [bool]$verbosed
 )
 
     # Only handover the params, which were really used by the user
@@ -90,7 +89,7 @@ foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
 
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # ‼ NOTE: AS A PERSONAL DECISION, EXPORT-MODULEMEMBER ISN'T USED ANYMORE.
-# EXPORT OF THE FUNCTIONS WILL FULLY BE HANDLED IN local.httpserver.psd1
+# EXPORT OF THE FUNCTIONS WILL FULLY BE HANDLED IN OPSreturn.psd1
 # ____________________________________________________________________________________________________
 
 # Export public functions only
@@ -108,7 +107,7 @@ foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
 "OPSreturn module loaded successfully. Available functions:"
 "$(($PublicFunctions.BaseName) -join ', ')"
 "___________________________________________________________________________"
-"Enjoy using local.httpserver :-)"
+"Enjoy using OPSreturn :-)"
 ""
 ) -join "`n"
 Write-Verbose $finalMessage

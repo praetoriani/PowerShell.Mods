@@ -22,7 +22,7 @@ function OPSreturn {
         # PARAM: Code → Must be one of the OPScode-Enums. Defaults to -1 (fail)
         [Parameter(Mandatory = $false)]
         [ValidateScript({
-            $validCodes = [System.Enum]::GetValues([OPSStatusCode]) | ForEach-Object { [int]$_ }
+            $validCodes = [System.Enum]::GetValues([OPScode]) | ForEach-Object { [int]$_ }
             if ($_ -in $validCodes) { return $true }
             throw "OPSreturn: Invalid status code '$_'. Valid values: $($validCodes -join ', ')"
         })]
@@ -43,13 +43,6 @@ function OPSreturn {
         [AllowNull()]
         $Exception = $null
     )
-    
-    # Create a Date-/Time-Stamp (if set in the module configurations)
-    [string]$datetime = $null
-    if ( $script:conf['timestamp'] -eq $true ) {
-        #$datetime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff') + ' UTC'
-        $datetime = (Get-Date).ToString('dd.MM.yyyy ; HH:mm:ss.fff')
-    }
 
     # Auto-resolve the name of the calling function via the PowerShell call stack.
     # Index [0] = OPSreturn itself, Index [1] = direct caller.
@@ -68,7 +61,7 @@ function OPSreturn {
         state       = $Code.ToString()
         msg         = $Message
         data        = $Data
-        exceptoin   = $Exception
+        exception   = $Exception
         source      = $callerSrc
         timecode    = if ( $script:conf['timestamp'] -eq $true ) { (Get-Date).ToString('dd.MM.yyyy ; HH:mm:ss.fff') } else { '<notused>' }
         #timecode    = if ( $script:conf['timestamp'] -eq $true ) { (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff') + ' UTC' }

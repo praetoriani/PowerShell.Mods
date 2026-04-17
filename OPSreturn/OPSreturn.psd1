@@ -56,7 +56,15 @@ RequiredAssemblies = @()
 # Functions to export from this module.
 FunctionsToExport = @(
     'SetCoreConfig',        # ← This one is important. Without it, we're not able to configure the module
-    'MORE_FUNCTIONS'
+    'OPSsuccess',
+    'OPSinfo',
+    'OPSdebug',
+    'OPStimeout',
+    'OPSwarn',
+    'OPSfail',
+    'OPSerror',
+    'OPScritical',
+    'OPSfatal'
 )
 
 # Cmdlets to export from this module
