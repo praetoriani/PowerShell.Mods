@@ -105,7 +105,11 @@ function VPDLXdroplogfile {
     # and $script:* variables in VPDLX.psm1. A PSCustomObject return from
     # VPDLXcore (code -1) signals that the module is in a broken state.
     try {
-        $storage = VPDLXcore -KeyID 'storage'
+        $coreResult_storage = VPDLXcore -KeyID 'storage'
+        if ($coreResult_storage.code -ne 0) {
+            return VPDLXreturn -Code -1 -Message $coreResult_storage.msg
+        }
+        $storage = $coreResult_storage.data
     }
     catch {
         return VPDLXreturn -Code -1 -Message (

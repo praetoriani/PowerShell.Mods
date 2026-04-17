@@ -131,7 +131,11 @@ function VPDLXfilterlogfile {
     # VPDLXcore bridges the scope gap between dot-sourced Public/ functions
     # and the $script:* variables that live in VPDLX.psm1's root module scope.
     try {
-        $storage = VPDLXcore -KeyID 'storage'
+        $coreResult_storage = VPDLXcore -KeyID 'storage'
+        if ($coreResult_storage.code -ne 0) {
+            return VPDLXreturn -Code -1 -Message $coreResult_storage.msg
+        }
+        $storage = $coreResult_storage.data
     }
     catch {
         return VPDLXreturn -Code -1 -Message (

@@ -116,7 +116,12 @@ function VPDLXislogfile {
     # protects against the extreme edge case where the module was loaded in a
     # broken state and VPDLXcore itself throws.
     try {
-        $storage = VPDLXcore -KeyID 'storage'
+        $coreResult_storage = VPDLXcore -KeyID 'storage'
+        if ($coreResult_storage.code -ne 0) {
+            Write-Warning "VPDLXislogfile: VPDLXcore did not return a valid storage object. Module may not be initialised correctly."
+            return $false
+        }
+        $storage = $coreResult_storage.data
     }
     catch {
         # VPDLXcore threw - module is in an inconsistent state.

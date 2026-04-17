@@ -291,8 +291,17 @@ function VPDLXexportlogfile {
     # Both $script:storage and $script:export are required. Fetch them in a
     # single try/catch. If either VPDLXcore call fails the module is broken.
     try {
-        $storage   = VPDLXcore -KeyID 'storage'
-        $exportMap = VPDLXcore -KeyID 'export'
+        $coreResult_storage = VPDLXcore -KeyID 'storage'
+        if ($coreResult_storage.code -ne 0) {
+            return VPDLXreturn -Code -1 -Message $coreResult_storage.msg
+        }
+        $storage   = $coreResult_storage.data
+
+        $coreResult_exportMap = VPDLXcore -KeyID 'export'
+        if ($coreResult_exportMap.code -ne 0) {
+            return VPDLXreturn -Code -1 -Message $coreResult_exportMap.msg
+        }
+        $exportMap = $coreResult_exportMap.data
     }
     catch {
         return VPDLXreturn -Code -1 -Message (

@@ -104,7 +104,11 @@ function VPDLXnewlogfile {
     # an inconsistent state and we must abort early rather than risk a confusing
     # runtime error further down.
     try {
-        $storage = VPDLXcore -KeyID 'storage'
+        $coreResult_storage = VPDLXcore -KeyID 'storage'
+        if ($coreResult_storage.code -ne 0) {
+            return VPDLXreturn -Code -1 -Message $coreResult_storage.msg
+        }
+        $storage = $coreResult_storage.data
     }
     catch {
         # VPDLXcore threw - very unlikely but guard defensively.

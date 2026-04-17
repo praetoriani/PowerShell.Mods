@@ -164,6 +164,11 @@ class FileDetails {
         $this._lastAccessType = 'SoakUp'
         $this._axcount++
     }
+    hidden [void] RecordGetAllEntries() {
+        $this._lastAccessed   = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
+        $this._lastAccessType = 'GetAllEntries'
+        $this._axcount++
+    }
 
     # Records a FilterByLevel interaction.
     # Updates _lastAccessed, sets _lastAccessType to 'FilterByLevel', increments _axcount.
@@ -925,6 +930,10 @@ class Logfile {
             return @()
         }
         return $this._data.ToArray()
+    }
+    # Short Wrapper to keep SoakUp for downwards compatibility
+    [string[]] GetAllEntries() {
+        return $this.SoakUp()
     }
 
 
