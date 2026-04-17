@@ -5,11 +5,12 @@ This file follows a *reverse-chronological* order - the newest version is always
 
 ---
 
-## [1.02.07] - 17.04.2026
+## [1.02.06] - 17.04.2026
 
 ### Overview
+Advanced Features and Bugfix release. Implements the remaining two tasks from **Priorität 10** of the Developer ToDo-Liste: two new export formats (HTML and NDJSON) for `VPDLXexportlogfile`, and a configurable minimum log level for the `[Logfile]` class. These additions bring the total number of supported export formats to six and allow callers to control log verbosity at construction time.
 
-Bugfix release. Resolves two critical defects that were identified during `Demo.ps1` testing after the v1.02.06 release: a wrong return-object evaluation in all nine Public Wrapper functions, and a missing `GetAllEntries()` method on the `[Logfile]` class.
+Resolves two critical defects that were identified during `Demo.ps1` testing after the v1.02.06 release: a wrong return-object evaluation in all nine Public Wrapper functions, and a missing `GetAllEntries()` method on the `[Logfile]` class.
 
 ### Fixed - Public Wrapper Functions: Incorrect `VPDLXcore` Return Evaluation
 
@@ -63,7 +64,6 @@ $storage = $coreResult.data
 
 ### Changed - No Version Bump
 
-- Module version remains at `1.02.07` for this patch. All changes are pure bugfixes with no new API surface, no new parameters, and no behavioural changes for correctly functioning callers.
 - `VPDLXClasses.ps1`: `GetAllEntries()` method added to `[Logfile]`.
 - All nine `Public/*.ps1` files: `VPDLXcore` result evaluation corrected.
 
@@ -73,17 +73,6 @@ $storage = $coreResult.data
 - STEP 07 (`GetAllEntries()` class API) returns all log entries correctly.
 - STEP 13 (export to disk) succeeds for all four formats (txt, log, csv, json) as well as the two formats added in v1.02.06 (html, ndjson).
 - STEP 16 (error handling examples) was not affected by these bugs — all seven sub-scenarios produce the expected controlled error outputs.
-
----
-
-## [1.02.06] - 11.04.2026
-
-### Overview
-Advanced Features release. Implements the remaining two tasks from **Priorität 10**
-of the Developer ToDo-Liste: two new export formats (HTML and NDJSON) for
-`VPDLXexportlogfile`, and a configurable minimum log level for the `[Logfile]`
-class. These additions bring the total number of supported export formats to six
-and allow callers to control log verbosity at construction time.
 
 ### Added - HTML Export Format (`VPDLXexportlogfile -ExportAs 'html'`)
 
