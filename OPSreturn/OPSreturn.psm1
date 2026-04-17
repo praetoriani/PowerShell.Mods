@@ -6,10 +6,10 @@
     status information across all module functions. It provides a uniform interface for
     success/failure reporting with optional data payload and other options/features.
 .EXAMPLE
-    I... TO BE DOCUMENTED ...
+    ... TO BE DOCUMENTED ...
 .REMARKS
     IMPORTANT NOTE: This module follows an Enterprise-Pattern with three simple steps
-    → Import the local.httpserver-Module
+    → Import the Module
     → Configure the server via SetCoreConfig
     → Start using the Module
     
@@ -45,12 +45,10 @@ function SetCoreConfig {
 param(
     [Parameter(Mandatory = $false, HelpMessage = "Set whether to use detailed timestamp or not", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "timestamp")]
     [ValidateNotNullOrEmpty()]
-    [ValidateSet($true,$false)]
     [bool]$timestamp,
 
     [Parameter(Mandatory = $false, HelpMessage = "Set whether to activate verbose mode or not", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "verbosed")]
     [ValidateNotNullOrEmpty()]
-    [ValidateSet($true,$false)]
     [bool]$verbosed
 )
 

@@ -1,7 +1,7 @@
 function OPStimeout {
     <#
     .SYNOPSIS
-        Shorthand for OPSreturn -Code fail.
+        Shorthand for OPStimeout -Code fail.
     .EXAMPLE
         return OPStimeout "Timeout during operation" -Exception $_.Exception
     #>

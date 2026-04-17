@@ -26,7 +26,7 @@ function OPSreturn {
             if ($_ -in $validCodes) { return $true }
             throw "OPSreturn: Invalid status code '$_'. Valid values: $($validCodes -join ', ')"
         })]
-        $Code = [OPScode]::fail,
+        [OPScode]$Code = [OPScode]::fail,
         
         # PARAM: Message → A short Message you want to pass to the caller
         [Parameter(Mandatory = $false)]
@@ -49,7 +49,9 @@ function OPSreturn {
     # Falls back to '<unknown>' if the call stack is unexpectedly shallow.
     [string]$callerSrc = try {
         $callStack = Get-PSCallStack
-        if ($callStack.Count -gt 1) { $callStack[1].Command } else { '<unknown>' }
+        if ($callStack.Count -gt 2) { $callStack[2].Command }
+        elseif ($callStack.Count -gt 1) { $callStack[1].Command }
+        else { '<unknown>' }
     }
     catch {
         '<unknown>'
@@ -67,3 +69,14 @@ function OPSreturn {
         #timecode    = if ( $script:conf['timestamp'] -eq $true ) { (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff') + ' UTC' }
     }
 }
+
+
+
+
+
+[string]$callerSrc = try {
+    $callStack = Get-PSCallStack
+    if ($callStack.Count -gt 2)      { $callStack[2].Command }
+    elseif ($callStack.Count -gt 1)  { $callStack[1].Command }
+    else                              { '<unknown>' }
+} catch { '<unknown>' }
