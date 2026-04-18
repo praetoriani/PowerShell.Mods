@@ -5,8 +5,7 @@
 > **Autor:** Praetoriani (a.k.a. M. Sczepanski)
 > **Erstellt:** 17.04.2026
 > **Zuletzt aktualisiert:** 17.04.2026
-> **Aktueller Status:** 🚧 Phase 1 – In Entwicklung
-
+> **Aktueller Status:** ✅ Phase 1 - Punkte 1.1-1.4 abgeschlossen (18.04.2026)
 ---
 
 ## 🎯 Projektziel
@@ -73,11 +72,11 @@ local.httpserver/
 
 ### 1.1 – Precheck vervollständigen (`system.precheck.ps1`)
 
-- [ ] PowerShell-Version prüfen (Minimum: 5.1)
+- [ ] PowerShell-Version prüfen (Minimum: 5.1)x
 - [ ] Prüfen ob `System.Net.HttpListener` verfügbar ist
 - [ ] Prüfen ob das konfigurierte `wwwroot`-Verzeichnis existiert (oder sinnvoller Fallback)
 - [ ] Klare, lesbare Fehlermeldungen bei fehlgeschlagenen Checks ausgeben
-- [ ] Bei kritischem Fehler: Modul-Load abbrechen (`throw` / `exit`)
+- [x ] Bei kritischem Fehler: Modul-Load abbrechen (`throw` / `exit`)
 
 **Betroffene Datei:** `include/system.precheck.ps1`
 
