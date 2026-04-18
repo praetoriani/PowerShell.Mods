@@ -486,10 +486,10 @@ The following observations were made during the code review of `v1.00.00`:
 
 ## Author
 
-**Praetoriani (a.k.a. M.Sczepanski)**
-GitHub: [https://github.com/praetoriani](https://github.com/praetoriani)
+**Praetoriani** <br>
+GitHub: [https://github.com/praetoriani](https://github.com/praetoriani) <br>
 Project: [https://github.com/praetoriani/PowerShell.Mods](https://github.com/praetoriani/PowerShell.Mods)
 
 ---
 
-*© 2026 Praetoriani (a.k.a. M.Sczepanski). All rights reserved.*
+*© 2026 Praetoriani. All rights reserved.*

@@ -6,7 +6,7 @@
     status information across all module functions. It provides a uniform interface for
     success/failure reporting with optional data payload and other options/features.
 .EXAMPLE
-    ... TO BE DOCUMENTED ...
+    return OPSfail "Config file not found: $Path"
 .REMARKS
     IMPORTANT NOTE: This module follows an Enterprise-Pattern with three simple steps
     → Import the Module
