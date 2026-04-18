@@ -87,7 +87,7 @@ local.httpserver/
 Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `module.config` via dot-sourcing). Das ist ein technisches Debt, das beseitigt werden muss.
 
 - [x] Entscheidung treffen: `module.config` (PS-Hashtable, dot-sourced) als **Single Source of Truth**
-- [ ] `config.httphost.json` und `config.server.json` als reine Referenz-/Backup-Dateien behandeln oder entfernen
+- [x] `config.httphost.json` und `config.server.json` als reine Referenz-/Backup-Dateien behandeln oder entfernen
 - [x] `GetMimeType.ps1` anpassen: nutzt aktuell noch den alten JSON-Pfad (`$httpCore.config.mime`) – muss auf `$mimeType`-Hashtable aus `module.config` umgestellt werden
 - [x] `SetCoreConfig` in `psm1` mit `$httpHost` aus `module.config` verbinden (PathPointer → `$httpHost.wwwroot` etc.)
 - [x] Sicherstellen dass `$httpCore`, `$httpHost`, `$httpRouter` und `$mimeType` nach dem Laden korrekt im Modul-Scope verfügbar sind
