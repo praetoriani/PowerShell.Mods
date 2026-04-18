@@ -82,9 +82,10 @@ FileList = @(
     # Public functions
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',
-    'Public\Invoke-RequestHandler.ps1',
+    'Public\Start-HTTPserver.ps1',
     # Additional scripts
-    'include\system.precheck.ps1'
+    'include\system.precheck.ps1',
+    'include\module.config'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess.
