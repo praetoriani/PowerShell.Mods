@@ -149,11 +149,11 @@ if (Test-Path $modConf) {
 # ($httpCore, $httpHost, $httpRouter, $mimeType) are available in script scope.
 # This makes the config the Single Source of Truth and prevents silent failures.
 
-$script:__configVarsOk = $true
+$script:configinscope = $true
 
 foreach ($requiredVar in @('httpCore', 'httpHost', 'httpRouter', 'mimeType')) {
     if ($null -eq (Get-Variable -Name $requiredVar -Scope Script -ErrorAction SilentlyContinue)) {
-        $script:__configVarsOk = $false
+        $script:configinscope = $false
         [string] $errorMessage = @(
             "[!!] Fatal Error during init-process of local.httpserver"
             "File: local.httpserver.psm1"
@@ -168,7 +168,7 @@ foreach ($requiredVar in @('httpCore', 'httpHost', 'httpRouter', 'mimeType')) {
     }
 }
 
-if ($script:__configVarsOk) {
+if ($script:configinscope) {
     Write-Verbose "[OK] All required config variables (\$httpCore, \$httpHost, \$httpRouter, \$mimeType) are available in script scope."
 }
 
@@ -194,12 +194,23 @@ if ($httpCore.plugin.Count -ne 0) {
 
 
                 try {
-                    # The VPDLX Module/Plugin will only be loaded if UseLoggin is 1. Otherwise we're going to skip VPDLX
-                    if ($key.ToString().ToUpper() -eq "VPDLX" -and $Script:Config['UseLogging'] -eq 1) {
-                        Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
-                    } else { continue }
+                    # Special Case for VPDLX
+                    if ($key.ToString().ToUpper() -eq "VPDLX") {
+                        # Logging is active - so we need to import VPDLX
+                        if ($Script:Config['UseLogging'] -eq 1) {
+                            Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
+                            Write-Verbose "[local.httpserver] Module 'VPDLX' loaded successfully."
+                        }
+                        # UseLogging=0 - we don't need to load VPDLX
+                        else {
+                            Write-Verbose "[local.httpserver] Skipped loading Module 'VPDLX' (UseLogging=0)"
+                        }
+                    }
                     # All other Modules/Plugins will be loaded in any case (as long as they are not VPDLX)
-                    if ($key.ToString().ToUpper() -ne "VPDLX") { Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop }
+                    else {
+                        Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
+                        Write-Verbose "[local.httpserver] Module $key loaded successfully"
+                    }
                 }
                 # Something went wrong while importing the module
                 catch {
@@ -216,7 +227,6 @@ if ($httpCore.plugin.Count -ne 0) {
                     Write-Error $errorMessage
                     # In this case we're going to exit!
                     exit -1
-
                 }
 
             }
@@ -239,16 +249,13 @@ if ($httpCore.plugin.Count -ne 0) {
         }
         # The currrent Module is already available in our scope
         else {
-            [string] $errorMessage = @(
-                "[INFO] Following incident occured while loading internal Modules"
+            # Drop an info message and continue
+            [string] $infoMessage = @(
+                "[local.httpserver]"
                 "File: local.httpserver.psm1"
-                "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
-                "Time: $((Get-Date).ToString("HH:mm:ss"))"
-                "The following Module has not bee processed because it has already been loaded."
+                "Module $key is already loaded - skipping"
             ) -join "`n"
-            # drop the full error message
-            Write-Error $errorMessage
-
+            Write-Verbose $infoMessage
             continue
         }
 
@@ -258,28 +265,58 @@ if ($httpCore.plugin.Count -ne 0) {
 # ___________________________________________________________________________
 # -> SECTION 4: Logfile initialisation
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-# we're going to create a new virtual logfile ans store the reference on it in global scope
-# Create new log file
-$newLogfile = VPDLXnewlogfile -Logfile $httpHost.logfile
-if ($newLogfile.code -ne 0) {
-    # Multiline-Error-Message
-    [string] $errorMessage = @(
-        "[!!] Fatal Error during init-process of local.httpserver"
+# The initialization of the virtual logging will only be performed, when
+# UseLogging is 1. If logging is deactivated, the entire section will be skipped
+
+if ($Script:Config['UseLogging'] -eq 1) {
+
+    # Create new log file
+    $newLogfile = VPDLXnewlogfile -Logfile $httpHost.logfile
+    if ($newLogfile.code -ne 0) {
+        # Multiline-Error-Message
+        [string] $errorMessage = @(
+            "[!!] Fatal Error during init-process of local.httpserver"
+            "File: local.httpserver.psm1"
+            "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+            "Time: $((Get-Date).ToString("HH:mm:ss"))"
+            "Info:"
+            "-> $($newLogfile.msg)"
+        ) -join "`n"
+        # drop the full error message
+        Write-Error $errorMessage
+        exit 1
+    }
+    # verify existence of the virtual logfile
+    if (VPDLXislogfile -Logfile $httpHost.logfile) {
+        # virtual logfile is ready. Let's write a first entry
+        $result = VPDLXwritelogfile -Logfile $httpHost.logfile -Level 'info' -Message 'local.httpserver successfully initialized'
+    }
+    else {
+        # looks like the logfile doesn't exist :/
+        [string] $errorMessage = @(
+            "[!!] Error while creating virtual logfile"
+            "File: local.httpserver.psm1"
+            "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+            "Time: $((Get-Date).ToString("HH:mm:ss"))"
+            "Info:"
+            "-> Module VPDLX caused a runtime error. Function VPDLXnewlogfile did not create a logfile."
+        ) -join "`n"
+        # drop the full error message
+        Write-Error $errorMessage
+        exit 1
+    }
+
+}
+else {
+    # Drop an info message and continue
+    [string] $infoMessage = @(
+        "[local.httpserver]"
         "File: local.httpserver.psm1"
-        "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
-        "Time: $((Get-Date).ToString("HH:mm:ss"))"
-        "Info:"
-        "-> $($newLogfile.msg)"
+        "Logging is disabled (UseLogging=0) - skipping logfile initialization."
     ) -join "`n"
-    # drop the full error message
-    Write-Error $errorMessage
-    exit 1
+    Write-Verbose $infoMessage
 }
 
-# Check existence before write access
-if (VPDLXislogfile -Logfile $httpHost.logfile) {
-    $result = VPDLXwritelogfile -Logfile $httpHost.logfile -Level 'info' -Message 'Logfile successfully initialized'
-}
 
 # ___________________________________________________________________________
 # -> SECTION 5: Bootstrapping
