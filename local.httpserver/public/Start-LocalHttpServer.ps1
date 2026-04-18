@@ -13,14 +13,14 @@
     The root directory for serving files (default: ./wwwroot)
 
 .EXAMPLE
-    Start-LocalHttpServer
-    Start-LocalHttpServer -Port 8080 -wwwRoot "C:\inetpub\wwwroot"
+    Start-HTTPserver
+    Start-HTTPserver -Port 8080 -wwwRoot "C:\inetpub\wwwroot"
 
 .NOTES
     Author: praetoriani
     Version: 1.0
 #>
-function Start-LocalHttpServer {
+function Start-HTTPserver {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]
@@ -143,4 +143,4 @@ function Start-LocalHttpServer {
 }
 
 # Export the function
-Export-ModuleMember -Function Start-LocalHttpServer
+Export-ModuleMember -Function Start-HTTPserver

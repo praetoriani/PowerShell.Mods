@@ -7,7 +7,8 @@
     It is ideal for local development, testing, and quick file sharing without the need
     for complex server setups.
 .EXAMPLE
-    Import-Module local.httpserver -ArgumentList 'C:\MyWebApp', 0, 'hidden', $false -Verbose
+    Import-Module "local.httpserver"
+    SetCoreConfig -PathPointer "C:\wwwroot" -UseLogging 1
 .REMARKS
     IMPORTANT NOTE: This module follows an Enterprise-Pattern with three simple steps
     -> Import the local.httpserver-Module
@@ -28,7 +29,7 @@
 
 # ___________________________________________________________________________
 # -> SECTION 1: Module Configuration
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # In this section we're defining the absolute minimum configuration for local.httpserver to work.
 # This configuration can be accessed/changed via the SetCoreConfig function and is stored in the
 # $Script:Config variable.
@@ -85,7 +86,7 @@ param(
 
     # ___________________________________________________________________________
     # -> Synchronize $script:httpHost with $Script:Config (Phase 1.2)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     # $httpHost is loaded from module.config (Single Source of Truth).
     # SetCoreConfig writes into $Script:Config; we now keep $script:httpHost in sync
     # so that all internal functions can rely on $script:httpHost.wwwroot etc.
@@ -119,7 +120,7 @@ param(
 
 # ___________________________________________________________________________
 # -> SECTION 2: Load the core configuration file
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # This is the module configuration file for local.httpserver.
 $modConf = Join-Path $script:root "include\module.config"
 
@@ -143,7 +144,7 @@ if (Test-Path $modConf) {
 
 # ___________________________________________________________________________
 # -> SECTION 2a: Verify config variables are in scope (Phase 1.2)
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # After dot-sourcing module.config, ensure that all required config variables
 # ($httpCore, $httpHost, $httpRouter, $mimeType) are available in script scope.
 # This makes the config the Single Source of Truth and prevents silent failures.
@@ -173,35 +174,90 @@ if ($script:__configVarsOk) {
 
 # ___________________________________________________________________________
 # -> SECTION 3: Load required plugins
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # In this section we're going to import other modules (named as plugins)
-# looks like we got some plugins to load
+# At htis point we need to sort some things out. The VPDLX Module should
+# only be loaded, if UseLogging si set to 1. If Logging isn't activated,
+# there is no need to load the Module
+
+# First we need to make sure that we got plugins to load
 if ($httpCore.plugin.Count -ne 0) {
+
+    # let's loop through the list of plugins
     foreach ($key in $httpCore.plugin.Keys) {
-        # let's make sure that those plugins do exist
-        if (Test-Path $httpCore.plugin[$key] -and -not (Get-Module -Name $httpCore.plugin[$key]) ) {
-            # we're going to load the "plugin" into global scope
-            Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
-        } else {
-            # Multiline-Error-Message
+
+        # The current Module has not been imported yet
+        if (-not (Get-Module -Name $httpCore.plugin[$key])) {
+            # Make sure that the related file really exists
+            if (Test-Path $httpCore.plugin[$key]) {
+                # At this point, everything looks good. So we're trying to load the modules (with a small exception for VPDLX)
+
+
+                try {
+                    # The VPDLX Module/Plugin will only be loaded if UseLoggin is 1. Otherwise we're going to skip VPDLX
+                    if ($key.ToString().ToUpper() -eq "VPDLX" -and $Script:Config['UseLogging'] -eq 1) {
+                        Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
+                    } else { continue }
+                    # All other Modules/Plugins will be loaded in any case (as long as they are not VPDLX)
+                    if ($key.ToString().ToUpper() -ne "VPDLX") { Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop }
+                }
+                # Something went wrong while importing the module
+                catch {
+                    # Multiline-Error-Message
+                    [string] $errorMessage = @(
+                        "[!!] An Error occured while loading internal Modules"
+                        "File: local.httpserver.psm1"
+                        "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+                        "Time: $((Get-Date).ToString("HH:mm:ss"))"
+                        "Info:"
+                        "-> File not found: $($httpCore.plugin[$key])"
+                    ) -join "`n"
+                    # drop the full error message
+                    Write-Error $errorMessage
+                    # In this case we're going to exit!
+                    exit -1
+
+                }
+
+            }
+            # The file is not available
+            else {
+                # Multiline-Error-Message
+                [string] $errorMessage = @(
+                    "[!!] An Error occured while loading internal Modules"
+                    "File: local.httpserver.psm1"
+                    "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+                    "Time: $((Get-Date).ToString("HH:mm:ss"))"
+                    "Info:"
+                    "-> File not found: $($httpCore.plugin[$key])"
+                ) -join "`n"
+                # drop the full error message
+                Write-Error $errorMessage
+                # In this case we're going to exit!
+                exit -1
+            }
+        }
+        # The currrent Module is already available in our scope
+        else {
             [string] $errorMessage = @(
-                "[!!] Fatal Error during init-process of local.httpserver"
+                "[INFO] Following incident occured while loading internal Modules"
                 "File: local.httpserver.psm1"
                 "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
                 "Time: $((Get-Date).ToString("HH:mm:ss"))"
-                "Info:"
-                "-> File not found: $($httpCore.plugin[$key])"
+                "The following Module has not bee processed because it has already been loaded."
             ) -join "`n"
             # drop the full error message
             Write-Error $errorMessage
-            exit 1
+
+            continue
         }
+
     }
 }
 
 # ___________________________________________________________________________
 # -> SECTION 4: Logfile initialisation
-# ~~~________________________________________________________________________
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # we're going to create a new virtual logfile ans store the reference on it in global scope
 # Create new log file
 $newLogfile = VPDLXnewlogfile -Logfile $httpHost.logfile
@@ -227,7 +283,7 @@ if (VPDLXislogfile -Logfile $httpHost.logfile) {
 
 # ___________________________________________________________________________
 # -> SECTION 5: Bootstrapping
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # The Reason, why we do the dot-sourcing at the beginnging of the module is, that we have access to
 # all public and private functions of this module during the runtime of local.httpserver.psm1.
 # Get public and private function definition files
@@ -244,7 +300,7 @@ foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
     }
 }
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # NOTE: AS A PERSONAL DECISION, EXPORT-MODULEMEMBER ISN'T USED ANYMORE.
 # EXPORT OF THE FUNCTIONS WILL FULLY BE HANDLED IN local.httpserver.psd1
 # ___________________________________________________________________________
@@ -260,7 +316,7 @@ foreach ($ImportFile in @($PublicFunctions + $PrivateFunctions)) {
 # ___________________________________________________________________________
 # Module initialization message
 [string] $finalMessage = @(
-    "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    "‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾"
     "local.httpserver module loaded successfully. Available functions:"
     "$(($PublicFunctions.BaseName) -join ', ')"
     "___________________________________________________________________________"

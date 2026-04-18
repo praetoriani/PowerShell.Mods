@@ -16,7 +16,7 @@
 
 # ___________________________________________________________________________
 # -> SECTION 1: PowerShell Version Check
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # Minimum required version: PowerShell 5.1
 
 $script:__precheck_passed = $true
@@ -39,7 +39,7 @@ if ($PSVersionTable.PSVersion.Major -lt $psMinMajor -or
 
 # ___________________________________________________________________________
 # -> SECTION 2: HttpListener Availability Check
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # Ensure System.Net.HttpListener is available on this system
 
 try {
@@ -60,7 +60,7 @@ try {
 
 # ___________________________________________________________________________
 # -> SECTION 3: wwwroot Directory Check
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # Check if the configured wwwroot directory exists.
 # If $httpHost is already loaded (dot-sourced from module.config), use its wwwroot.
 # Otherwise fall back to a default 'wwwroot' subfolder relative to the module root.
@@ -95,7 +95,7 @@ if (-not (Test-Path -Path $script:__wwwroot_resolved -PathType Container)) {
 
 # ___________________________________________________________________________
 # -> SECTION 4: Precheck Summary
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
 if ($script:__precheck_passed) {
     Write-Verbose "[OK] system.precheck.ps1 completed successfully. All critical requirements are met."
