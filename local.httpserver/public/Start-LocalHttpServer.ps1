@@ -69,7 +69,7 @@ function Start-LocalHttpServer {
         Write-Host "[INFO] Starting HttpListener..." -ForegroundColor Cyan
         
         $script:httpListener = New-Object System.Net.HttpListener
-        $script:httpListener.Prefixes.Add("http://+:$Port/")
+        $script:httpListener.Prefixes.Add("http://localhost:$Port/")
         
         try {
             $script:httpListener.Start()
@@ -77,8 +77,6 @@ function Start-LocalHttpServer {
         }
         catch {
             Write-Error "Failed to start HttpListener: $($_.Exception.Message)"
-            Write-Host "[HINT] You may need to run PowerShell as Administrator or reserve the URL namespace with:" -ForegroundColor Yellow
-            Write-Host "       netsh http add urlacl url=http://+:$Port/ user=DOMAIN\user" -ForegroundColor Yellow
             return
         }
 
@@ -101,14 +99,13 @@ function Start-LocalHttpServer {
                 $requestCount++
                 
                 $request = $context.Request
-                $response = $context.Response
 
                 # Log request
                 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
                 Write-Host "[$timestamp] #$requestCount $($request.HttpMethod) $($request.RawUrl) from $($request.RemoteEndPoint)" -ForegroundColor White
 
                 # Handle request using Invoke-RequestHandler
-                Invoke-RequestHandler -Request $request -Response $response
+                Invoke-RequestHandler -Context $context
 
             }
             catch [System.Net.HttpListenerException] {
