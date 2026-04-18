@@ -24,19 +24,22 @@ function Start-HTTPserver {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]
-        [int]$Port = 8080,
+        [int]$Port = $httpHost['port'],
 
         [Parameter(Mandatory = $false)]
-        [string]$wwwRoot = "./wwwroot"
+        [string]$wwwRoot = $httpHost['wwwroot']
     )
 
+    # Request counter for logging
+    $requestCount = 0
+    
     try {
         # ----------------------------------------------------------------
         # -> SECTION 1: System prechecks
         # ----------------------------------------------------------------
         Write-Host "[INFO] Performing system prechecks..." -ForegroundColor Cyan
         
-        if (-not (Test-SystemPrecheck)) {
+        if ($script:syschecks -eq $false) {
             Write-Error "System precheck failed. Server cannot start."
             return
         }
@@ -69,7 +72,7 @@ function Start-HTTPserver {
         Write-Host "[INFO] Starting HttpListener..." -ForegroundColor Cyan
         
         $script:httpListener = New-Object System.Net.HttpListener
-        $script:httpListener.Prefixes.Add("http://localhost:$Port/")
+        $script:httpListener.Prefixes.Add("http://$($httpHost['domain']):$Port/")
         
         try {
             $script:httpListener.Start()
@@ -85,12 +88,9 @@ function Start-HTTPserver {
         # ----------------------------------------------------------------
         Write-Host "`n========================================" -ForegroundColor Green
         Write-Host "  Local HTTP Server is running" -ForegroundColor Green  
-        Write-Host "  Listening on: http://localhost:$Port" -ForegroundColor Green
+        Write-Host "  Listening on: http://$($httpHost['domain']):$Port" -ForegroundColor Green
         Write-Host "  Press Ctrl+C to stop the server" -ForegroundColor Green
         Write-Host "========================================`n" -ForegroundColor Green
-
-        # Request counter for logging
-        $requestCount = 0
 
         while ($script:httpListener.IsListening) {
             try {
@@ -141,6 +141,3 @@ function Start-HTTPserver {
         Write-Host "`n[INFO] Server stopped. Total requests processed: $requestCount" -ForegroundColor Cyan
     }
 }
-
-# Export the function
-Export-ModuleMember -Function Start-HTTPserver

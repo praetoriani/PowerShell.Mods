@@ -32,11 +32,13 @@
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # In this section we're defining the absolute minimum configuration for local.httpserver to work.
 # This configuration can be accessed/changed via the SetCoreConfig function and is stored in the
-# $Script:Config variable.
+# $script:config variable.
 
-$script:root = $PSScriptRoot # <- This is the root directory of the module, used for resolving relative paths in the config files
+$script:root = $PSScriptRoot    # <- This is the root directory of the module, used for resolving relative paths in the config files
 
-$Script:Config = @{
+$script:syschecks = $true       # <- Indicates, if all system checks have been passed
+
+$script:config = @{
     # please check below for a short description of the meaning
     PathPointer = $null             # <- Defaults to $httpHost.wwwroot on error
     ServerName  = "local.httpserver"
@@ -81,14 +83,14 @@ param(
 )
     # Only handover the params, which were really used by the user
     foreach ($key in $PSBoundParameters.Keys) {
-        $Script:Config[$key] = $PSBoundParameters[$key]
+        $script:config[$key] = $PSBoundParameters[$key]
     }
 
     # ___________________________________________________________________________
-    # -> Synchronize $script:httpHost with $Script:Config (Phase 1.2)
+    # -> Synchronize $script:httpHost with $script:config (Phase 1.2)
     # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     # $httpHost is loaded from module.config (Single Source of Truth).
-    # SetCoreConfig writes into $Script:Config; we now keep $script:httpHost in sync
+    # SetCoreConfig writes into $script:config; we now keep $script:httpHost in sync
     # so that all internal functions can rely on $script:httpHost.wwwroot etc.
 
     if ($null -ne (Get-Variable -Name 'httpHost' -Scope Script -ErrorAction SilentlyContinue)) {
@@ -110,10 +112,10 @@ param(
     }
 
     # Ensure PathPointer fallback: if PathPointer was not supplied, default to $httpHost.wwwroot
-    if ([string]::IsNullOrEmpty($Script:Config['PathPointer'])) {
+    if ([string]::IsNullOrEmpty($script:config['PathPointer'])) {
         if ($null -ne (Get-Variable -Name 'httpHost' -Scope Script -ErrorAction SilentlyContinue)) {
-            $Script:Config['PathPointer'] = $script:httpHost['wwwroot']
-            Write-Verbose "[SetCoreConfig] PathPointer defaulted to \$httpHost.wwwroot: $($Script:Config['PathPointer'])"
+            $script:config['PathPointer'] = $script:httpHost['wwwroot']
+            Write-Verbose "[SetCoreConfig] PathPointer defaulted to \$httpHost.wwwroot: $($script:config['PathPointer'])"
         }
     }
 }
@@ -197,7 +199,7 @@ if ($httpCore.plugin.Count -ne 0) {
                     # Special Case for VPDLX
                     if ($key.ToString().ToUpper() -eq "VPDLX") {
                         # Logging is active - so we need to import VPDLX
-                        if ($Script:Config['UseLogging'] -eq 1) {
+                        if ($script:config['UseLogging'] -eq 1) {
                             Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
                             Write-Verbose "[local.httpserver] Module 'VPDLX' loaded successfully."
                         }
@@ -268,7 +270,7 @@ if ($httpCore.plugin.Count -ne 0) {
 # The initialization of the virtual logging will only be performed, when
 # UseLogging is 1. If logging is deactivated, the entire section will be skipped
 
-if ($Script:Config['UseLogging'] -eq 1) {
+if ($script:config['UseLogging'] -eq 1) {
 
     # Create new log file
     $newLogfile = VPDLXnewlogfile -Logfile $httpHost.logfile

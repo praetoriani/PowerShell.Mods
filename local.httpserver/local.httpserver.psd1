@@ -75,8 +75,11 @@ FileList = @(
     'local.httpserver.psm1',
     'local.httpserver.psd1',
     'local.httpserver.ps1',   # ← This ... Ladies and Gentlemen, is our HTTP Server
+    'README.md',
+    'CHANGELOG.md',
+    'LICENSE',
+    'NOTICE',
     # Private (internal) functions
-    'Private\OPSreturn.ps1',
     'Private\ReadJSON.ps1',
     'Private\Invoke-RequestHandler.ps1',
     # Public functions
