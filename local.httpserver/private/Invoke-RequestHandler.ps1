@@ -55,6 +55,7 @@ param(
 
     $request = $Context.Request
     $response = $Context.Response
+    $headersSent = $false
 
     try {
         # ___________________________________________________________________________
@@ -68,6 +69,7 @@ param(
             $response.Headers.Add("Allow", ($allowedMethods -join ', '))
             $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("405 Method Not Allowed")
             $response.ContentLength64 = $responseBytes.Length
+            $headersSent = $true
             $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
             return
         }
@@ -103,6 +105,7 @@ param(
             $response.StatusDescription = "Forbidden"
             $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden")
             $response.ContentLength64 = $responseBytes.Length
+            $headersSent = $true
             $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
             return
         }
@@ -144,6 +147,7 @@ param(
                 $response.StatusDescription = "Not Found"
                 $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("404 Not Found: $urlPath")
                 $response.ContentLength64 = $responseBytes.Length
+                $headersSent = $true
                 $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
                 return  # OutputStream wis closed inside finally
             }
@@ -183,11 +187,13 @@ param(
         
         $response.ContentType = $detectedMime
         $response.ContentLength64 = $fileBytes.Length
-        $response.StatusCode = 200
-        $response.StatusDescription = "OK"
 
+        # Only set 200 if no previous error has been set
+        if ($response.StatusCode -eq 200) { $response.StatusDescription = "OK" }
+        
         # For HEAD requests, don't send body
         if ($request.HttpMethod -eq 'GET') {
+            $headersSent = $true
             $response.OutputStream.Write($fileBytes, 0, $fileBytes.Length)
         }
 
@@ -199,7 +205,7 @@ param(
         Write-Error "[Invoke-RequestHandler] Error processing request: $($_.Exception.Message)"
         # Only try to send 500 if the stream hasn't startet
         try {
-            if (-not $response.HeadersSent) {
+            if (-not $headersSent) {
                 $response.StatusCode = 500
                 $response.StatusDescription = "Internal Server Error"
                 $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("500 Internal Server Error")

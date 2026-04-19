@@ -117,6 +117,7 @@ function Start-HTTPserver {
 
                 # Router-Check
                 if ($urlPath -eq $script:httpRouter['stop']) {
+                    # Stop-Route: first send the response and then shutdown the server
                     $bytes = [System.Text.Encoding]::UTF8.GetBytes("Server stopping...")
                     $context.Response.StatusCode = 200
                     $context.Response.ContentLength64 = $bytes.Length
@@ -128,12 +129,23 @@ function Start-HTTPserver {
                 # Add more routes (restart, status, alive, ...) here
 
                 # Additional Router Check
-                if ($isControlRoute) {
+                elseif ($isControlRoute) {
                     # Andere Steuerungsrouten: 200 OK + leere Antwort, kein Invoke-RequestHandler
                     $context.Response.StatusCode = 200
                     $context.Response.ContentLength64 = 0
                     $context.Response.OutputStream.Close()
+                } elseif ($isSysCtrlPath) {
+                    # Unknown /sys/ctrl/-Route was called  → 404, but no Invoke-RequestHandler
+                    # Stream will be closed here  → no deadlocl
+                    $bytes = [System.Text.Encoding]::UTF8.GetBytes("404 Unknown control route: $urlPath")
+                    $context.Response.StatusCode = 404
+                    $context.Response.StatusDescription = "Not Found"
+                    $context.Response.ContentLength64 = $bytes.Length
+                    $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+                    $context.Response.OutputStream.Close()
+
                 } else {
+                    # Normal file request
                     Invoke-RequestHandler -Context $context
                 }
 
