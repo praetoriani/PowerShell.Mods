@@ -60,6 +60,28 @@ param(
     $response = $Context.Response
     $headersSent = $false
 
+    # Secure error page cache – everything gathered centrally here.
+    $ErrorPages = @{}
+
+    try {
+        if ($null -ne (Get-Variable -Name 'httpHost' -Scope Script -ErrorAction SilentlyContinue)) {
+            $rawError = $script:httpHost.error
+            if ($rawError -is [hashtable]) {
+                $ErrorPages = $rawError
+            } elseif ($rawError -is [System.Collections.IDictionary]) {
+                $ErrorPages = @{}
+                foreach ($key in $rawError.Keys) {
+                    $ErrorPages[$key] = $rawError[$key]
+                }
+            }
+        }
+    } catch {
+        # If the configuration is unreachable for any reason,
+        # we simply stick with an empty hashtable.
+        $ErrorPages = @{}
+    }
+
+
     # Secure access to error pages — $ErrorPages comes as a parameter,
     # therefore it is evaluated in the scope of the caller (where $script:httpHost is visible)
     $resolvedErrorPages = if ($null -ne $ErrorPages) { $ErrorPages } else { @{} }
@@ -140,15 +162,17 @@ param(
             $response.StatusDescription = "Not Found"
 
             # Try to load Custom-Errorpage
-            $customErrorPath = $null
-            if ($resolvedErrorPages.ContainsKey('404') -and 
-                -not [string]::IsNullOrEmpty($resolvedErrorPages['404'])) {
-                $customErrorPath = $resolvedErrorPages['404']
+            # Custom 404 errors are only attempted if we have a hashtable and a 404 entry.
+            $custom404Path = $null
+            if ($ErrorPages -is [hashtable] -and $ErrorPages.ContainsKey('404')) {
+                if (-not [string]::IsNullOrEmpty($ErrorPages['404'])) {
+                    $custom404Path = $ErrorPages['404']
+                }
             }
-            
-            if ($null -ne $customErrorPath -and (Test-Path -Path $customErrorPath -PathType Leaf)) {
+
+            if ($null -ne $custom404Path -and (Test-Path -Path $custom404Path -PathType Leaf)) {
                 # Custom-Errorpage found → Set as resolvedPath, Code will continue till Section 9
-                $resolvedPath = $customErrorPath
+                $resolvedPath = $custom404Path
             } else {
                 # No Custom Errorpage found → Send Plaintext as fallback
                 $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("404 Not Found: $urlPath")
@@ -216,32 +240,30 @@ param(
                 $response.StatusCode        = 500
                 $response.StatusDescription = "Internal Server Error"
 
-                # Try to load Custom-Errorpage
                 $custom500Path = $null
-                if ($resolvedErrorPages.ContainsKey('500') -and
-                    -not [string]::IsNullOrEmpty($resolvedErrorPages['500'])) {
-                    $custom500Path = $resolvedErrorPages['500']
+                if ($ErrorPages -is [hashtable] -and $ErrorPages.ContainsKey('500')) {
+                    if (-not [string]::IsNullOrEmpty($ErrorPages['500'])) {
+                        $custom500Path = $ErrorPages['500']
+                    }
                 }
 
                 if ($null -ne $custom500Path -and (Test-Path -Path $custom500Path -PathType Leaf)) {
                     $errorBytes = [System.IO.File]::ReadAllBytes($custom500Path)
-                    $response.ContentType     = "text/html; charset=utf-8"
+                    $response.ContentType = "text/html; charset=utf-8"
                 } else {
                     $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("500 Internal Server Error")
-                    $response.ContentType     = "text/plain; charset=utf-8"
+                    $response.ContentType = "text/plain; charset=utf-8"
                 }
 
                 $response.ContentLength64 = $errorBytes.Length
                 $headersSent = $true
                 $response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
             }
-
-
-
         } catch {
             # If we can't even send error response, just log it
             Write-Error "[Invoke-RequestHandler] Failed to send error response: $($_.Exception.Message)"
         }
+
     } finally {
         # ___________________________________________________________________________
         # -> SECTION 11: Cleanup
