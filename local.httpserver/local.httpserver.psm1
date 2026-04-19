@@ -130,6 +130,15 @@ $modConf = Join-Path $script:root "include\module.config"
 # Try to load the module.conf into the current scope via dot-sourcing the file
 if (Test-Path $modConf) {
     . $modConf  # Dot-Sourcing - alle Variablen sind jetzt im aktuellen Scope verfuegbar
+    # Sync the vars from module.conf through all scopes
+    $script:httpCore   = $httpCore
+    $script:httpHost   = $httpHost
+    $script:httpRouter = $httpRouter
+    $script:mimeType   = $mimeType
+    $httpCore   = $script:httpCore
+    $httpHost   = $script:httpHost
+    $httpRouter = $script:httpRouter
+    $mimeType   = $script:mimeType
 } else {
     # Multiline-Error-Message
     [string] $errorMessage = @(
