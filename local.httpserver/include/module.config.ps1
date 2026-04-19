@@ -71,7 +71,7 @@ $httpHost = @{  # ← Stores important information for the HTTP Server
     logfile     = "local.httpserver"
     ssl         = $false
     error       = @{
-        404     = "sys\inc\404.html"
+        404     = Join-Path $script:root "wwwroot\sys\inc\404.html"
     }
 }
 

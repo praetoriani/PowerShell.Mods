@@ -94,15 +94,29 @@ function Start-HTTPserver {
 
         while ($script:httpListener.IsListening) {
             try {
+
+
                 # Wait for incoming request (blocking call)
                 $context = $script:httpListener.GetContext()
                 $requestCount++
-                
-                $request = $context.Request
+                $request  = $context.Request
+                $urlPath  = $request.RawUrl.Split('?')[0]  # Query-String abschneiden
 
                 # Log request
                 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                Write-Host "[$timestamp] #$requestCount $($request.HttpMethod) $($request.RawUrl) from $($request.RemoteEndPoint)" -ForegroundColor White
+                Write-Host "[$timestamp] #$requestCount $($request.HttpMethod) $urlPath from $($request.RemoteEndPoint)" -ForegroundColor White
+
+                # Router-Check
+                if ($urlPath -eq $script:httpRouter['stop']) {
+                    $context.Response.StatusCode = 200
+                    $bytes = [System.Text.Encoding]::UTF8.GetBytes("Server stopping...")
+                    $context.Response.ContentLength64 = $bytes.Length
+                    $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+                    $context.Response.OutputStream.Close()
+                    $script:httpListener.Stop()
+                    break
+                }
+                # Add more routes (restart, status, alive, ...) here
 
                 # Handle request using Invoke-RequestHandler
                 Invoke-RequestHandler -Context $context
