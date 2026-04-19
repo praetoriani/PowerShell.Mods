@@ -125,17 +125,17 @@ param(
 # -> SECTION 2: Load the core configuration file
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # This is the module configuration file for local.httpserver.
-$modConf = Join-Path $script:root "include\module.config"
+$modConf = Join-Path $script:root "include\module.config.ps1"
 
-# Try to load the module.conf into the current scope via dot-sourcing the file
 if (Test-Path $modConf) {
-    . $modConf  # Dot-Sourcing - alle Variablen sind jetzt im aktuellen Scope verfuegbar
+    . $modConf
     # Set vars via Set-Variable into Script(=Module)-Scope
     Set-Variable -Name 'httpCore'   -Value $httpCore   -Scope Script
     Set-Variable -Name 'httpHost'   -Value $httpHost   -Scope Script
     Set-Variable -Name 'httpRouter' -Value $httpRouter -Scope Script
     Set-Variable -Name 'mimeType'   -Value $mimeType   -Scope Script
-} else {
+}
+else {
     # Multiline-Error-Message
     [string] $errorMessage = @(
         "[!!] Fatal Error during init-process of local.httpserver"
@@ -149,6 +149,7 @@ if (Test-Path $modConf) {
     Write-Error $errorMessage
     exit 1
 }
+
 
 # ___________________________________________________________________________
 # -> SECTION 2a: Verify config variables are in scope (Phase 1.2)
