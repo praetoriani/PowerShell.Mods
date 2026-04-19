@@ -98,24 +98,24 @@ param(
         # PathPointer -> wwwroot
         if ($PSBoundParameters.ContainsKey('PathPointer')) {
             $script:httpHost['wwwroot'] = $PathPointer
-            Write-Verbose "[SetCoreConfig] \$httpHost.wwwroot updated to: $PathPointer"
+            Write-Verbose "[SetCoreConfig] \$script:httpHost.wwwroot updated to: $PathPointer"
         }
 
         # ServerName -> logfile
         if ($PSBoundParameters.ContainsKey('ServerName')) {
             $script:httpHost['logfile'] = $ServerName
-            Write-Verbose "[SetCoreConfig] \$httpHost.logfile updated to: $ServerName"
+            Write-Verbose "[SetCoreConfig] \$script:httpHost.logfile updated to: $ServerName"
         }
 
     } else {
-        Write-Warning "[SetCoreConfig] \$httpHost is not available in script scope. module.config may not have been loaded yet."
+        Write-Warning "[SetCoreConfig] \$script:httpHost is not available in script scope. module.config may not have been loaded yet."
     }
 
     # Ensure PathPointer fallback: if PathPointer was not supplied, default to $httpHost.wwwroot
     if ([string]::IsNullOrEmpty($script:config['PathPointer'])) {
         if ($null -ne (Get-Variable -Name 'httpHost' -Scope Script -ErrorAction SilentlyContinue)) {
             $script:config['PathPointer'] = $script:httpHost['wwwroot']
-            Write-Verbose "[SetCoreConfig] PathPointer defaulted to \$httpHost.wwwroot: $($script:config['PathPointer'])"
+            Write-Verbose "[SetCoreConfig] PathPointer defaulted to \$script:httpHost.wwwroot: $($script:config['PathPointer'])"
         }
     }
 }
@@ -130,15 +130,11 @@ $modConf = Join-Path $script:root "include\module.config"
 # Try to load the module.conf into the current scope via dot-sourcing the file
 if (Test-Path $modConf) {
     . $modConf  # Dot-Sourcing - alle Variablen sind jetzt im aktuellen Scope verfuegbar
-    # Sync the vars from module.conf through all scopes
-    $script:httpCore   = $httpCore
-    $script:httpHost   = $httpHost
-    $script:httpRouter = $httpRouter
-    $script:mimeType   = $mimeType
-    $httpCore   = $script:httpCore
-    $httpHost   = $script:httpHost
-    $httpRouter = $script:httpRouter
-    $mimeType   = $script:mimeType
+    # Set vars via Set-Variable into Script(=Module)-Scope
+    Set-Variable -Name 'httpCore'   -Value $httpCore   -Scope Script
+    Set-Variable -Name 'httpHost'   -Value $httpHost   -Scope Script
+    Set-Variable -Name 'httpRouter' -Value $httpRouter -Scope Script
+    Set-Variable -Name 'mimeType'   -Value $mimeType   -Scope Script
 } else {
     # Multiline-Error-Message
     [string] $errorMessage = @(
@@ -164,7 +160,7 @@ if (Test-Path $modConf) {
 $script:configinscope = $true
 
 foreach ($requiredVar in @('httpCore', 'httpHost', 'httpRouter', 'mimeType')) {
-    $varValue = Get-Variable -Name $requiredVar -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+    $varValue = (Get-Variable -Name $requiredVar -Scope Script -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Value)
     if ($null -eq $varValue) {
         $script:configinscope = $false
         [string] $errorMessage = @(
@@ -182,7 +178,7 @@ foreach ($requiredVar in @('httpCore', 'httpHost', 'httpRouter', 'mimeType')) {
 }
 
 if ($script:configinscope) {
-    Write-Verbose "[OK] All required config variables (\$httpCore, \$httpHost, \$httpRouter, \$mimeType) are available in script scope."
+    Write-Verbose "[OK] All required config variables (\$script:httpCore, \$script:httpHost, \$script:httpRouter, \$script:mimeType) are available in script scope."
 }
 
 

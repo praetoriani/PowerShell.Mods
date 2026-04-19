@@ -41,7 +41,7 @@ param(
         if ($null -ne (Get-Variable -Name 'httpHost' -Scope Script -ErrorAction SilentlyContinue)) {
             $WwwRoot = $script:httpHost.wwwroot
         } else {
-            Write-Error "[Invoke-RequestHandler] wwwroot not specified and \$httpHost not available"
+            Write-Error "[Invoke-RequestHandler] wwwroot not specified and \$script:httpHost not available"
             return
         }
     }
