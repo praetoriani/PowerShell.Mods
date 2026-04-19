@@ -32,7 +32,7 @@ param(
     [string]$Homepage = $script:httpHost.Get_Item("homepage"),
 
     [Parameter(Mandatory = $false)]
-    [string]$ErrorPages = $script:httpHost.Get_Item("error")
+    [hashtable]$ErrorPages = $script:httpHost.error
 )
 
     # ___________________________________________________________________________
@@ -59,7 +59,7 @@ param(
     $request = $Context.Request
     $response = $Context.Response
     $headersSent = $false
-
+<#
     # Secure error page cache – everything gathered centrally here.
     $ErrorPages = @{}
 
@@ -80,12 +80,12 @@ param(
         # we simply stick with an empty hashtable.
         $ErrorPages = @{}
     }
-
-
+    
     # Secure access to error pages — $ErrorPages comes as a parameter,
     # therefore it is evaluated in the scope of the caller (where $script:httpHost is visible)
     $resolvedErrorPages = if ($null -ne $ErrorPages) { $ErrorPages } else { @{} }
-
+    
+#>
     try {
         # ___________________________________________________________________________
         # -> SECTION 2: HTTP Method validation (Whitelist: GET, HEAD)
