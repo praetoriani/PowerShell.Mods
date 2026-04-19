@@ -120,6 +120,7 @@ param(
     }
 }
 
+
 # ___________________________________________________________________________
 # -> SECTION 2: Load the core configuration file
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
@@ -174,6 +175,7 @@ if ($script:configinscope) {
     Write-Verbose "[OK] All required config variables (\$httpCore, \$httpHost, \$httpRouter, \$mimeType) are available in script scope."
 }
 
+
 # ___________________________________________________________________________
 # -> SECTION 3: Load required plugins
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
@@ -183,7 +185,45 @@ if ($script:configinscope) {
 # there is no need to load the Module
 
 # First we need to make sure that we got plugins to load
-if ($httpCore.plugin.Count -ne 0) {
+if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
+
+    # Before we're going to loop through the Plugin-List, we need to verify
+    # that every Plugin has the correct pattern and provides the following
+    # 4 keys: src , name , desc , vers
+    $validPK = 'src' , 'name' , 'desc' , 'vers'
+
+    $httpCore.plugin.GetEnumerator() | ForEach-Object {
+        $key = $_.Key
+        $val = $_.Value
+        # The Plugin has wrong type
+        if (-not ($val -is [hashtable])) {
+            [string] $errorMessage = @(
+                "[!!] Validation Error during init-process of local.httpserver"
+                "File: local.httpserver.psm1"
+                "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+                "Time: $((Get-Date).ToString("HH:mm:ss"))"
+                "Info:"
+                "Failed processing Plugins! Type is not a valid [hashtable]!"
+            ) -join "`n"
+            Write-Error $errorMessage
+            exit 1
+        }
+        # The Plugin does not provide all reqired keys
+        $missing = $validPK | Where-Object { -not $val.ContainsKey($_) }
+        if ($missing) {
+            [string] $errorMessage = @(
+                "[!!] Fatal Error during init-process of local.httpserver"
+                "File: local.httpserver.psm1"
+                "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+                "Time: $((Get-Date).ToString("HH:mm:ss"))"
+                "Info:"
+                "Unable to process. Plugin $val has missing sub-keys (src/name/desc/vers)"
+            ) -join "`n"
+            Write-Error $errorMessage
+            exit 1
+
+        }
+    }
 
     # let's loop through the list of plugins
     foreach ($key in $httpCore.plugin.Keys) {
@@ -262,7 +302,32 @@ if ($httpCore.plugin.Count -ne 0) {
         }
 
     }
+    
 }
+# No plugins to load
+elseif ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -eq 0) {
+    # Drop an info message and continue
+    [string] $infoMessage = @(
+        "[local.httpserver]"
+        "File: local.httpserver.psm1"
+        "No Plugins to load - skipping"
+    ) -join "`n"
+    Write-Verbose $infoMessage
+}
+# Wrong Format
+else {
+    [string] $errorMessage = @(
+        "[!!] Validation Error during init-process of local.httpserver"
+        "File: local.httpserver.psm1"
+        "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
+        "Time: $((Get-Date).ToString("HH:mm:ss"))"
+        "Info:"
+        "Failed processing Plugins! Type is not a valid [hashtable]!"
+    ) -join "`n"
+    Write-Error $errorMessage
+    exit 1
+}
+
 
 # ___________________________________________________________________________
 # -> SECTION 4: Logfile initialisation

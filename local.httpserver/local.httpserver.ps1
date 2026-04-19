@@ -16,21 +16,14 @@
         - PowerShell 5.1 or higher
         - No external dependencies
 #>
-param (
-    [Parameter(Mandatory = $false)]
-    [int]$Port = 8080,
-
-    [Parameter(Mandatory = $false)]
-    [string]$wwwRoot = (Join-Path $PSScriptRoot 'wwwroot')
-)
 
 # Remember the 3-Step-Enterprise-Pattern??
 
 # 1st Step: ... load the module
-Import-Module (Join-Path $PSScriptRoot 'local.httpserver.psd1') -Force
+Import-Module (Join-Path $PSScriptRoot 'local.httpserver.psd1') -Verbose
 
 # 2nd Step: ... configure the module
-SetCoreConfig -PathPointer $wwwRoot -UseLogging 0 -Mode 'console' -UseIPC $false
+SetCoreConfig -PathPointer "C:\Users\pendo\OneDrive\Development\Github\PowerShell.Mods\local.httpserver\wwwroot" -UseLogging 0
 
 # 3rd Step: ... start the server
-Start-LocalHttpServer -Port $Port -wwwRoot $wwwRoot
+Start-HTTPserver

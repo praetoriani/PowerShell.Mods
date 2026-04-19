@@ -26,10 +26,10 @@ param(
     [System.Net.HttpListenerContext]$Context,
 
     [Parameter(Mandatory = $false)]
-    [string]$WwwRoot,
+    [string]$WwwRoot = $httpHost.Get_Item("wwwroot"),
 
     [Parameter(Mandatory = $false)]
-    [string]$Homepage = "index.html"
+    [string]$Homepage = $httpHost.Get_Item("homepage")
 )
 
     # ___________________________________________________________________________
@@ -121,7 +121,7 @@ param(
 
         if (-not (Test-Path -Path $resolvedPath -PathType Leaf)) {
             # Try custom 404.html if it exists
-            $custom404 = Join-Path $resolvedWwwRoot "404.html"
+            $custom404 = Join-Path $resolvedWwwRoot
             if (Test-Path -Path $custom404 -PathType Leaf) {
                 $resolvedPath = $custom404
                 $response.StatusCode = 404

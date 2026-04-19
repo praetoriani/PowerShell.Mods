@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>local.httpserver</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #d4d4d4;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 24px;
+    }
+
+    .content-table {
+      border-collapse: collapse;
+      width: auto;
+      border-radius: 24px;
+    }
+
+    .cell-image {
+      min-width: 800px;
+      min-height: 600px;
+      text-align: center;
+      vertical-align: middle;
+      padding: 4px;
+      background-color: #16213e;
+      border-radius: 24px;
+    }
+
+    .cell-image img {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+      border-radius: 24px;
+    }
+
+    .cell-text {
+      text-align: center;
+      vertical-align: middle;
+      padding: 24px 16px;
+      /*
+      background-color: #0f3460;
+      border: 1px solid #0f3460;
+      */
+    }
+
+    .error-message {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #272727;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <table class="content-table">
+      <tbody>
+        <tr>
+          <td class="cell-image">
+            <img
+              src="home.png" width="800" height="600"/>
+          </td>
+        </tr>
+        <tr>
+          <td class="cell-text">
+            <p class="error-message">local.httpserver is up an runnig 😊</p>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>
