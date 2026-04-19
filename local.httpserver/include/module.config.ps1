@@ -71,7 +71,19 @@ $httpHost = @{  # ← Stores important information for the HTTP Server
     logfile     = "local.httpserver"
     ssl         = $false
     error       = @{
+        400     = Join-Path $script:root "wwwroot\sys\inc\400.html"
+        401     = Join-Path $script:root "wwwroot\sys\inc\401.html"
+        403     = Join-Path $script:root "wwwroot\sys\inc\403.html"
         404     = Join-Path $script:root "wwwroot\sys\inc\404.html"
+        405     = Join-Path $script:root "wwwroot\sys\inc\405.html"
+        408     = Join-Path $script:root "wwwroot\sys\inc\408.html"
+        413     = Join-Path $script:root "wwwroot\sys\inc\413.html"
+        429     = Join-Path $script:root "wwwroot\sys\inc\429.html"
+        500     = Join-Path $script:root "wwwroot\sys\inc\500.html"
+        501     = Join-Path $script:root "wwwroot\sys\inc\501.html"
+        502     = Join-Path $script:root "wwwroot\sys\inc\502.html"
+        503     = Join-Path $script:root "wwwroot\sys\inc\503.html"
+        504     = Join-Path $script:root "wwwroot\sys\inc\504.html"
     }
 }
 

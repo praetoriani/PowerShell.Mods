@@ -29,7 +29,10 @@ param(
     [string]$WwwRoot = $script:httpHost.Get_Item("wwwroot"),
 
     [Parameter(Mandatory = $false)]
-    [string]$Homepage = $script:httpHost.Get_Item("homepage")
+    [string]$Homepage = $script:httpHost.Get_Item("homepage"),
+
+    [Parameter(Mandatory = $false)]
+    [string]$ErrorPages = $script:httpHost.Get_Item("error")
 )
 
     # ___________________________________________________________________________
@@ -56,6 +59,10 @@ param(
     $request = $Context.Request
     $response = $Context.Response
     $headersSent = $false
+
+    # Secure access to error pages — $ErrorPages comes as a parameter,
+    # therefore it is evaluated in the scope of the caller (where $script:httpHost is visible)
+    $resolvedErrorPages = if ($null -ne $ErrorPages) { $ErrorPages } else { @{} }
 
     try {
         # ___________________________________________________________________________
@@ -128,28 +135,27 @@ param(
 
 
         if (-not (Test-Path -Path $resolvedPath -PathType Leaf)) {
-            # Sicher auf 404-Pfad zugreifen — niemals $null an Test-Path übergeben
-            # Safe access to the 404-Path - never pass $null to Test-Path
-            $custom404Path = $null
-            if ($null -ne $script:httpHost -and 
-                $null -ne $script:httpHost.error -and 
-                -not [string]::IsNullOrEmpty($script:httpHost.error['404'])) {
-                $custom404Path = $script:httpHost.error['404']
+
+            $response.StatusCode        = 404
+            $response.StatusDescription = "Not Found"
+
+            # Try to load Custom-Errorpage
+            $customErrorPath = $null
+            if ($resolvedErrorPages.ContainsKey('404') -and 
+                -not [string]::IsNullOrEmpty($resolvedErrorPages['404'])) {
+                $customErrorPath = $resolvedErrorPages['404']
             }
             
-            if ($null -ne $custom404Path -and (Test-Path -Path $custom404Path -PathType Leaf)) {
-                $resolvedPath = $custom404Path
-                $response.StatusCode = 404
-                $response.StatusDescription = "Not Found"
-                # No return - continue and deliver 404.html
+            if ($null -ne $customErrorPath -and (Test-Path -Path $customErrorPath -PathType Leaf)) {
+                # Custom-Errorpage found → Set as resolvedPath, Code will continue till Section 9
+                $resolvedPath = $customErrorPath
             } else {
-                $response.StatusCode = 404
-                $response.StatusDescription = "Not Found"
+                # No Custom Errorpage found → Send Plaintext as fallback
                 $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("404 Not Found: $urlPath")
                 $response.ContentLength64 = $responseBytes.Length
                 $headersSent = $true
                 $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
-                return  # OutputStream wis closed inside finally
+                return # OutputStream will closed inside finally
             }
         }
 
@@ -205,13 +211,33 @@ param(
         Write-Error "[Invoke-RequestHandler] Error processing request: $($_.Exception.Message)"
         # Only try to send 500 if the stream hasn't startet
         try {
+
             if (-not $headersSent) {
-                $response.StatusCode = 500
+                $response.StatusCode        = 500
                 $response.StatusDescription = "Internal Server Error"
-                $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("500 Internal Server Error")
+
+                # Try to load Custom-Errorpage
+                $custom500Path = $null
+                if ($resolvedErrorPages.ContainsKey('500') -and
+                    -not [string]::IsNullOrEmpty($resolvedErrorPages['500'])) {
+                    $custom500Path = $resolvedErrorPages['500']
+                }
+
+                if ($null -ne $custom500Path -and (Test-Path -Path $custom500Path -PathType Leaf)) {
+                    $errorBytes = [System.IO.File]::ReadAllBytes($custom500Path)
+                    $response.ContentType     = "text/html; charset=utf-8"
+                } else {
+                    $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("500 Internal Server Error")
+                    $response.ContentType     = "text/plain; charset=utf-8"
+                }
+
                 $response.ContentLength64 = $errorBytes.Length
+                $headersSent = $true
                 $response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
             }
+
+
+
         } catch {
             # If we can't even send error response, just log it
             Write-Error "[Invoke-RequestHandler] Failed to send error response: $($_.Exception.Message)"
