@@ -19,7 +19,7 @@ function GetMimeType {
     if (Get-Variable -Name 'mimeType' -Scope Script -ErrorAction SilentlyContinue) {
         $resolvedMimeTypes = $script:mimeType
     } elseif (Get-Variable -Name 'mimeType' -ErrorAction SilentlyContinue) {
-        $resolvedMimeTypes = $mimeType
+        $resolvedMimeTypes = $script:mimeType
     }
 
     # Safety fallback: if $mimeType is somehow not available, use a minimal built-in table

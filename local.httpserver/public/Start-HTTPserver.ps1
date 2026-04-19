@@ -24,10 +24,10 @@ function Start-HTTPserver {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]
-        [int]$Port = $httpHost['port'],
+        [int]$Port = $script:httpHost['port'],
 
         [Parameter(Mandatory = $false)]
-        [string]$wwwRoot = $httpHost['wwwroot']
+        [string]$wwwRoot = $script:httpHost['wwwroot']
     )
 
     # Request counter for logging
@@ -72,7 +72,7 @@ function Start-HTTPserver {
         Write-Host "[INFO] Starting HttpListener..." -ForegroundColor Cyan
         
         $script:httpListener = New-Object System.Net.HttpListener
-        $script:httpListener.Prefixes.Add("http://$($httpHost['domain']):$Port/")
+        $script:httpListener.Prefixes.Add("http://$($script:httpHost['domain']):$Port/")
         
         try {
             $script:httpListener.Start()
@@ -88,7 +88,7 @@ function Start-HTTPserver {
         # ----------------------------------------------------------------
         Write-Host "`n========================================" -ForegroundColor Green
         Write-Host "  Local HTTP Server is running" -ForegroundColor Green  
-        Write-Host "  Listening on: http://$($httpHost['domain']):$Port" -ForegroundColor Green
+        Write-Host "  Listening on: http://$($script:httpHost['domain']):$Port" -ForegroundColor Green
         Write-Host "  Press Ctrl+C to stop the server" -ForegroundColor Green
         Write-Host "========================================`n" -ForegroundColor Green
 

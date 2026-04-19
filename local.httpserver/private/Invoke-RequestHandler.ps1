@@ -26,10 +26,10 @@ param(
     [System.Net.HttpListenerContext]$Context,
 
     [Parameter(Mandatory = $false)]
-    [string]$WwwRoot = $httpHost.Get_Item("wwwroot"),
+    [string]$WwwRoot = $script:httpHost.Get_Item("wwwroot"),
 
     [Parameter(Mandatory = $false)]
-    [string]$Homepage = $httpHost.Get_Item("homepage")
+    [string]$Homepage = $script:httpHost.Get_Item("homepage")
 )
 
     # ___________________________________________________________________________

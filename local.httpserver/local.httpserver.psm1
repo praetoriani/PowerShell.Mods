@@ -144,11 +144,6 @@ if (Test-Path $modConf) {
     Write-Error $errorMessage
     exit 1
 }
-# Move all vars from module.config to our scope
-$script:httpCore   = $httpCore
-$script:httpHost   = $httpHost
-$script:httpRouter = $httpRouter
-$script:mimeType   = $mimeType
 
 # ___________________________________________________________________________
 # -> SECTION 2a: Verify config variables are in scope (Phase 1.2)
@@ -191,14 +186,14 @@ if ($script:configinscope) {
 # there is no need to load the Module
 
 # First we need to make sure that we got plugins to load
-if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
+if ( $script:httpCore['plugin'] -is [hashtable] -and $script:httpCore.plugin.Count -ne 0) {
 
     # Before we're going to loop through the Plugin-List, we need to verify
     # that every Plugin has the correct pattern and provides the following
     # 4 keys: src , name , desc , vers
     $validPK = 'src' , 'name' , 'desc' , 'vers'
 
-    $httpCore.plugin.GetEnumerator() | ForEach-Object {
+    $script:httpCore.plugin.GetEnumerator() | ForEach-Object {
         $key = $_.Key
         $val = $_.Value
         # The Plugin has wrong type
@@ -232,12 +227,12 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
     }
 
     # let's loop through the list of plugins
-    foreach ($key in $httpCore.plugin.Keys) {
+    foreach ($key in $script:httpCore.plugin.Keys) {
 
         # The current Module has not been imported yet
-        if (-not (Get-Module -Name $httpCore.plugin[$key]['name'])) {
+        if (-not (Get-Module -Name $script:httpCore.plugin[$key]['name'])) {
             # Make sure that the related file really exists
-            if (Test-Path $httpCore.plugin[$key]['src']) {
+            if (Test-Path $script:httpCore.plugin[$key]['src']) {
                 # At this point, everything looks good. So we're trying to load the modules (with a small exception for VPDLX)
 
                 try {
@@ -245,7 +240,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
                     if ($key.ToString().ToUpper() -eq "VPDLX") {
                         # Logging is active - so we need to import VPDLX
                         if ($script:config['UseLogging'] -eq 1) {
-                            Import-Module $httpCore.plugin[$key]['src'] -Scope Global -ErrorAction Stop
+                            Import-Module $script:httpCore.plugin[$key]['src'] -Scope Global -ErrorAction Stop
                             Write-Verbose "[local.httpserver] Module 'VPDLX' loaded successfully."
                         }
                         # UseLogging=0 - we don't need to load VPDLX
@@ -255,7 +250,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
                     }
                     # All other Modules/Plugins will be loaded in any case (as long as they are not VPDLX)
                     else {
-                        Import-Module $httpCore.plugin[$key]['src'] -Scope Global -ErrorAction Stop
+                        Import-Module $script:httpCore.plugin[$key]['src'] -Scope Global -ErrorAction Stop
                         Write-Verbose "[local.httpserver] Module $key loaded successfully"
                     }
                 }
@@ -268,7 +263,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
                         "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
                         "Time: $((Get-Date).ToString("HH:mm:ss"))"
                         "Info:"
-                        "-> File not found: $($httpCore.plugin[$key]['src'])"
+                        "-> File not found: $($script:httpCore.plugin[$key]['src'])"
                     ) -join "`n"
                     # drop the full error message
                     Write-Error $errorMessage
@@ -286,7 +281,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
                     "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
                     "Time: $((Get-Date).ToString("HH:mm:ss"))"
                     "Info:"
-                    "-> File not found: $($httpCore.plugin[$key]['src'])"
+                    "-> File not found: $($script:httpCore.plugin[$key]['src'])"
                 ) -join "`n"
                 # drop the full error message
                 Write-Error $errorMessage
@@ -310,7 +305,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
     
 }
 # No plugins to load
-elseif ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -eq 0) {
+elseif ( $script:httpCore['plugin'] -is [hashtable] -and $script:httpCore.plugin.Count -eq 0) {
     # Drop an info message and continue
     [string] $infoMessage = @(
         "[local.httpserver]"
@@ -343,7 +338,7 @@ else {
 if ($script:config['UseLogging'] -eq 1) {
 
     # Create new log file
-    $newLogfile = VPDLXnewlogfile -Logfile $httpHost.logfile
+    $newLogfile = VPDLXnewlogfile -Logfile $script:httpHost.logfile
     if ($newLogfile.code -ne 0) {
         # Multiline-Error-Message
         [string] $errorMessage = @(
@@ -359,9 +354,9 @@ if ($script:config['UseLogging'] -eq 1) {
         exit 1
     }
     # verify existence of the virtual logfile
-    if (VPDLXislogfile -Logfile $httpHost.logfile) {
+    if (VPDLXislogfile -Logfile $script:httpHost.logfile) {
         # virtual logfile is ready. Let's write a first entry
-        $result = VPDLXwritelogfile -Logfile $httpHost.logfile -Level 'info' -Message 'local.httpserver successfully initialized'
+        $result = VPDLXwritelogfile -Logfile $script:httpHost.logfile -Level 'info' -Message 'local.httpserver successfully initialized'
     }
     else {
         # looks like the logfile doesn't exist :/
