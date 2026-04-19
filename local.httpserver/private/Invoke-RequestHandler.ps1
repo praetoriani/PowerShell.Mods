@@ -123,21 +123,29 @@ param(
         # -> SECTION 6: File existence check and 404 handling
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+
         if (-not (Test-Path -Path $resolvedPath -PathType Leaf)) {
-            # Try custom 404.html if it exists
-            $custom404 = $script:httpHost.error['404']
-            if (Test-Path -Path $custom404 -PathType Leaf) {
-                $resolvedPath = $custom404
+            # Sicher auf 404-Pfad zugreifen — niemals $null an Test-Path übergeben
+            # Safe access to the 404-Path - never pass $null to Test-Path
+            $custom404Path = $null
+            if ($null -ne $script:httpHost -and 
+                $null -ne $script:httpHost.error -and 
+                -not [string]::IsNullOrEmpty($script:httpHost.error['404'])) {
+                $custom404Path = $script:httpHost.error['404']
+            }
+            
+            if ($null -ne $custom404Path -and (Test-Path -Path $custom404Path -PathType Leaf)) {
+                $resolvedPath = $custom404Path
                 $response.StatusCode = 404
                 $response.StatusDescription = "Not Found"
+                # No return - continue and deliver 404.html
             } else {
-                # Default 404 response
                 $response.StatusCode = 404
                 $response.StatusDescription = "Not Found"
                 $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("404 Not Found: $urlPath")
                 $response.ContentLength64 = $responseBytes.Length
                 $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
-                return
+                return  # OutputStream wis closed inside finally
             }
         }
 
@@ -189,12 +197,15 @@ param(
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         
         Write-Error "[Invoke-RequestHandler] Error processing request: $($_.Exception.Message)"
+        # Only try to send 500 if the stream hasn't startet
         try {
-            $response.StatusCode = 500
-            $response.StatusDescription = "Internal Server Error"
-            $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("500 Internal Server Error")
-            $response.ContentLength64 = $responseBytes.Length
-            $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+            if (-not $response.HeadersSent) {
+                $response.StatusCode = 500
+                $response.StatusDescription = "Internal Server Error"
+                $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("500 Internal Server Error")
+                $response.ContentLength64 = $errorBytes.Length
+                $response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
+            }
         } catch {
             # If we can't even send error response, just log it
             Write-Error "[Invoke-RequestHandler] Failed to send error response: $($_.Exception.Message)"

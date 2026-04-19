@@ -105,11 +105,20 @@ function Start-HTTPserver {
                 # Log request
                 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
                 Write-Host "[$timestamp] #$requestCount $($request.HttpMethod) $urlPath from $($request.RemoteEndPoint)" -ForegroundColor White
+                
+                # Router-Check for all defined routes
+                $isControlRoute = $false
+                foreach ($routeKey in $script:httpRouter.Keys) {
+                    if ($urlPath -eq $script:httpRouter[$routeKey]) {
+                        $isControlRoute = $true
+                        break
+                    }
+                }
 
                 # Router-Check
                 if ($urlPath -eq $script:httpRouter['stop']) {
-                    $context.Response.StatusCode = 200
                     $bytes = [System.Text.Encoding]::UTF8.GetBytes("Server stopping...")
+                    $context.Response.StatusCode = 200
                     $context.Response.ContentLength64 = $bytes.Length
                     $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
                     $context.Response.OutputStream.Close()
@@ -118,8 +127,15 @@ function Start-HTTPserver {
                 }
                 # Add more routes (restart, status, alive, ...) here
 
-                # Handle request using Invoke-RequestHandler
-                Invoke-RequestHandler -Context $context
+                # Additional Router Check
+                if ($isControlRoute) {
+                    # Andere Steuerungsrouten: 200 OK + leere Antwort, kein Invoke-RequestHandler
+                    $context.Response.StatusCode = 200
+                    $context.Response.ContentLength64 = 0
+                    $context.Response.OutputStream.Close()
+                } else {
+                    Invoke-RequestHandler -Context $context
+                }
 
             }
             catch [System.Net.HttpListenerException] {
