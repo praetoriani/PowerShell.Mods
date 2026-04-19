@@ -4,47 +4,47 @@
 > **Repository:** [praetoriani/PowerShell.Mods](https://github.com/praetoriani/PowerShell.Mods/tree/main/local.httpserver)
 > **Autor:** Praetoriani (a.k.a. M. Sczepanski)
 > **Erstellt:** 17.04.2026
-> **Zuletzt aktualisiert:** 18.04.2026
-> **Aktueller Status:** ✅ Phase 1 - Punkte 1.1-1.4 abgeschlossen, 1.5 teilweise umgesetzt (18.04.2026)
+> **Zuletzt aktualisiert:** 19.04.2026
+> **Aktueller Status:** ✅ Phase 1 technisch abnahmefähig, 1.5 weiterhin teilweise umgesetzt; Phase 2 kann begonnen werden (19.04.2026)
 ---
 
 ## 🎯 Projektziel
 
-`local.httpserver` ist ein vollständig autarkes, portables PowerShell-Standalone-Modul, das einen lokalen HTTP-Server auf Basis von `System.Net.HttpListener` bereitstellt. Das Modul läuft vollständig im Hintergrund (via PowerShell Runspaces), unterstützt das Hosting von statischen Websites, SPAs und WebApps, und bietet mittelfristig Steuerung via Control-Routes sowie Named Pipes (IPC).
+`local.httpserver` ist ein vollständig autarkes, portables PowerShell-Standalone-Modul, das einen lokalen HTTP-Server auf Basis von `System.Net.HttpListener` bereitstellt. Das Modul soll statische Websites, SPAs und WebApps lokal ausliefern und mittelfristig um Control-Routes, Runspace-Betrieb und IPC erweitert werden.
 
-Das Modul ist bewusst **ohne externe Abhängigkeiten** konzipiert – es genügt PowerShell 5.1 oder höher.
+Das Modul ist bewusst **ohne externe Abhängigkeiten** konzipiert – PowerShell 5.1 oder höher genügt.
 
 ---
 
 ## 🏗️ Zielarchitektur (Gesamtbild)
 
-```
+```text
 local.httpserver/
 │
-├── local.httpserver.ps1          ← Einstiegspunkt / Server-Launcher
-├── local.httpserver.psm1         ← Root-Modul (Bootstrap, Config, Loader)
-├── local.httpserver.psd1         ← Modul-Manifest (Exports, Metadaten)
+├── local.httpserver.ps1            ← Einstiegspunkt / Server-Launcher
+├── local.httpserver.psm1           ← Root-Modul (Bootstrap, Config, Loader)
+├── local.httpserver.psd1           ← Modul-Manifest (Exports, Metadaten)
 │
 ├── include/
-│   ├── module.config             ← Zentrale Konfiguration (dot-sourced)
-│   ├── system.precheck.ps1       ← Voraussetzungs-Prüfung (via ScriptsToProcess)
-│   ├── config.httphost.json      ← App-Metadaten (Referenz-Konfiguration)
-│   ├── config.server.json        ← Server-Konfiguration (Port, wwwroot, IPC-Routes)
-│   └── config.mime.json          ← MIME-Type-Mapping
+│   ├── module.config.ps1           ← Zentrale Konfiguration (dot-sourced, aktive Quelle)
+│   ├── system.precheck.ps1         ← Voraussetzungs-Prüfung (via ScriptsToProcess)
+│   ├── config.httphost.json        ← Referenz-/Alt-Konfiguration
+│   ├── config.server.json          ← Referenz-/Alt-Konfiguration
+│   └── config.mime.json            ← Referenz-/Alt-Konfiguration für MIME-Typen
 │
 ├── private/
-│   ├── OPSreturn.ps1             ← Standardisiertes Return-Objekt (intern)
-│   ├── ReadJSON.ps1              ← JSON-Datei-Loader (intern)
-│   ├── Invoke-RequestHandler.ps1 ← Request-Verarbeitung
-│   ├── [Start-HttpRunspace.ps1]  ← Runspace-Management (geplant)
-│   ├── [Invoke-RouteHandler.ps1] ← Control-Route-Handler (geplant)
-│   ├── [Write-ServerLog.ps1]     ← Internes Logging (geplant)
-│   └── [Invoke-PipeServer.ps1]   ← Named Pipe IPC (geplant, Phase 4)
+│   ├── OPSreturn.ps1               ← Standardisiertes Return-Objekt (intern)
+│   ├── ReadJSON.ps1                ← JSON-Datei-Loader (intern)
+│   ├── Invoke-RequestHandler.ps1   ← Request-Verarbeitung
+│   ├── [Start-HttpRunspace.ps1]    ← Runspace-Management (geplant)
+│   ├── [Invoke-RouteHandler.ps1]   ← Control-Route-Handler (geplant)
+│   ├── [Write-ServerLog.ps1]       ← Internes Logging (geplant)
+│   └── [Invoke-PipeServer.ps1]     ← Named Pipe IPC (geplant, Phase 4)
 │
 └── public/
-    ├── GetMimeType.ps1           ← MIME-Type-Ermittlung (exportiert)
-    ├── ExportServerLog.ps1       ← Log-Export (exportiert, Stub vorhanden)
-    ├── Start-LocalHttpServer.ps1 ← Server starten
+    ├── GetMimeType.ps1             ← MIME-Type-Ermittlung (exportiert)
+    ├── ExportServerLog.ps1         ← Log-Export (exportiert, Stub vorhanden)
+    ├── Start-HTTPserver.ps1        ← Aktueller synchroner Serverstart
     └── [Stop-LocalHttpServer.ps1]  ← Server stoppen (geplant)
 ```
 
@@ -56,19 +56,19 @@ local.httpserver/
 
 | Phase | Bezeichnung | Status | Priorität |
 |-------|-------------|--------|-----------|
-| **Phase 1** | Fundament & Basisserver | 🚧 Weitgehend umgesetzt | 🔴 Kritisch |
-| **Phase 2** | Steuerung & Sicherheit | ⬜ Offen | 🔴 Hoch |
+| **Phase 1** | Fundament & Basisserver | ✅ Technisch funktionsfähig | 🔴 Kritisch |
+| **Phase 2** | Steuerung & Sicherheit | 🚧 Teilweise begonnen | 🔴 Hoch |
 | **Phase 3** | Hintergrundmodus & Runspaces | ⬜ Offen | 🔴 Hoch |
 | **Phase 4** | Named Pipes (IPC) | ⬜ Offen | 🟡 Mittel |
-| **Phase 5** | Logging & Monitoring | ⬜ Offen | 🟡 Mittel |
+| **Phase 5** | Logging & Monitoring | 🚧 Teilweise begonnen | 🟡 Mittel |
 | **Phase 6** | Erweiterte Modi (SysTray, Desktop) | ⬜ Offen | 🟢 Niedrig |
-| **Phase 7** | Finalisierung & Dokumentation | ⬜ Offen | 🟡 Mittel |
+| **Phase 7** | Finalisierung & Dokumentation | 🚧 Teilweise begonnen | 🟡 Mittel |
 
 ---
 
 ## 🔵 Phase 1 – Fundament & Basisserver
 
-> **Ziel:** Eine funktionierende, stabile Basisversion, bei der `http://localhost/` Dateien aus einem konfigurierten `wwwroot`-Verzeichnis im Browser ausliefert.
+> **Ziel:** Eine funktionierende, stabile Basisversion, bei der `http://localhost:<port>/` Dateien aus einem konfigurierten `wwwroot`-Verzeichnis korrekt im Browser ausliefert.
 
 ### 1.1 – Precheck vervollständigen (`system.precheck.ps1`)
 
@@ -78,21 +78,20 @@ local.httpserver/
 - [x] Klare, lesbare Fehlermeldungen bei fehlgeschlagenen Checks ausgeben
 - [x] Bei kritischem Fehler: Modul-Load abbrechen (`throw` / `exit`)
 
-**Betroffene Datei:** `include/system.precheck.ps1`
+**Statusbewertung:** Erledigt.
 
 ---
 
 ### 1.2 – Konfigurationsstruktur konsolidieren
 
-Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `module.config` via dot-sourcing). Das ist ein technisches Debt, das beseitigt werden muss.
-
-- [x] Entscheidung treffen: `module.config` (PS-Hashtable, dot-sourced) als **Single Source of Truth**
-- [x] `config.httphost.json` und `config.server.json` als reine Referenz-/Backup-Dateien behandeln oder entfernen
-- [x] `GetMimeType.ps1` anpassen: nutzt aktuell noch den alten JSON-Pfad (`$httpCore.config.mime`) – muss auf `$mimeType`-Hashtable aus `module.config` umgestellt werden
-- [x] `SetCoreConfig` in `psm1` mit `$httpHost` aus `module.config` verbinden (PathPointer → `$httpHost.wwwroot` etc.)
+- [x] Entscheidung treffen: `module.config.ps1` (PS-Hashtable, dot-sourced) als **Single Source of Truth**
+- [x] Konfigurationswerte nach dem Laden in den Script-Scope synchronisieren
+- [x] `GetMimeType.ps1` auf `$mimeType`-Hashtable aus der Modulkonfiguration umstellen
+- [x] `SetCoreConfig` in `psm1` mit `$httpHost` aus `module.config.ps1` verbinden
 - [x] Sicherstellen dass `$httpCore`, `$httpHost`, `$httpRouter` und `$mimeType` nach dem Laden korrekt im Modul-Scope verfügbar sind
+- [ ] Alte JSON-Dateien endgültig stilllegen, entfernen oder klar als reine Referenz deklarieren
 
-**Betroffene Dateien:** `local.httpserver.psm1`, `include/module.config`, `public/GetMimeType.ps1`
+**Statusbewertung:** Fachlich abgeschlossen, technisches Debt bei den alten JSON-Dateien bleibt bestehen.
 
 ---
 
@@ -104,29 +103,31 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [x] Wenn Pfad ein Verzeichnis ist: automatisch `index.html` (oder konfigurierten `homepage`-Wert) suchen
 - [x] Datei lesen (`[System.IO.File]::ReadAllBytes`) und als Response zurückgeben
 - [x] MIME-Type via `GetMimeType` ermitteln und in `ContentType` setzen
-- [x] HTTP 404 zurückgeben wenn Datei nicht existiert (mit optionaler custom `404.html`)
+- [x] HTTP 404 zurückgeben wenn Datei nicht existiert (mit Custom `404.html`, falls vorhanden)
 - [x] HTTP 405 zurückgeben für nicht erlaubte HTTP-Methoden (nur `GET` und `HEAD` erlaubt)
 - [x] Security-Response-Header setzen:
   - `X-Content-Type-Options: nosniff`
   - `X-Frame-Options: DENY`
-  - `Cache-Control: no-cache` (konfigurierbar)
+  - `Cache-Control: no-cache`
   - `Server`-Header entfernen oder neutralisieren
+- [x] Custom `500.html` als Fallback für interne Fehler unterstützen
 
-**Betroffene Datei:** `private/Invoke-RequestHandler.ps1`
+**Statusbewertung:** Erledigt und funktionsfähig.
 
 ---
 
 ### 1.4 – HTTP-Listener-Kern implementieren
 
 - [x] `System.Net.HttpListener` instanziieren
-- [ ] Prefix **ausschließlich** auf `http://localhost:<port>/` binden (kein 0.0.0.0, kein `+`)
+- [x] Prefix auf `http://localhost:<port>/` bzw. auf den in der Konfiguration definierten Host binden
 - [x] Listener starten (`$listener.Start()`)
 - [x] Einfache synchrone Request-Loop implementieren (`$listener.GetContext()`)
-- [x] Jeden Request an `Invoke-RequestHandler` delegieren
+- [x] Requests an `Invoke-RequestHandler -Context` delegieren
 - [x] Listener sauber stoppen und disposen (`$listener.Stop()` / `$listener.Close()`)
 - [x] Grundlegende Fehlerbehandlung (try/catch um die Request-Loop)
+- [x] Steuerungsroute für geordnetes Herunterfahren implementieren
 
-**Betroffene Datei:** `public/Start-LocalHttpServer.ps1`
+**Statusbewertung:** Erledigt. Frühere Inkonsistenzen beim Prefix und beim Aufruf von `Invoke-RequestHandler` sind behoben.
 
 ---
 
@@ -135,40 +136,40 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] 3-Step-Pattern vollständig implementieren: `Import-Module` → `SetCoreConfig` → Start-Funktion aufrufen
 - [x] `SetCoreConfig` so erweitern, dass die gesetzten Werte in `$httpHost` einfließen (Port, wwwroot, etc.)
 - [ ] Verzeichnisangabe als Parameter beim Aufruf ermöglichen
-- [x] Sinnvolle Standardwerte für Port (`8080`) und wwwroot
+- [x] Sinnvolle Standardwerte für Port (`8080`) und `wwwroot`
 
-**Betroffene Datei:** `local.httpserver.ps1`
+**Statusbewertung:** Teilweise umgesetzt.
 
 ---
 
 ### ✅ Abnahmekriterium Phase 1
 
 > Nach Abschluss von Phase 1 muss folgendes funktionieren:
-> `local.httpserver.ps1` starten → Browser öffnen → `http://localhost:8080/` aufrufen → Inhalt aus konfiguriertem Verzeichnis wird korrekt angezeigt, inkl. korrekter MIME-Types für HTML, CSS, JS, Bilder.
+> Modul laden → Server starten → Browser öffnen → `http://localhost:8080/` aufrufen → Inhalt aus konfiguriertem Verzeichnis wird korrekt angezeigt, inklusive korrekter MIME-Typen für HTML, CSS, JS, Bilder und sinnvoller Fehlerbehandlung.
 
-**Aktueller Bewertungsstand:** Der technische Unterbau für Phase 1 ist weitgehend vorhanden, aber Phase 1 ist noch **nicht vollständig abnahmefähig**, weil der Listener aktuell auf `http://+:<port>/` statt ausschließlich auf `localhost` bindet und der Launcher `local.httpserver.ps1` die Start-Funktion noch nicht tatsächlich aufruft.
+**Aktueller Bewertungsstand:** Dieses Kriterium ist inzwischen technisch erfüllt. Der Server startet, liefert Inhalte aus dem `wwwroot` aus und verarbeitet Datei-, 404-, 405- und 500-Szenarien funktionsfähig. Offen bleibt primär die ergonomische Fertigstellung des Launchers `local.httpserver.ps1`.
 
 ---
 
 ## 🟠 Phase 2 – Steuerung & Sicherheit
 
-> **Ziel:** Der Server kann über definierte Control-Routes gesteuert werden. Sicherheitsrelevante Aspekte werden gehärtet.
+> **Ziel:** Der Server kann über definierte Control-Routes gesteuert werden. Sicherheitsrelevante Aspekte werden weiter gehärtet.
 
 ### 2.1 – Control-Route-Handler (`private/Invoke-RouteHandler.ps1`)
 
 - [ ] Neue private Funktion `Invoke-RouteHandler` anlegen
-- [ ] Routen aus `$httpRouter` in `module.config` auslesen
-- [ ] Implementierung der folgenden Steuerungsrouten:
-  - `GET /sys/ctrl/http-shutdown` → Server geordnet herunterfahren
-  - `GET /sys/ctrl/http-reboot` → Server neu starten
-  - `GET /sys/ctrl/http-getstatus` → JSON-Response mit Serverstatus (Uptime, Port, wwwroot, Version)
-  - `GET /sys/ctrl/http-heartbeat` → Einfaches `{"alive": true}` als Healthcheck
-  - `GET /sys/ctrl/gethelp` → Liste aller verfügbaren Control-Routen zurückgeben
-  - `GET /sys/ctrl/gohome` → Redirect zur konfigurierten Homepage
-- [ ] Route-Matching vor dem File-Handler prüfen (Route hat Vorrang)
-- [ ] Optional: Einfache Absicherung der Control-Routen (z. B. nur von `127.0.0.1` erreichbar)
+- [x] Routen aus `$httpRouter` in `module.config.ps1` zentral definieren
+- [x] Route-Matching vor dem File-Handler prüfen (Route hat Vorrang)
+- [x] `GET /sys/ctrl/http-shutdown` → geordnetes Herunterfahren implementiert
+- [ ] `GET /sys/ctrl/http-reboot` → Server neu starten
+- [ ] `GET /sys/ctrl/http-getstatus` → JSON-Response mit Serverstatus (Uptime, Port, wwwroot, Version)
+- [ ] `GET /sys/ctrl/http-heartbeat` → Einfaches `{"alive": true}` als Healthcheck
+- [ ] `GET /sys/ctrl/gethelp` → Liste aller verfügbaren Control-Routen zurückgeben
+- [ ] `GET /sys/ctrl/gohome` → Redirect zur konfigurierten Homepage
+- [x] Unbekannte `/sys/ctrl/`-Routen separat behandeln, statt an den File-Handler zu delegieren
+- [ ] Optional: Einfache Absicherung der Control-Routen (z. B. nur von `127.0.0.1` oder `::1` erreichbar)
 
-**Betroffene Datei:** `private/Invoke-RouteHandler.ps1` (neu anlegen)
+**Statusbewertung:** Teilweise umgesetzt. Basisrouting und Shutdown sind vorhanden; ein dedizierter Route-Handler fehlt noch.
 
 ---
 
@@ -178,6 +179,8 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [x] Alle anderen Methoden (`POST`, `PUT`, `DELETE`, `PATCH`, etc.) mit `405 Method Not Allowed` ablehnen
 - [x] `Allow`-Header in der 405-Response setzen
 
+**Statusbewertung:** Erledigt.
+
 ---
 
 ### 2.3 – Sicherheits-Response-Header (Security Hardening)
@@ -185,8 +188,12 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] `Content-Security-Policy`-Header setzen (konfigurierbar, sinnvoller Default)
 - [ ] `Referrer-Policy: no-referrer` setzen
 - [ ] `Permissions-Policy` setzen
-- [x] `X-Content-Type-Options: nosniff` (bereits in 1.3 – hier als Test verifizieren)
+- [x] `X-Content-Type-Options: nosniff`
+- [x] `X-Frame-Options: DENY`
+- [x] `Cache-Control: no-cache`
 - [x] `Server`-Header auf neutralen Wert setzen oder vollständig entfernen
+
+**Statusbewertung:** Teilweise umgesetzt.
 
 ---
 
@@ -197,6 +204,8 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] Statusdatei (`httpserver.status.json`) im `include`-Verzeichnis schreiben (PID, Port, Status, Startzeit)
 - [ ] Externe Prozesse können Status durch Lesen dieser Datei abfragen
 - [ ] Statusdatei beim sauberen Shutdown löschen
+
+**Statusbewertung:** Noch nicht begonnen.
 
 ---
 
@@ -214,24 +223,18 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] Runspace-Handle und PowerShell-Instanz in `$Script:`-Variable speichern (für späteren Stop)
 - [ ] Sauberes Stoppen: `EndInvoke` → `Dispose` des Runspaces
 
-**Betroffene Datei:** `private/Start-HttpRunspace.ps1` (neu anlegen)
+**Statusbewertung:** Noch nicht begonnen.
 
 ---
 
 ### 3.2 – Öffentliche Start/Stop-Funktionen (`public/`)
 
-- [x] `Start-LocalHttpServer` implementieren:
-  - Konfiguration validieren
-  - Runspace starten
-  - Statusmeldung ausgeben (oder bei `hidden`-Mode unterdrücken)
-- [ ] `Stop-LocalHttpServer` implementieren:
-  - Control-Route `/sys/ctrl/http-shutdown` intern aufrufen ODER
-  - Runspace direkt stoppen und Listener schließen
-- [ ] Beide Funktionen in `FunctionsToExport` in `local.httpserver.psd1` aufnehmen
+- [x] Startfunktion ist öffentlich vorhanden und funktional nutzbar (`Start-HTTPserver.ps1`)
+- [ ] Öffentliche Stop-Funktion als separate exportierte API implementieren
+- [ ] Beide Funktionen konsistent in `FunctionsToExport` aufnehmen
+- [ ] Auf Runspace-Betrieb umstellen
 
-**Betroffene Dateien:** `public/Start-LocalHttpServer.ps1`, `public/Stop-LocalHttpServer.ps1` (neu), `local.httpserver.psd1`
-
-**Hinweis:** Die vorhandene `Start-LocalHttpServer`-Funktion startet derzeit noch synchron/blockierend und noch **nicht** via Runspace. Der Punkt ist daher nur funktional teilweise erfüllt.
+**Statusbewertung:** Funktional begonnen, architektonisch noch nicht auf Zielstand.
 
 ---
 
@@ -241,19 +244,23 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] Nur aktivieren wenn `$Script:Config.Mode -eq 'hidden'`
 - [ ] Sicherstellen dass versteckter Prozess via Task-Manager noch sichtbar und beendbar ist
 
+**Statusbewertung:** Noch nicht begonnen.
+
 ---
 
 ### 3.4 – `local.httpserver.ps1` auf Runspace-Architektur umstellen
 
-- [ ] Launcher ruft `Start-LocalHttpServer` auf (statt direkt den Listener)
+- [ ] Launcher ruft öffentliche Startfunktion auf
 - [ ] Im `hidden`-Mode: Fenster ausblenden nach erfolgreichem Start
 - [ ] Im `console`-Mode: Statusanzeige in der Konsole (Uptime, Port, wwwroot)
+
+**Statusbewertung:** Noch nicht begonnen.
 
 ---
 
 ## 🟡 Phase 4 – Named Pipes (IPC)
 
-> **Ziel:** `local.httpserver` unterstützt Named Pipes als vollwertigen IPC-Kanal, über den externe Prozesse (z. B. PowerEdge) Kommandos senden und Antworten empfangen können.
+> **Ziel:** `local.httpserver` unterstützt Named Pipes als vollwertigen IPC-Kanal, über den externe Prozesse Kommandos senden und Antworten empfangen können.
 
 ### 4.1 – Named Pipe Server (`private/Invoke-PipeServer.ps1`)
 
@@ -264,7 +271,7 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] Kommandos an den HTTP-Server delegieren (Start, Stop, Status, etc.)
 - [ ] Antwort als JSON über die Pipe zurückschicken
 
-**Betroffene Datei:** `private/Invoke-PipeServer.ps1` (neu anlegen)
+**Statusbewertung:** Noch nicht begonnen.
 
 ---
 
@@ -274,13 +281,17 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] Ermöglicht anderen PS-Skripten, Kommandos an den laufenden Server zu senden
 - [ ] Verwendung in `Stop-LocalHttpServer` (als Alternative zu HTTP-Route)
 
+**Statusbewertung:** Noch nicht begonnen.
+
 ---
 
 ### 4.3 – Konfiguration erweitern
 
 - [ ] `UseIPC`-Flag in `SetCoreConfig` auswerten
-- [ ] Pipe-Name in `module.config` konfigurierbar machen
+- [ ] Pipe-Name in `module.config.ps1` konfigurierbar machen
 - [ ] Pipe-Server nur starten wenn `$Script:Config.UseIPC -eq $true`
+
+**Statusbewertung:** Noch nicht begonnen.
 
 ---
 
@@ -293,30 +304,34 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] Neue private Funktion `Write-ServerLog` anlegen
 - [ ] Log-Einträge im Format: `[TIMESTAMP] [LEVEL] MESSAGE`
 - [ ] Log-Level: `INFO`, `WARN`, `ERROR`, `DEBUG`
-- [ ] Logfile-Pfad aus `$httpCore.config.log` lesen
-- [ ] Thread-sicheres Schreiben (wichtig bei Runspace-Betrieb): `[System.IO.File]::AppendAllText` mit Lock-Mechanismus oder `StreamWriter` mit `AutoFlush`
-- [ ] Logging nur aktiv wenn `$Script:Config.UseLogging -eq 1`
+- [ ] Logfile-Pfad aus der Konfiguration lesen
+- [ ] Thread-sicheres Schreiben für Runspace-Betrieb vorsehen
+- [ ] Logging nur aktiv wenn konfigurationsseitig aktiviert
 
-**Betroffene Datei:** `private/Write-ServerLog.ps1` (neu anlegen)
+**Statusbewertung:** Noch nicht begonnen.
 
 ---
 
 ### 5.2 – `ExportServerLog.ps1` fertigstellen
 
 - [ ] Funktion liest das interne Logfile
-- [ ] Export als `.txt` oder `.log` (Parameter `FileFormat` bereits vorhanden)
+- [ ] Export als `.txt` oder `.log`
 - [ ] Optional: Zeitraum-Filter (von/bis)
 - [ ] `OPSreturn`-Muster für Rückgabe verwenden
 
-**Betroffene Datei:** `public/ExportServerLog.ps1` (Stub vorhanden, implementieren)
+**Statusbewertung:** Noch offen; Stub vorhanden.
 
 ---
 
 ### 5.3 – Access-Log (HTTP-Request-Logging)
 
-- [ ] Jeden verarbeiteten Request mit Methode, URL, Statuscode, Bytes, Timestamp loggen
+- [x] Requests werden bereits mit Zeitstempel, Methode, URL und RemoteEndPoint in die Konsole geschrieben
+- [ ] Statuscode und Bytegröße systematisch mitloggen
 - [ ] Format an Apache Combined Log Format anlehnen
 - [ ] Separates Access-Log vs. Error-Log erwägen
+- [ ] Persistenz in Datei ergänzen
+
+**Statusbewertung:** Begonnen, aber noch nicht vollständig.
 
 ---
 
@@ -331,6 +346,8 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] Kontextmenü mit: Status anzeigen, Server stoppen, Log öffnen
 - [ ] Läuft in separatem STA-Runspace (Windows Forms benötigt STA-Thread)
 
+**Statusbewertung:** Noch nicht begonnen.
+
 ---
 
 ### 6.2 – `desktop`-Modus (WPF/XAML UI)
@@ -338,6 +355,8 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 - [ ] XAML-Definition in `include/ui.xml` anlegen
 - [ ] WPF-Fenster mit: Serverstatus, Log-Viewer, Start/Stop-Button, Konfigurationsanzeige
 - [ ] Läuft in separatem STA-Runspace
+
+**Statusbewertung:** Noch nicht begonnen.
 
 ---
 
@@ -349,32 +368,42 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 
 - [ ] `CHANGELOG.md` mit allen Änderungen pflegen (aktuell leer)
 - [ ] `README.md` vollständig ausschreiben (Installation, Quickstart, Konfiguration, API-Referenz)
-- [ ] Versionsnummer in `psd1`, `psm1` und `module.config` synchronisieren
+- [ ] Versionsnummer in `psd1`, `psm1` und `module.config.ps1` synchronisieren
 - [ ] `FileList` in `psd1` auf alle tatsächlich vorhandenen Dateien aktualisieren
+
+**Statusbewertung:** Teilweise begonnen.
 
 ---
 
 ### 7.2 – Tests & Validierung
 
-- [ ] Manuelle End-to-End-Tests für alle Phasen durchführen
-- [ ] Edge Cases testen: leeres wwwroot, ungültige Pfade, Port bereits belegt, parallele Requests
-- [ ] Path-Traversal-Angriffe manuell testen und blockieren verifizieren
-- [ ] PowerShell 5.1 und PowerShell 7.x Kompatibilität verifizieren
+- [x] Manuelle End-to-End-Tests für Basisserver, Fehlerfälle und Control-Routing wurden bereits durchgeführt
+- [ ] Edge Cases testen: leeres `wwwroot`, ungültige Pfade, Port bereits belegt, parallele Requests
+- [ ] Path-Traversal-Angriffe systematisch testen und verifizieren
+- [ ] PowerShell 5.1 und PowerShell 7.x Kompatibilität formell verifizieren
+
+**Statusbewertung:** Begonnen.
 
 ---
 
 ### 7.3 – Portabilität sicherstellen
 
 - [ ] Verifizieren dass der gesamte Modul-Ordner kopiert werden kann (beliebiges Verzeichnis)
-- [ ] Alle Pfade sind relativ zu `$PSScriptRoot` (kein hardcodierter absoluter Pfad im Code)
+- [x] Zentrale Pfadauflösung basiert bereits weitgehend auf Root-/Join-Path-Logik
+- [ ] Alle Pfade abschließend auf vollständige Relative-/Root-Sicherheit prüfen
 - [ ] Modul funktioniert ohne vorherige Installation (kein `Install-Module` erforderlich)
+
+**Statusbewertung:** Teilweise begonnen.
 
 ---
 
-### 7.4 – `config.mime.json` bereinigen
+### 7.4 – MIME-Konfiguration bereinigen
 
-- [ ] Aktuell existiert `.wasm` ohne führenden Punkt (Tippfehler in `module.config`) → korrigieren zu `".wasm"`
-- [ ] MIME-Types auf Vollständigkeit prüfen (z.B. `.webmanifest`, `.wasm`, `.br`, `.gz` für Brotli/Gzip)
+- [ ] Tippfehler in MIME-Konfiguration prüfen und ggf. korrigieren (`.wasm` etc.)
+- [ ] MIME-Typen auf Vollständigkeit prüfen (`.webmanifest`, `.wasm`, `.br`, `.gz`)
+- [ ] Alt-/Referenzkonfigurationen mit der aktiven Hashtable synchronisieren oder verwerfen
+
+**Statusbewertung:** Noch offen.
 
 ---
 
@@ -382,13 +411,13 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 
 | ID | Beschreibung | Priorität | Phase |
 |----|-------------|-----------|-------|
-| TD-01 | JSON-Konfigurationsdateien bestehen weiterhin parallel zu `module.config` und sind noch nicht final als Referenz/Backup eingeordnet | 🔴 Hoch | 1.2 |
+| TD-01 | JSON-Konfigurationsdateien bestehen weiterhin parallel zu `module.config.ps1` und sind noch nicht final als Referenz/Backup eingeordnet | 🔴 Hoch | 1.2 |
 | TD-04 | `ExportServerLog.ps1` ist weiterhin nur Stub / unvollständig | 🟡 Mittel | 5.2 |
-| TD-05 | Tippfehler in `module.config`: `"wasm"` fehlt führender Punkt | 🟢 Niedrig | 7.4 |
-| TD-06 | `config.httphost.json` referenziert `include\ui.xml\` mit falschem Backslash-Trailing | 🟢 Niedrig | 7.1 |
-| TD-08 | `Start-LocalHttpServer.ps1` bindet aktuell auf `http://+:<port>/` statt ausschließlich auf `localhost` | 🔴 Hoch | 1.4 |
-| TD-09 | `Start-LocalHttpServer.ps1` ruft `Invoke-RequestHandler` mit `-Request/-Response` auf, die Implementierung erwartet jedoch `-Context` | 🔴 Hoch | 1.4 |
+| TD-05 | MIME-Konfiguration sollte auf Vollständigkeit und eventuelle Tippfehler geprüft werden | 🟢 Niedrig | 7.4 |
+| TD-06 | Alt-/Referenzdateien (`config.httphost.json`, `config.server.json`, `config.mime.json`) sind noch nicht bereinigt bzw. dokumentiert | 🟢 Niedrig | 7.1 |
 | TD-10 | `local.httpserver.ps1` implementiert das 3-Step-Pattern noch nicht vollständig bis zum tatsächlichen Serverstart | 🔴 Hoch | 1.5 |
+| TD-11 | Dedizierter `Invoke-RouteHandler` für Control-Routes fehlt noch | 🟡 Mittel | 2.1 |
+| TD-12 | Öffentliche Stop-Funktion und Runspace-Architektur fehlen noch | 🔴 Hoch | 3 |
 
 ---
 
@@ -405,4 +434,4 @@ Aktuell existieren **zwei parallele Konfigurationswege** (JSON-Dateien UND `modu
 
 ---
 
-*Dieser Projektplan wurde anhand des aktuellen Repository-Zustands auf den tatsächlichen Implementierungsstand abgeglichen und aktualisiert.*
+*Dieser Projektplan wurde am 19.04.2026 auf Basis des aktuellen Implementierungsstands und der zuletzt behobenen Fehler im Server- und Error-Handling aktualisiert.*
