@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Logo.svg" alt="VPDLX Logo" width="400" />
+  <img src="include\800x600.logo.png" alt="VPDLX Logo" width="400" />
 </div>
 
 <br />
