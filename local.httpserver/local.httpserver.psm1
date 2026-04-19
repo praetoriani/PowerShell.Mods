@@ -144,6 +144,11 @@ if (Test-Path $modConf) {
     Write-Error $errorMessage
     exit 1
 }
+# Move all vars from module.config to our scope
+$script:httpCore   = $httpCore
+$script:httpHost   = $httpHost
+$script:httpRouter = $httpRouter
+$script:mimeType   = $mimeType
 
 # ___________________________________________________________________________
 # -> SECTION 2a: Verify config variables are in scope (Phase 1.2)
@@ -155,15 +160,16 @@ if (Test-Path $modConf) {
 $script:configinscope = $true
 
 foreach ($requiredVar in @('httpCore', 'httpHost', 'httpRouter', 'mimeType')) {
-    if ($null -eq (Get-Variable -Name $requiredVar -Scope Script -ErrorAction SilentlyContinue)) {
+    $varValue = Get-Variable -Name $requiredVar -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+    if ($null -eq $varValue) {
         $script:configinscope = $false
         [string] $errorMessage = @(
             "[!!] Fatal Error during init-process of local.httpserver"
             "File: local.httpserver.psm1"
-            "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
-            "Time: $((Get-Date).ToString("HH:mm:ss"))"
+            "Date: $((Get-Date).ToString('dd.MM.yyyy'))"
+            "Time: $((Get-Date).ToString('HH:mm:ss'))"
             "Info:"
-            "-> Required config variable '\$$requiredVar' was not found in script scope after loading module.config."
+            "-> Required config variable '`$$requiredVar' was not found in script scope after loading module.config."
             "   Please check include\module.config for correctness."
         ) -join "`n"
         Write-Error $errorMessage
@@ -229,18 +235,17 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
     foreach ($key in $httpCore.plugin.Keys) {
 
         # The current Module has not been imported yet
-        if (-not (Get-Module -Name $httpCore.plugin[$key])) {
+        if (-not (Get-Module -Name $httpCore.plugin[$key]['name'])) {
             # Make sure that the related file really exists
-            if (Test-Path $httpCore.plugin[$key]) {
+            if (Test-Path $httpCore.plugin[$key]['src']) {
                 # At this point, everything looks good. So we're trying to load the modules (with a small exception for VPDLX)
-
 
                 try {
                     # Special Case for VPDLX
                     if ($key.ToString().ToUpper() -eq "VPDLX") {
                         # Logging is active - so we need to import VPDLX
                         if ($script:config['UseLogging'] -eq 1) {
-                            Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
+                            Import-Module $httpCore.plugin[$key]['src'] -Scope Global -ErrorAction Stop
                             Write-Verbose "[local.httpserver] Module 'VPDLX' loaded successfully."
                         }
                         # UseLogging=0 - we don't need to load VPDLX
@@ -250,7 +255,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
                     }
                     # All other Modules/Plugins will be loaded in any case (as long as they are not VPDLX)
                     else {
-                        Import-Module $httpCore.plugin[$key] -Scope Global -ErrorAction Stop
+                        Import-Module $httpCore.plugin[$key]['src'] -Scope Global -ErrorAction Stop
                         Write-Verbose "[local.httpserver] Module $key loaded successfully"
                     }
                 }
@@ -263,7 +268,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
                         "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
                         "Time: $((Get-Date).ToString("HH:mm:ss"))"
                         "Info:"
-                        "-> File not found: $($httpCore.plugin[$key])"
+                        "-> File not found: $($httpCore.plugin[$key]['src'])"
                     ) -join "`n"
                     # drop the full error message
                     Write-Error $errorMessage
@@ -281,7 +286,7 @@ if ( $httpCore['plugin'] -is [hashtable] -and $httpCore.plugin.Count -ne 0) {
                     "Date: $((Get-Date).ToString("dd.MM.yyyy"))"
                     "Time: $((Get-Date).ToString("HH:mm:ss"))"
                     "Info:"
-                    "-> File not found: $($httpCore.plugin[$key])"
+                    "-> File not found: $($httpCore.plugin[$key]['src'])"
                 ) -join "`n"
                 # drop the full error message
                 Write-Error $errorMessage
