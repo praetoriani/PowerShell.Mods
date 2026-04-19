@@ -38,6 +38,12 @@ function Start-HTTPserver {
     # to calculate and display the server uptime.
     $script:serverStartTime = Get-Date
 
+    # Reboot flag: set to $false on every (re)start.
+    # The /sys/ctrl/http-reboot route sets this to $true.
+    # After the while-loop ends, we check this flag to decide
+    # whether to restart the server or exit completely.
+    $script:shouldReboot = $false    
+
     try {
         # ----------------------------------------------------------------
         # -> SECTION 1: System prechecks
@@ -255,7 +261,52 @@ function Start-HTTPserver {
                     $context.Response.OutputStream.Write($jsonBytes, 0, $jsonBytes.Length)
                     $context.Response.OutputStream.Close()
                 }
-                
+
+                elseif ($urlPath -eq $script:httpRouter['restart']) {
+                    # Route: /sys/ctrl/http-reboot
+                    # Gracefully restarts the HTTP server.
+                    #
+                    # IMPORTANT - Order of operations matters here:
+                    #   1. Send the response FIRST  → the browser gets confirmation
+                    #   2. Close the output stream  → marks the response as complete
+                    #   3. Set the reboot flag      → signals the post-loop code
+                    #   4. Stop the listener        → exits the while-loop cleanly
+                    #
+                    # If we stopped the listener BEFORE sending the response,
+                    # the browser would receive a connection error instead of
+                    # a proper confirmation message. Always respond first!
+
+                    # ------------------------------------------------------------------
+                    # PART 1: Send the response BEFORE stopping the server
+                    # ------------------------------------------------------------------
+                    $rebootMessage = "Server reboot initiated. Restarting in 1 second..."
+                    $rebootBytes   = [System.Text.Encoding]::UTF8.GetBytes($rebootMessage)
+
+                    $context.Response.StatusCode        = 200
+                    $context.Response.StatusDescription = "OK"
+                    $context.Response.ContentType       = "text/plain; charset=utf-8"
+                    $context.Response.ContentLength64   = $rebootBytes.Length
+                    $context.Response.OutputStream.Write($rebootBytes, 0, $rebootBytes.Length)
+
+                    # Close the stream now - this tells the browser the response
+                    # is complete. The browser will display the message immediately.
+                    # We can safely stop the server after this point.
+                    $context.Response.OutputStream.Close()
+
+                    # ------------------------------------------------------------------
+                    # PART 2: Set the reboot flag and stop the listener
+                    # ------------------------------------------------------------------
+                    # Setting the flag BEFORE Stop() is important.
+                    # Stop() is very fast - the post-loop code checks this flag
+                    # immediately after the loop ends.
+                    $script:shouldReboot = $true
+
+                    # Stop the listener - this causes GetContext() to throw a
+                    # HttpListenerException (ErrorCode 995) which breaks the while-loop.
+                    $script:httpListener.Stop()
+                    break
+                }
+
                 # Additional Router Check
                 elseif ($isControlRoute) {
                     # Andere Steuerungsrouten: 200 OK + leere Antwort, kein Invoke-RequestHandler
@@ -291,6 +342,38 @@ function Start-HTTPserver {
             catch {
                 Write-Error "Unexpected error in main server loop: $($_.Exception.Message)"
             }
+            
+        }
+
+        # Post-loop reboot check.
+        # If the reboot flag was set by the /sys/ctrl/http-reboot route,
+        # we wait briefly for the OS to release the TCP port, then call
+        # Start-HTTPserver again with the same parameters.
+        #
+        # Why Start-Sleep -Seconds 1?
+        # When $listener.Stop() is called, the TCP port is not released
+        # instantly by the operating system. If we try to bind to the same
+        # port again immediately, $listener.Start() will throw:
+        # "Only one usage of each socket address is permitted"
+        # One second is enough for Windows to fully release the port.
+        if ($script:shouldReboot -eq $true) {
+            $script:shouldReboot = $false
+            Write-Host "`n[INFO] Reboot requested - waiting 1 second for port release..." -ForegroundColor Yellow
+
+            # The finally-block (below) will close and dispose the current listener.
+            # We save Port and wwwRoot now because they are local variables
+            # that will go out of scope once this function exits.
+            $rebootPort    = $Port
+            $rebootWwwRoot = $wwwRoot
+
+            Start-Sleep -Seconds 1
+
+            Write-Host "[INFO] Restarting server..." -ForegroundColor Yellow
+
+            # Recursive call: Start-HTTPserver calls itself with the same parameters.
+            # This creates a fresh listener, a fresh request counter and
+            # a fresh start time - a true clean restart.
+            Start-HTTPserver -Port $rebootPort -wwwRoot $rebootWwwRoot
         }
 
     }
@@ -301,7 +384,10 @@ function Start-HTTPserver {
         # ----------------------------------------------------------------
         # -> SECTION 5: Cleanup
         # ----------------------------------------------------------------
-        if ($script:httpListener -and $script:httpListener.IsListening) {
+        # FIX: Only stop/close the listener if it still exists AND is still
+        # listening. After a reboot the listener was already closed above
+        # in the post-loop block - we must not try to close it again here.
+        if ($null -ne $script:httpListener -and $script:httpListener.IsListening) {
             Write-Host "[INFO] Stopping HttpListener..." -ForegroundColor Cyan
             $script:httpListener.Stop()
             $script:httpListener.Close()
