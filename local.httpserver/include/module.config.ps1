@@ -67,11 +67,11 @@ $httpHost = @{  # ← Stores important information for the HTTP Server
     port        = 8080
     protocol    = "http"
     wwwroot     = Join-Path $script:root "wwwroot"
-    homepage    = Join-Path $script:root "wwwroot\sys\inc\index.html"
+    homepage    = "sys\inc\index.html"
     logfile     = "local.httpserver"
     ssl         = $false
     error       = @{
-        404     = Join-Path $script:root "wwwroot\sys\inc\404.html"
+        404     = "sys\inc\404.html"
     }
 }
 

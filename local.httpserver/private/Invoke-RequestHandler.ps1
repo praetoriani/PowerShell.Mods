@@ -112,6 +112,10 @@ param(
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         if (Test-Path -Path $resolvedPath -PathType Container) {
+            if ([string]::IsNullOrEmpty($Homepage)) {
+                # Fallback
+                $Homepage = "index.html"
+            }
             $resolvedPath = Join-Path $resolvedPath $Homepage
         }
 
@@ -121,7 +125,7 @@ param(
 
         if (-not (Test-Path -Path $resolvedPath -PathType Leaf)) {
             # Try custom 404.html if it exists
-            $custom404 = Join-Path $resolvedWwwRoot
+            $custom404 = $script:httpHost.error['404']
             if (Test-Path -Path $custom404 -PathType Leaf) {
                 $resolvedPath = $custom404
                 $response.StatusCode = 404
@@ -141,9 +145,9 @@ param(
         # -> SECTION 7: MIME Type detection
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        $mimeType = "application/octet-stream"
+        $detectedMime = "application/octet-stream"
         try {
-            $mimeType = GetMimeType -FilePath $resolvedPath
+            $detectedMime = GetMimeType -FilePath $resolvedPath
         } catch {
             Write-Warning "[Invoke-RequestHandler] Failed to get MIME type for $resolvedPath : $($_.Exception.Message)"
         }
@@ -169,7 +173,7 @@ param(
 
         $fileBytes = [System.IO.File]::ReadAllBytes($resolvedPath)
         
-        $response.ContentType = $mimeType
+        $response.ContentType = $detectedMime
         $response.ContentLength64 = $fileBytes.Length
         $response.StatusCode = 200
         $response.StatusDescription = "OK"
