@@ -32,7 +32,12 @@ function Start-HTTPserver {
 
     # Request counter for logging
     $requestCount = 0
-    
+
+    # Record the exact time the server started.
+    # This value is used later by the /sys/ctrl/http-getstatus route
+    # to calculate and display the server uptime.
+    $script:serverStartTime = Get-Date
+
     try {
         # ----------------------------------------------------------------
         # -> SECTION 1: System prechecks
@@ -128,6 +133,129 @@ function Start-HTTPserver {
                 }
                 # Add more routes (restart, status, alive, ...) here
 
+                elseif ($urlPath -eq $script:httpRouter['home']) {
+                    # Route: /sys/ctrl/gohome
+                    # Sends an HTTP 302 redirect to the configured homepage.
+                    # The browser receives the Location header and automatically
+                    # navigates to the target URL - no user interaction required.
+
+                    # Build the target URL from the configuration values in $httpHost
+                    $homeUrl = "$($script:httpHost['protocol'])://$($script:httpHost['domain']):$($script:httpHost['port'])/"
+
+                    # HTTP 302 = temporary redirect
+                    # Important: do NOT use 301 (permanent redirect) here!
+                    # A 301 is cached by the browser - it would never call this
+                    # server route again after the first visit.
+                    $context.Response.StatusCode        = 302
+                    $context.Response.StatusDescription = "Found"
+
+                    # The Location header tells the browser where to go next.
+                    # This is the only header required for a redirect to work.
+                    $context.Response.Headers.Add("Location", $homeUrl)
+
+                    # No body content needed - the browser follows the Location
+                    # header immediately and ignores any body in a redirect response.
+                    $context.Response.ContentLength64 = 0
+                    $context.Response.OutputStream.Close()
+                }
+
+                elseif ($urlPath -eq $script:httpRouter['status']) {
+                    # Route: /sys/ctrl/http-getstatus
+                    # Returns a JSON response with detailed server status information.
+                    # The response includes uptime, network config, filesystem paths,
+                    # request statistics and all defined control routes.
+
+                    # ------------------------------------------------------------------
+                    # PART 1: Calculate server uptime
+                    # ------------------------------------------------------------------
+                    # $script:serverStartTime was set when the server started (see above).
+                    # (Get-Date) gives us the current time.
+                    # Subtracting two DateTime objects in PowerShell gives a TimeSpan object.
+                    # A TimeSpan has properties: Days, Hours, Minutes, Seconds - perfect for formatting.
+                    $uptimeString = "unknown"
+                    if ($null -ne $script:serverStartTime) {
+                        $uptime       = (Get-Date) - $script:serverStartTime
+                        $uptimeString = "{0}d {1:D2}h {2:D2}m {3:D2}s" -f `
+                            $uptime.Days,
+                            $uptime.Hours,
+                            $uptime.Minutes,
+                            $uptime.Seconds
+                    }
+
+                    # ------------------------------------------------------------------
+                    # PART 2: Build the status object
+                    # ------------------------------------------------------------------
+                    # This is a nested PowerShell hashtable.
+                    # ConvertTo-Json will turn it into proper JSON later.
+                    # We group the data into logical sections so the JSON stays readable.
+                    $statusData = @{
+
+                        # General server info
+                        server = @{
+                            name      = $script:httpCore.app.name
+                            version   = $script:httpCore.app.version
+                            status    = "running"
+                            startTime = $script:serverStartTime.ToString("yyyy-MM-dd HH:mm:ss")
+                            uptime    = $uptimeString
+                        }
+
+                        # Network configuration
+                        network = @{
+                            protocol = $script:httpHost['protocol']
+                            domain   = $script:httpHost['domain']
+                            port     = $script:httpHost['port']
+                            url      = "$($script:httpHost['protocol'])://$($script:httpHost['domain']):$($script:httpHost['port'])/"
+                        }
+
+                        # Filesystem paths
+                        filesystem = @{
+                            wwwroot  = $script:httpHost['wwwroot']
+                            homepage = $script:httpHost['homepage']
+                            logfile  = $script:httpHost['logfile']
+                        }
+
+                        # Live request statistics
+                        # Note: $requestCount is a local variable defined at the top
+                        # of Start-HTTPserver - it counts every request since the server started.
+                        statistics = @{
+                            totalRequests = $requestCount
+                        }
+
+                        # All defined control routes - useful for quick reference
+                        routes = $script:httpRouter
+                    }
+
+                    # ------------------------------------------------------------------
+                    # PART 3: Serialize the hashtable to JSON
+                    # ------------------------------------------------------------------
+                    # ConvertTo-Json converts a PowerShell hashtable/object into a JSON string.
+                    # -Depth 3 means: serialize nested objects up to 3 levels deep.
+                    # Without -Depth, nested hashtables (like $statusData.server) would
+                    # appear as "System.Collections.Hashtable" instead of their actual values!
+                    $jsonString = $statusData | ConvertTo-Json -Depth 3
+                    $jsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($jsonString)
+
+                    # ------------------------------------------------------------------
+                    # PART 4: Send the response
+                    # ------------------------------------------------------------------
+                    $context.Response.StatusCode      = 200
+                    $context.Response.StatusDescription = "OK"
+
+                    # THIS IS CRITICAL: The Content-Type header tells the browser
+                    # exactly what kind of data it is receiving.
+                    # With "application/json" the browser knows it is JSON and can
+                    # display it formatted (e.g. Firefox shows a collapsible JSON tree).
+                    # Without this header, the browser would treat it as plain text.
+                    $context.Response.ContentType     = "application/json; charset=utf-8"
+                    $context.Response.ContentLength64 = $jsonBytes.Length
+
+                    # Write the JSON bytes into the response stream and close it.
+                    # ContentLength64 tells the browser exactly how many bytes to expect -
+                    # it knows the response is complete when it has received that many bytes.
+                    $context.Response.OutputStream.Write($jsonBytes, 0, $jsonBytes.Length)
+                    $context.Response.OutputStream.Close()
+                }
+                
                 # Additional Router Check
                 elseif ($isControlRoute) {
                     # Andere Steuerungsrouten: 200 OK + leere Antwort, kein Invoke-RequestHandler
