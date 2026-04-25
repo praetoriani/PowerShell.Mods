@@ -173,6 +173,73 @@ param(
         }
 
         # ___________________________________________________________________________
+        # -> SECTION 2c: Request-URI Length Limit (413 Content Too Large)
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Rejects requests with excessively long URLs before any filesystem
+        # operations are performed.
+        #
+        # WHY THIS MATTERS FOR A STATIC FILE SERVER:
+        # Even with a GET-only whitelist, an attacker can send requests with
+        # extremely long URLs (e.g. '/' + 50,000 chars). These reach
+        # [System.IO.Path]::GetFullPath() and can cause performance degradation.
+        # Checking the length here is cheap, early, and unambiguous.
+        #
+        # LIMIT RATIONALE:
+        # - 2083 chars: historical IE/Edge limit, de-facto browser maximum
+        # - 4096 chars: common web server default (Apache, nginx)
+        # - We use 4096 as a generous but reasonable upper bound.
+        #   Any URL longer than this from a browser is either a bug or malicious.
+        #
+        # RFC NOTE:
+        # RFC 9110 §15.5.15 defines 414 (URI Too Long) for this exact case.
+        # We use 413 here because it is already configured in module.config.ps1
+        # and our ErrorPages hashtable. The user experience is identical —
+        # both codes signal "your request is too big, try again."
+        # If you prefer strict RFC compliance, change 413 → 414 and add
+        # '414' to the error hashtable in module.config.ps1.
+
+        # get max. URL-Length from module.config.ps1
+        $maxUrlLength = if ($script:httpHost.ContainsKey('maxUrlLength') -and $script:httpHost['maxUrlLength'] -gt 0) {
+            $script:httpHost['maxUrlLength']
+        } else {
+            4096  # Safe fallback if not configured in module.consig.ps1
+        }
+        if ($request.RawUrl.Length -gt $maxUrlLength) {
+
+            Write-Warning "[Invoke-RequestHandler] URI too long ($($request.RawUrl.Length) chars), blocked: $($request.RawUrl.Substring(0, [Math]::Min(100, $request.RawUrl.Length)))..."
+
+            $response.StatusCode        = 413
+            $response.StatusDescription = "Content Too Large"
+
+            # Try to load custom 413 error page
+            $custom413Path = $null
+            if ($ErrorPages -is [hashtable] -and $ErrorPages.ContainsKey('413')) {
+                if (-not [string]::IsNullOrEmpty($ErrorPages['413'])) {
+                    $custom413Path = $ErrorPages['413']
+                }
+            }
+
+            if ($null -ne $custom413Path -and (Test-Path -Path $custom413Path -PathType Leaf)) {
+                # Custom error page found → send directly
+                $responseBytes              = [System.IO.File]::ReadAllBytes($custom413Path)
+                $response.ContentType       = "text/html; charset=utf-8"
+                $response.ContentLength64   = $responseBytes.Length
+                $headersSent = $true
+                $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+            } else {
+                # No custom page → plaintext fallback
+                # Same reasoning as 403: do NOT reflect the (potentially huge) URL back.
+                $responseBytes              = [System.Text.Encoding]::UTF8.GetBytes("413 Content Too Large: Request URI exceeds maximum allowed length.")
+                $response.ContentType       = "text/plain; charset=utf-8"
+                $response.ContentLength64   = $responseBytes.Length
+                $headersSent = $true
+                $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+            }
+
+            return
+        }
+
+        # ___________________________________________________________________________
         # -> SECTION 3: URL to Filesystem Path Mapping
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -191,20 +258,56 @@ param(
         # ___________________________________________________________________________
         # -> SECTION 4: Path Traversal Protection
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # CRITICAL SECURITY: Ensure resolved path is within wwwroot
+        # CRITICAL SECURITY: Ensure resolved path is within wwwroot.
+        #
+        # NOTE ON PATTERN CHOICE:
+        # Unlike 404/400 (where $resolvedPath is redirected to the error page and
+        # the pipeline continues normally), we use the direct-send pattern here.
+        # Reason: $resolvedPath currently holds the attacker-controlled path that
+        # escaped wwwroot. Reusing it — even redirected — in the downstream pipeline
+        # would be confusing and fragile. A clean early-exit is safer and clearer
+        # for a security-critical code path.
 
-        $resolvedPath = [System.IO.Path]::GetFullPath($fullPath)
+        $resolvedPath    = [System.IO.Path]::GetFullPath($fullPath)
         $resolvedWwwRoot = [System.IO.Path]::GetFullPath($WwwRoot)
 
-        # Check if resolved path starts with wwwroot (case-insensitive for Windows)
         if (-not $resolvedPath.StartsWith($resolvedWwwRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+
             Write-Warning "[Invoke-RequestHandler] Path traversal attempt blocked: $urlPath"
-            $response.StatusCode = 403
+
+            $response.StatusCode        = 403
             $response.StatusDescription = "Forbidden"
-            $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden")
-            $response.ContentLength64 = $responseBytes.Length
-            $headersSent = $true
-            $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+
+            # Try to load custom 403 error page (same pattern as 405/500)
+            $custom403Path = $null
+            if ($ErrorPages -is [hashtable] -and $ErrorPages.ContainsKey('403')) {
+                if (-not [string]::IsNullOrEmpty($ErrorPages['403'])) {
+                    $custom403Path = $ErrorPages['403']
+                }
+            }
+
+            if ($null -ne $custom403Path -and (Test-Path -Path $custom403Path -PathType Leaf)) {
+                # Custom error page found → read and send directly.
+                # ContentType is set manually because GetMimeType (Section 7)
+                # is never reached on this early-exit path.
+                $responseBytes              = [System.IO.File]::ReadAllBytes($custom403Path)
+                $response.ContentType       = "text/html; charset=utf-8"
+                $response.ContentLength64   = $responseBytes.Length
+                $headersSent = $true
+                $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+            } else {
+                # No custom page → plaintext fallback
+                # Intentionally vague: we do NOT echo $urlPath back in the response.
+                # Reflecting attacker-controlled input in an error message is an
+                # information disclosure risk (and potential XSS vector if ever
+                # switched to HTML). A static message is always safer here.
+                $responseBytes              = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden")
+                $response.ContentType       = "text/plain; charset=utf-8"
+                $response.ContentLength64   = $responseBytes.Length
+                $headersSent = $true
+                $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+            }
+
             return
         }
 

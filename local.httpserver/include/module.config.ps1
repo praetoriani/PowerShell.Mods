@@ -63,27 +63,28 @@ $httpCore = @{  # ← Stores infomations about the app itself and the environmen
 }
 
 $httpHost = @{  # ← Stores important information for the HTTP Server
-    domain      = "localhost"
-    port        = 8080
-    protocol    = "http"
-    wwwroot     = Join-Path $script:root "wwwroot"
-    homepage    = "index.html"
-    logfile     = "local.httpserver"
-    ssl         = $false
+    domain          = "localhost"
+    port            = 8080
+    protocol        = "http"
+    wwwroot         = Join-Path $script:root "wwwroot"
+    homepage        = "index.html"
+    logfile         = "local.httpserver"
+    ssl             = $false
+    maxUrlLength    = 4096
     error       = @{
-        '400'     = Join-Path $script:root "wwwroot\sys\inc\400.html"
-        '401'     = Join-Path $script:root "wwwroot\sys\inc\401.html"
-        '403'     = Join-Path $script:root "wwwroot\sys\inc\403.html"
-        '404'     = Join-Path $script:root "wwwroot\sys\inc\404.html"
-        '405'     = Join-Path $script:root "wwwroot\sys\inc\405.html"
-        '408'     = Join-Path $script:root "wwwroot\sys\inc\408.html"
-        '413'     = Join-Path $script:root "wwwroot\sys\inc\413.html"
-        '429'     = Join-Path $script:root "wwwroot\sys\inc\429.html"
-        '500'     = Join-Path $script:root "wwwroot\sys\inc\500.html"
-        '501'     = Join-Path $script:root "wwwroot\sys\inc\501.html"
-        '502'     = Join-Path $script:root "wwwroot\sys\inc\502.html"
-        '503'     = Join-Path $script:root "wwwroot\sys\inc\503.html"
-        '504'     = Join-Path $script:root "wwwroot\sys\inc\504.html"
+        '400'     = Join-Path $script:root "wwwroot\sys\inc\400.html"       # [X] fully implemented
+        '401'     = Join-Path $script:root "wwwroot\sys\inc\401.html"       # [ ] not yet implemented
+        '403'     = Join-Path $script:root "wwwroot\sys\inc\403.html"       # [X] fully implemented
+        '404'     = Join-Path $script:root "wwwroot\sys\inc\404.html"       # [X] fully implemented
+        '405'     = Join-Path $script:root "wwwroot\sys\inc\405.html"       # [X] fully implemented
+        '408'     = Join-Path $script:root "wwwroot\sys\inc\408.html"       # [ ] not yet implemented
+        '413'     = Join-Path $script:root "wwwroot\sys\inc\413.html"       # [X] fully implemented
+        '429'     = Join-Path $script:root "wwwroot\sys\inc\429.html"       # [ ] not yet implemented
+        '500'     = Join-Path $script:root "wwwroot\sys\inc\500.html"       # [X] fully implemented
+        '501'     = Join-Path $script:root "wwwroot\sys\inc\501.html"       # [X] fully implemented
+        '502'     = Join-Path $script:root "wwwroot\sys\inc\502.html"       # [ ] not yet implemented
+        '503'     = Join-Path $script:root "wwwroot\sys\inc\503.html"       # [ ] not yet implemented
+        '504'     = Join-Path $script:root "wwwroot\sys\inc\504.html"       # [ ] not yet implemented
     }
 }
 

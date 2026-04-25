@@ -133,9 +133,9 @@ local.httpserver/
 
 ### 1.5 – `local.httpserver.ps1` als Launcher fertigstellen
 
-- [ ] 3-Step-Pattern vollständig implementieren: `Import-Module` → `SetCoreConfig` → Start-Funktion aufrufen
+- [x] 3-Step-Pattern vollständig implementieren: `Import-Module` → `SetCoreConfig` → Start-Funktion aufrufen
 - [x] `SetCoreConfig` so erweitern, dass die gesetzten Werte in `$httpHost` einfließen (Port, wwwroot, etc.)
-- [ ] Verzeichnisangabe als Parameter beim Aufruf ermöglichen
+- [x] Verzeichnisangabe als Parameter beim Aufruf ermöglichen
 - [x] Sinnvolle Standardwerte für Port (`8080`) und `wwwroot`
 
 **Statusbewertung:** Teilweise umgesetzt.
