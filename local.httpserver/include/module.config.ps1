@@ -110,7 +110,7 @@ $mimeType   = @{    # ← Stores all available MimeTypes
     ".jsx"          = "application/javascript; charset=utf-8"
     ".tsx"          = "application/javascript; charset=utf-8"
     ".xml"          = "application/xml; charset=utf-8"
-    ".wasm"          = "application/wasm"
+    ".wasm"         = "application/wasm"
     ".txt"          = "text/plain; charset=utf-8"
     ".csv"          = "text/csv; charset=utf-8"
     ".md"           = "text/markdown; charset=utf-8"
