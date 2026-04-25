@@ -118,6 +118,9 @@ function Start-HTTPserver {
                 Write-Host "[$timestamp] #$requestCount $($request.HttpMethod) $urlPath from $($request.RemoteEndPoint)" -ForegroundColor White
                 
                 # Router-Check for all defined routes
+                #------------------------------------
+
+                # Check if the URL is a known control route.
                 $isControlRoute = $false
                 foreach ($routeKey in $script:httpRouter.Keys) {
                     if ($urlPath -eq $script:httpRouter[$routeKey]) {
@@ -125,6 +128,12 @@ function Start-HTTPserver {
                         break
                     }
                 }
+
+                # Check if the URL is in the /sys/ctrl/ namespace (even if unknown)
+                # Used to intercept unknown control routes BEFORE they are delegated to the
+                # file handler — otherwise, Invoke-RequestHandler will look
+                # for a file wwwroot/sys/ctrl/xxx, which of course does not exist.
+                $isSysCtrlPath = $urlPath.StartsWith('/sys/ctrl/', [System.StringComparison]::OrdinalIgnoreCase)
 
                 # Router-Check
                 if ($urlPath -eq $script:httpRouter['stop']) {

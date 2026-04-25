@@ -23,7 +23,28 @@
 Import-Module (Join-Path $PSScriptRoot 'local.httpserver.psd1') -Verbose
 
 # 2nd Step: ... configure the module
-SetCoreConfig -PathPointer "C:\Users\pendo\OneDrive\Development\Github\PowerShell.Mods\local.httpserver\wwwroot" -UseLogging 0
+# Here are some examples on how to use the SetCoreConfig-Method
+# 
+# Sets a wwwwroot-Directory and activates logging
+# SetCoreConfig -PathPointer "C:\local.httpserver\wwwroot" -UseLogging 1
+# 
+# With this line, you can use it more portable ;)
+# If no port is specified, the system falls back to module.config.ps1 (port 8080).
+# SetCoreConfig -PathPointer (Join-Path $PSScriptRoot 'wwwroot') -UseLogging 0
+# 
+# You can set a explicit port
+# SetCoreConfig -PathPointer (Join-Path $PSScriptRoot 'wwwroot') -Port 8085 -UseLogging 1
+# 
+# You can give your server a name :)
+# SetCoreConfig -PathPointer (Join-Path $PSScriptRoot 'wwwroot') -Port 8085 -UseLogging 1 -ServerName 'MyLocalServer'
+# 
+# Aaaaand ... you can set a mode, how local.httpserver will behave
+# You can use one of the following modes: 'hidden','systray','console','desktop'
+# SetCoreConfig -PathPointer (Join-Path $PSScriptRoot 'wwwroot') -Port 8085 -UseLogging 1 -ServerName 'MyLocalServer' -Mode 'consle'
+# 
+SetCoreConfig -PathPointer (Join-Path $PSScriptRoot 'wwwroot') -Port 8080 -UseLogging 0
+
+
 
 # 3rd Step: ... start the server
 Start-HTTPserver

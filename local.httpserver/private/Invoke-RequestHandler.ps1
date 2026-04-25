@@ -104,6 +104,43 @@ param(
         }
 
         # ___________________________________________________________________________
+        # -> SECTION 2b: URL Validation (400 Bad Request)
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Checks if the URL contains invalid characters or an incorrect encoding.
+        # Such requests are rejected with a 400 Bad Request before they reach the
+        # path mapping code.
+        try {
+            # [System.Uri]::UnescapeDataString wirft eine Exception bei
+            # fehlerhaftem Percent-Encoding (z.B. %GG oder abgeschnittenes %2)
+            $null = [System.Uri]::UnescapeDataString($request.RawUrl)
+        }
+        catch {
+            $response.StatusCode        = 400
+            $response.StatusDescription = "Bad Request"
+
+            # Load custom 400 error page (same pattern as 404)
+            $custom400Path = $null
+            if ($ErrorPages -is [hashtable] -and $ErrorPages.ContainsKey('400')) {
+                if (-not [string]::IsNullOrEmpty($ErrorPages['400'])) {
+                    $custom400Path = $ErrorPages['400']
+                }
+            }
+
+            if ($null -ne $custom400Path -and (Test-Path -Path $custom400Path -PathType Leaf)) {
+                # Custom error page found → resolved. Path redirected, code continues to Section 7-9.
+                $resolvedPath = $custom400Path
+            }
+            else {
+                # No Custom Errorpage found → Send Plaintext as fallback
+                $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("400 Bad Request: $($request.RawUrl)")
+                $response.ContentLength64 = $responseBytes.Length
+                $headersSent = $true
+                $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+                return
+            }
+        }
+
+        # ___________________________________________________________________________
         # -> SECTION 3: URL to Filesystem Path Mapping
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

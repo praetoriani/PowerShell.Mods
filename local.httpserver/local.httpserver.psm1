@@ -17,7 +17,7 @@
     That means:
 .NOTES
     Creation Date : 15.04.2026
-    Last Update   : 18.04.2026
+    Last Update   : 25.04.2026
     Version       : 1.00.00
     Author        : Praetoriani (a.k.a. M.Sczepanski)
     Website       : https://github.com/praetoriani
@@ -41,6 +41,7 @@ $script:syschecks = $true       # <- Indicates, if all system checks have been p
 $script:config = @{
     # please check below for a short description of the meaning
     PathPointer = $null             # <- Defaults to $httpHost.wwwroot on error
+    Port        = 8080
     ServerName  = "local.httpserver"
     UseLogging  = 0
     Mode        = 'console'
@@ -54,6 +55,12 @@ param(
     [Parameter(Mandatory = $true, HelpMessage = "Set the path to the directory that should be served by the HTTP server.", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "PathPointer")]
     [ValidateNotNullOrEmpty()]
     [string]$PathPointer,
+
+    # Optional: Port override for the HTTP server
+    [Parameter(Mandatory = $false, HelpMessage = "The port the HTTP server should listen on.", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "Port")]
+    [ValidateNotNullOrEmpty()]
+    [ValidateRange(1, 65535)]
+    [int]$Port,
 
     # Give your HTTP-Server a Name :-)
     [Parameter(Mandatory = $false, HelpMessage = "The name of your own local.httpserver.", HelpMessageBaseName = "SetCoreConfig", HelpMessageResourceId = "ServerName")]
@@ -99,6 +106,12 @@ param(
         if ($PSBoundParameters.ContainsKey('PathPointer')) {
             $script:httpHost['wwwroot'] = $PathPointer
             Write-Verbose "[SetCoreConfig] \$script:httpHost.wwwroot updated to: $PathPointer"
+        }
+
+        # Port -> port
+        if ($PSBoundParameters.ContainsKey('Port')) {
+            $script:httpHost['port'] = $Port
+            Write-Verbose "[SetCoreConfig] \$script:httpHost.port updated to: $Port"
         }
 
         # ServerName -> logfile

@@ -28,7 +28,7 @@ $httpCore = @{  # ← Stores infomations about the app itself and the environmen
         devname = "Praetoriani"
         website = "https://github.com/praetoriani/"
         created  = "15.04.2026"
-        updated  = "17.04.2026"
+        updated  = "25.04.2026"
     }
 
     config =   @{
