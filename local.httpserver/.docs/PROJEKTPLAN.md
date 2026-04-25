@@ -161,11 +161,11 @@ local.httpserver/
 - [x] Routen aus `$httpRouter` in `module.config.ps1` zentral definieren
 - [x] Route-Matching vor dem File-Handler prüfen (Route hat Vorrang)
 - [x] `GET /sys/ctrl/http-shutdown` → geordnetes Herunterfahren implementiert
-- [ ] `GET /sys/ctrl/http-reboot` → Server neu starten
-- [ ] `GET /sys/ctrl/http-getstatus` → JSON-Response mit Serverstatus (Uptime, Port, wwwroot, Version)
+- [x] `GET /sys/ctrl/http-reboot` → Server neu starten
+- [X] `GET /sys/ctrl/http-getstatus` → JSON-Response mit Serverstatus (Uptime, Port, wwwroot, Version)
 - [ ] `GET /sys/ctrl/http-heartbeat` → Einfaches `{"alive": true}` als Healthcheck
 - [ ] `GET /sys/ctrl/gethelp` → Liste aller verfügbaren Control-Routen zurückgeben
-- [ ] `GET /sys/ctrl/gohome` → Redirect zur konfigurierten Homepage
+- [x] `GET /sys/ctrl/gohome` → Redirect zur konfigurierten Homepage
 - [x] Unbekannte `/sys/ctrl/`-Routen separat behandeln, statt an den File-Handler zu delegieren
 - [ ] Optional: Einfache Absicherung der Control-Routen (z. B. nur von `127.0.0.1` oder `::1` erreichbar)
 
