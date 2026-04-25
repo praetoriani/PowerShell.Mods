@@ -87,19 +87,51 @@ param(
     
 #>
     try {
+
+
         # ___________________________________________________________________________
         # -> SECTION 2: HTTP Method validation (Whitelist: GET, HEAD)
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         $allowedMethods = @('GET', 'HEAD')
         if ($request.HttpMethod -notin $allowedMethods) {
-            $response.StatusCode = 405
+
+            $response.StatusCode        = 405
             $response.StatusDescription = "Method Not Allowed"
+
+            # RFC 9110 requires an "Allow" header listing the accepted methods.
+            # This is MANDATORY for a spec-compliant 405 response —
+            # without it, clients cannot know which methods are valid.
             $response.Headers.Add("Allow", ($allowedMethods -join ', '))
-            $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("405 Method Not Allowed")
-            $response.ContentLength64 = $responseBytes.Length
-            $headersSent = $true
-            $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+
+            # Try to load custom 405 error page (same pattern as 404/500)
+            $custom405Path = $null
+            if ($ErrorPages -is [hashtable] -and $ErrorPages.ContainsKey('405')) {
+                if (-not [string]::IsNullOrEmpty($ErrorPages['405'])) {
+                    $custom405Path = $ErrorPages['405']
+                }
+            }
+
+            if ($null -ne $custom405Path -and (Test-Path -Path $custom405Path -PathType Leaf)) {
+                # Custom error page found → serve as HTML
+                # We use ReadAllBytes and set ContentType manually because
+                # GetMimeType is not yet called at this point in the pipeline.
+                $responseBytes = [System.IO.File]::ReadAllBytes($custom405Path)
+                $response.ContentType       = "text/html; charset=utf-8"
+                $response.ContentLength64   = $responseBytes.Length
+                $headersSent = $true
+                $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+            } else {
+                # No custom page → plaintext fallback
+                $responseBytes = [System.Text.Encoding]::UTF8.GetBytes(
+                    "405 Method Not Allowed. Accepted methods: $($allowedMethods -join ', ')"
+                )
+                $response.ContentType       = "text/plain; charset=utf-8"
+                $response.ContentLength64   = $responseBytes.Length
+                $headersSent = $true
+                $response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+            }
+
             return
         }
 

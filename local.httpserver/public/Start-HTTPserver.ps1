@@ -323,15 +323,47 @@ function Start-HTTPserver {
                     $context.Response.ContentLength64 = 0
                     $context.Response.OutputStream.Close()
                 } elseif ($isSysCtrlPath) {
-                    # Unknown /sys/ctrl/-Route was called  → 404, but no Invoke-RequestHandler
-                    # Stream will be closed here  → no deadlocl
-                    $bytes = [System.Text.Encoding]::UTF8.GetBytes("404 Unknown control route: $urlPath")
-                    $context.Response.StatusCode = 404
-                    $context.Response.StatusDescription = "Not Found"
-                    $context.Response.ContentLength64 = $bytes.Length
-                    $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
-                    $context.Response.OutputStream.Close()
+                    # ----------------------------------------------------------------
+                    # Unknown /sys/ctrl/ route → HTTP 501 Not Implemented
+                    # ----------------------------------------------------------------
+                    # Semantics: The /sys/ctrl/ namespace exists and is valid,
+                    # but this specific route is not implemented in the router.
+                    # RFC 9110: 501 = "server does not support the functionality
+                    # needed to fulfill the request." This is more precise than
+                    # 404 (resource not found) for a known namespace with an
+                    # unknown endpoint.
+                    # ----------------------------------------------------------------
 
+                    $context.Response.StatusCode        = 501
+                    $context.Response.StatusDescription = "Not Implemented"
+
+                    # Try to load custom 501 error page from $script:httpHost.error
+                    $custom501Path = $null
+                    $errorPages501 = $script:httpHost.error
+                    if ($errorPages501 -is [hashtable] -and $errorPages501.ContainsKey('501')) {
+                        if (-not [string]::IsNullOrEmpty($errorPages501['501'])) {
+                            $custom501Path = $errorPages501['501']
+                        }
+                    }
+
+                    if ($null -ne $custom501Path -and (Test-Path -Path $custom501Path -PathType Leaf)) {
+                        # Custom error page found → serve it as HTML
+                        $errorBytes = [System.IO.File]::ReadAllBytes($custom501Path)
+                        $context.Response.ContentType     = "text/html; charset=utf-8"
+                        $context.Response.ContentLength64 = $errorBytes.Length
+                        $context.Response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
+                    } else {
+                        # No custom page → structured JSON fallback
+                        # JSON is more appropriate here than plaintext because
+                        # /sys/ctrl/ is an API-style namespace, not a web page.
+                        $errorJson  = "{`"error`": 501, `"message`": `"Not Implemented`", `"route`": `"$urlPath`", `"hint`": `"Use /sys/ctrl/gethelp to list all available control routes.`"}"
+                        $errorBytes = [System.Text.Encoding]::UTF8.GetBytes($errorJson)
+                        $context.Response.ContentType     = "application/json; charset=utf-8"
+                        $context.Response.ContentLength64 = $errorBytes.Length
+                        $context.Response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
+                    }
+
+                    $context.Response.OutputStream.Close()
                 } else {
                     # Normal file request
                     Invoke-RequestHandler -Context $context
