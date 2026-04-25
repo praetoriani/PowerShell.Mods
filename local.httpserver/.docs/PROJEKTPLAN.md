@@ -138,7 +138,7 @@ local.httpserver/
 - [x] Verzeichnisangabe als Parameter beim Aufruf ermöglichen
 - [x] Sinnvolle Standardwerte für Port (`8080`) und `wwwroot`
 
-**Statusbewertung:** Teilweise umgesetzt.
+**Statusbewertung:** Erledigt.
 
 ---
 
@@ -157,19 +157,19 @@ local.httpserver/
 
 ### 2.1 – Control-Route-Handler (`private/Invoke-RouteHandler.ps1`)
 
-- [ ] Neue private Funktion `Invoke-RouteHandler` anlegen
+- [X] Neue private Funktion `Invoke-RouteHandler` anlegen
 - [x] Routen aus `$httpRouter` in `module.config.ps1` zentral definieren
 - [x] Route-Matching vor dem File-Handler prüfen (Route hat Vorrang)
 - [x] `GET /sys/ctrl/http-shutdown` → geordnetes Herunterfahren implementiert
 - [x] `GET /sys/ctrl/http-reboot` → Server neu starten
 - [X] `GET /sys/ctrl/http-getstatus` → JSON-Response mit Serverstatus (Uptime, Port, wwwroot, Version)
-- [ ] `GET /sys/ctrl/http-heartbeat` → Einfaches `{"alive": true}` als Healthcheck
-- [ ] `GET /sys/ctrl/gethelp` → Liste aller verfügbaren Control-Routen zurückgeben
+- [X] `GET /sys/ctrl/http-heartbeat` → Einfaches `{"alive": true}` als Healthcheck
+- [X] `GET /sys/ctrl/gethelp` → Liste aller verfügbaren Control-Routen zurückgeben
 - [x] `GET /sys/ctrl/gohome` → Redirect zur konfigurierten Homepage
 - [x] Unbekannte `/sys/ctrl/`-Routen separat behandeln, statt an den File-Handler zu delegieren
-- [ ] Optional: Einfache Absicherung der Control-Routen (z. B. nur von `127.0.0.1` oder `::1` erreichbar)
+- [X] Optional: Einfache Absicherung der Control-Routen (z. B. nur von `127.0.0.1` oder `::1` erreichbar)
 
-**Statusbewertung:** Teilweise umgesetzt. Basisrouting und Shutdown sind vorhanden; ein dedizierter Route-Handler fehlt noch.
+**Statusbewertung:** Erledigt.
 
 ---
 
@@ -185,15 +185,15 @@ local.httpserver/
 
 ### 2.3 – Sicherheits-Response-Header (Security Hardening)
 
-- [ ] `Content-Security-Policy`-Header setzen (konfigurierbar, sinnvoller Default)
-- [ ] `Referrer-Policy: no-referrer` setzen
-- [ ] `Permissions-Policy` setzen
+- [X] `Content-Security-Policy`-Header setzen (konfigurierbar, sinnvoller Default)
+- [X] `Referrer-Policy: no-referrer` setzen
+- [X] `Permissions-Policy` setzen
 - [x] `X-Content-Type-Options: nosniff`
 - [x] `X-Frame-Options: DENY`
 - [x] `Cache-Control: no-cache`
 - [x] `Server`-Header auf neutralen Wert setzen oder vollständig entfernen
 
-**Statusbewertung:** Teilweise umgesetzt.
+**Statusbewertung:** Erledigt.
 
 ---
 
@@ -205,7 +205,8 @@ local.httpserver/
 - [ ] Externe Prozesse können Status durch Lesen dieser Datei abfragen
 - [ ] Statusdatei beim sauberen Shutdown löschen
 
-**Statusbewertung:** Noch nicht begonnen.
+**Statusbewertung:** Noch nicht begonnen. Macht technisch erst dann vollständig Sinn, wenn die Runspace-Architektur aus Phase 3 steht — weil die Statusdatei von einem Background-Runspace geschrieben und von der Konsole gelesen werden soll. Jetzt im synchronen Blocking-Modus zu implementieren würde bedeuten, ihn sofort wieder zu überarbeiten. Das ist eine bewusste Entscheidung, ihn in Phase 3.1 zu integrieren.
+
 
 ---
 
