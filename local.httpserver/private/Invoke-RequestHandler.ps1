@@ -370,17 +370,44 @@ param(
         # -> SECTION 8: Security Response Headers
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+        # --- Existing headers (unchanged) ---
         $response.Headers.Add("X-Content-Type-Options", "nosniff")
         $response.Headers.Add("X-Frame-Options", "DENY")
         $response.Headers.Add("Cache-Control", "no-cache")
-        
+
+        # --- NEW: Content-Security-Policy ---
+        # Restricts which resources the browser is allowed to load.
+        # 'self' = only resources from the same origin (same domain + port).
+        # This is the most important XSS-mitigation header a server can send.
+        # For a local static file server, "default-src 'self'" is the correct
+        # and sufficient default. If your web app loads fonts or scripts from
+        # external CDNs (e.g. Google Fonts), you would need to extend this —
+        # but that is a per-app customization, not a server default.
+        $response.Headers.Add("Content-Security-Policy", "default-src 'self'")
+
+        # --- NEW: Referrer-Policy ---
+        # Controls how much referrer information is included with requests.
+        # "no-referrer" means: the browser sends NO Referer header at all
+        # when navigating away from this server. This prevents leaking the
+        # local URL structure (e.g. "http://localhost:8080/admin/config.html")
+        # to any external resource that might be loaded by a page.
+        $response.Headers.Add("Referrer-Policy", "no-referrer")
+
+        # --- NEW: Permissions-Policy ---
+        # Disables browser APIs that a static file server has no legitimate
+        # use for. This prevents any loaded page from accidentally (or
+        # maliciously) requesting geolocation, camera or microphone access.
+        # Format: feature=(allowlist) — empty () means "disabled for all origins".
+        $response.Headers.Add("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
+
         # Remove or neutralize Server header
+        # (prevents fingerprinting of the server technology)
         try {
             $response.Headers.Remove("Server")
         } catch {
             # Header might not be set yet, ignore
         }
-
+        
         # ___________________________________________________________________________
         # -> SECTION 9: Read and send file content
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

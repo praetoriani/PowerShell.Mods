@@ -134,7 +134,46 @@ function Start-HTTPserver {
                 # file handler — otherwise, Invoke-RequestHandler will look
                 # for a file wwwroot/sys/ctrl/xxx, which of course does not exist.
                 $isSysCtrlPath = $urlPath.StartsWith('/sys/ctrl/', [System.StringComparison]::OrdinalIgnoreCase)
+                
+                # ----------------------------------------------------------------
+                # IP Guard: /sys/ctrl/ routes are localhost-only
+                # ----------------------------------------------------------------
+                # Control routes can shut down, reboot or expose server internals.
+                # They must never be reachable from any IP other than localhost.
+                # We check $clientIP here (already set by Section 2d in
+                # Invoke-RequestHandler, but we re-read it here from the raw
+                # context because Invoke-RequestHandler is not called for ctrl routes).
+                #
+                # IPv4 loopback: 127.0.0.1
+                # IPv6 loopback: ::1
+                # Both must be whitelisted — Windows can use either depending on
+                # whether the browser connects via IPv4 or IPv6 stack.
 
+                $ctrlClientIP = $context.Request.RemoteEndPoint.Address.ToString()
+                if ($isSysCtrlPath -or $isControlRoute) {
+                    $isLocalhost = ($ctrlClientIP -eq '127.0.0.1') -or ($ctrlClientIP -eq '::1')
+                    if (-not $isLocalhost) {
+                        Write-Warning "[Start-HTTPserver] Control route access denied for non-localhost IP: $ctrlClientIP → $urlPath"
+                        $denyBytes = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden: Control routes are only accessible from localhost.")
+                        $context.Response.StatusCode        = 403
+                        $context.Response.StatusDescription = "Forbidden"
+                        $context.Response.ContentType       = "text/plain; charset=utf-8"
+                        $context.Response.ContentLength64   = $denyBytes.Length
+                        $context.Response.OutputStream.Write($denyBytes, 0, $denyBytes.Length)
+                        $context.Response.OutputStream.Close()
+                        continue  # ← Zurück zum Anfang der while-Schleife, kein weiteres Routing
+                    }
+                }
+
+                # Let's check if we have a control-route as url
+                if ($isControlRoute -or $isSysCtrlPath) {
+                    # All /sys/ctrl/ routes (known + unknown) → Route handler
+                    Invoke-RouteHandler -Context $context -UrlPath $urlPath
+                } else {
+                    # Normal file requests → Request handler
+                    Invoke-RequestHandler -Context $context
+                }
+<#
                 # Router-Check
                 if ($urlPath -eq $script:httpRouter['stop']) {
                     # Stop-Route: first send the response and then shutdown the server
@@ -316,6 +355,61 @@ function Start-HTTPserver {
                     break
                 }
 
+                elseif ($urlPath -eq $script:httpRouter['alive']) {
+                    # Route: /sys/ctrl/http-heartbeat
+                    # Returns a minimal JSON response to confirm the server is running.
+                    # Used by external tools, health-check scripts or browser extensions
+                    # to verify the server is alive without triggering a full status read.
+                    #
+                    # Deliberately minimal: no uptime, no config details.
+                    # Fast to generate, fast to parse. The only question answered is:
+                    # "Is the server reachable and responding?" → Yes.
+
+                    $heartbeatJson  = "{`"alive`": true, `"timestamp`": `"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`"}"
+                    $heartbeatBytes = [System.Text.Encoding]::UTF8.GetBytes($heartbeatJson)
+
+                    $context.Response.StatusCode        = 200
+                    $context.Response.StatusDescription = "OK"
+                    $context.Response.ContentType       = "application/json; charset=utf-8"
+                    $context.Response.ContentLength64   = $heartbeatBytes.Length
+                    $context.Response.OutputStream.Write($heartbeatBytes, 0, $heartbeatBytes.Length)
+                    $context.Response.OutputStream.Close()
+                }
+                
+                elseif ($urlPath -eq $script:httpRouter['help']) {
+                    # Route: /sys/ctrl/gethelp
+                    # Returns a structured JSON document listing all defined control routes.
+                    # This is the self-describing API endpoint of the /sys/ctrl/ namespace —
+                    # it tells any caller exactly which routes exist and what they do,
+                    # without needing to read the source code or the config file.
+                    #
+                    # The response includes both the route path and a short description,
+                    # so it is useful for humans (browser) and machines (scripts) alike.
+
+                    $helpData = @{
+                        namespace   = "/sys/ctrl/"
+                        description = "Control routes for local.httpserver. All routes are GET only and only accessible from localhost."
+                        routes      = @(
+                            @{ path = $script:httpRouter['stop'];    method = "GET"; description = "Gracefully shuts down the HTTP server." }
+                            @{ path = $script:httpRouter['restart']; method = "GET"; description = "Gracefully restarts the HTTP server (same port and wwwroot)." }
+                            @{ path = $script:httpRouter['status'];  method = "GET"; description = "Returns a JSON status report: uptime, port, wwwroot, request count, all routes." }
+                            @{ path = $script:httpRouter['alive'];   method = "GET"; description = "Returns {alive: true, timestamp} as a minimal health check." }
+                            @{ path = $script:httpRouter['help'];    method = "GET"; description = "Returns this help document listing all available control routes." }
+                            @{ path = $script:httpRouter['home'];    method = "GET"; description = "Redirects (302) to the configured homepage (http://localhost:<port>/)." }
+                        )
+                    }
+
+                    $helpJson  = $helpData | ConvertTo-Json -Depth 3
+                    $helpBytes = [System.Text.Encoding]::UTF8.GetBytes($helpJson)
+
+                    $context.Response.StatusCode        = 200
+                    $context.Response.StatusDescription = "OK"
+                    $context.Response.ContentType       = "application/json; charset=utf-8"
+                    $context.Response.ContentLength64   = $helpBytes.Length
+                    $context.Response.OutputStream.Write($helpBytes, 0, $helpBytes.Length)
+                    $context.Response.OutputStream.Close()
+                }
+
                 # Additional Router Check
                 elseif ($isControlRoute) {
                     # Andere Steuerungsrouten: 200 OK + leere Antwort, kein Invoke-RequestHandler
@@ -368,7 +462,7 @@ function Start-HTTPserver {
                     # Normal file request
                     Invoke-RequestHandler -Context $context
                 }
-
+#>
             }
             catch [System.Net.HttpListenerException] {
                 # HttpListener was stopped (normal shutdown)
