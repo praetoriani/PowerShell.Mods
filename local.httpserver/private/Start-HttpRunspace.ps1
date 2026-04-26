@@ -311,6 +311,14 @@ function Start-HttpRunspace {
             # Phase 3: Log the request
             # ----------------------------------------------------------
             $requestCount++
+
+            # Refresh Telemetry (thread-safe, no SessionStateProxy!)
+            if ($null -ne $RunspaceTelemetry) {
+                $RunspaceTelemetry['http.requestCount'] = $requestCount
+                $RunspaceTelemetry['http.lastRequest']  = $timestamp
+                $RunspaceTelemetry['http.lastPath']     = $urlPath
+            }
+
             $req       = $context.Request
             $urlPath   = $req.RawUrl.Split('?')[0]
             $clientIP  = $req.RemoteEndPoint.Address.ToString()

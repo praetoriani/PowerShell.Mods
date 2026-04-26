@@ -277,6 +277,14 @@ function Stop-ManagedRunspace {
     $script:RunspaceStore.Remove($RunspaceName)
     Write-Verbose "[Stop-ManagedRunspace] Step 8/8: Runspace '$RunspaceName' removed from RunspaceStore."
 
+    # The $script:RunspaceTelemetry-Dictionary must also be reset when stopping ManagedRunspace.
+    if ($script:RunspaceTelemetry.Count -gt 0) {
+        $keysToRemove = $script:RunspaceTelemetry.Keys | Where-Object { $_ -like "$RunspaceName.*" }
+        foreach ($key in $keysToRemove) {
+            $script:RunspaceTelemetry.TryRemove($key, [ref]$null) | Out-Null
+        }
+    }
+
     Write-Host "[INFO] Runspace '$RunspaceName' stopped and fully cleaned up." -ForegroundColor Cyan
     return $true
 }

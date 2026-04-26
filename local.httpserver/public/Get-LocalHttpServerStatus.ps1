@@ -60,7 +60,7 @@ function Get-LocalHttpServerStatus {
     # ------------------------------------------------------------------
     # Server not running - short report and early return
     # ------------------------------------------------------------------
-
+    <#
     if (-not $status.Exists -or $status.State -ne 'running') {
         Write-Host ""
         Write-Host "========================================" -ForegroundColor DarkGray
@@ -74,6 +74,28 @@ function Get-LocalHttpServerStatus {
         $status | Add-Member -NotePropertyName 'RequestCount' -NotePropertyValue 0 -Force
 
         return $status
+    }
+    #>
+    if (-not $status.Exists) {
+        Write-Host "[INFO] HTTP Server is not running." -ForegroundColor Yellow
+        return $status
+    }
+
+    # KORREKT: Aus dem thread-sicheren Dictionary lesen - KEIN SessionStateProxy!
+    $requestCount = 0
+    $lastRequest  = "n/a"
+    $lastPath     = "n/a"
+    
+    if ($null -ne $script:RunspaceTelemetry) {
+        if ($script:RunspaceTelemetry.ContainsKey('http.requestCount')) {
+            $requestCount = $script:RunspaceTelemetry['http.requestCount']
+        }
+        if ($script:RunspaceTelemetry.ContainsKey('http.lastRequest')) {
+            $lastRequest = $script:RunspaceTelemetry['http.lastRequest']
+        }
+        if ($script:RunspaceTelemetry.ContainsKey('http.lastPath')) {
+            $lastPath = $script:RunspaceTelemetry['http.lastPath']
+        }
     }
 
     # ------------------------------------------------------------------
@@ -113,6 +135,12 @@ function Get-LocalHttpServerStatus {
     Write-Host "  URL          : http://$($script:httpHost['domain']):$($script:httpHost['port'])/" -ForegroundColor White
     Write-Host "  wwwRoot      : $($script:httpHost['wwwroot'])"  -ForegroundColor White
     Write-Host "  Mode         : $($script:config['Mode'])"       -ForegroundColor White
+    Write-Host "----------------------------------------"   -ForegroundColor Green
+    Write-Host "  State        : $($status.State)"          -ForegroundColor White
+    Write-Host "  Started      : $($status.StartTime)"      -ForegroundColor White
+    Write-Host "  Uptime       : $($status.Uptime)"         -ForegroundColor White
+    Write-Host "  Last Request : $lastRequest  $lastPath"   -ForegroundColor White
+    Write-Host "----------------------------------------"   -ForegroundColor Green
     Write-Host "  Started      : $($status.StartTime.ToString('yyyy-MM-dd HH:mm:ss'))" -ForegroundColor White
     Write-Host "  Uptime       : $uptimeString"                   -ForegroundColor White
     Write-Host "  Requests     : $liveRequestCount"               -ForegroundColor White

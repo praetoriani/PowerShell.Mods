@@ -226,8 +226,11 @@ if ($script:configinscope) {
 
 $script:RunspaceStore = [System.Collections.Hashtable]::Synchronized(
     @{}
-)
+    )
 
+# Shared Telemetry Dictionary - thread-safe, no SessionStateProxy needed!
+$script:RunspaceTelemetry = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+    
 Write-Verbose "[local.httpserver] Runspace State Store initialized."
 
 

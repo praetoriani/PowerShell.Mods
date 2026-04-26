@@ -186,6 +186,12 @@ function Start-HTTPserver {
                          -VariableName 'CancelToken' `
                          -Value $rsEntry.CancelToken
 
+    # Inject Telemetry-Dictionary into the Runspace
+    # (NACH den anderen Set-RunspaceVariable Aufrufen)
+    Set-RunspaceVariable -RunspaceName 'http' `
+                        -VariableName 'RunspaceTelemetry' `
+                        -Value $script:RunspaceTelemetry
+
     Write-Host "[OK]   Variables injected (httpHost, httpRouter, mimeType, wwwRoot, CancelToken)." -ForegroundColor Green
 
     # ------------------------------------------------------------------

@@ -439,8 +439,15 @@ param(
         # and sufficient default. If your web app loads fonts or scripts from
         # external CDNs (e.g. Google Fonts), you would need to extend this -
         # but that is a per-app customization, not a server default.
-        $response.Headers.Add("Content-Security-Policy", "default-src 'self'")
-
+        #$response.Headers.Add("Content-Security-Policy", "default-src 'self'")
+        $response.Headers.Add("Content-Security-Policy",
+            "default-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "script-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self'")
+            
         # --- NEW: Referrer-Policy ---
         # Controls how much referrer information is included with requests.
         # "no-referrer" means: the browser sends NO Referer header at all
