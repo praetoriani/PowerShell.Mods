@@ -364,11 +364,44 @@ function Start-HttpRunspace {
                     Invoke-RouteHandler -Context $context -UrlPath $urlPath
                 }
                 else {
-                    # Static file request — handler owns the full response lifecycle
-                    # Pass $wwwRoot explicitly so the handler does not need to
-                    # resolve it from $script:httpHost (which is NOT $script: here —
-                    # it was injected as a plain variable, not a $script: var).
-                    Invoke-RequestHandler -Context $context -WwwRoot $wwwRoot
+                    # -------------------------------------------------------
+                    # Static file request — dispatch to Invoke-RequestHandler.
+                    #
+                    # We pass three parameters explicitly:
+                    #
+                    # -Context    The HttpListenerContext for this request.
+                    #             Contains Request, Response and User objects.
+                    #
+                    # -WwwRoot    The resolved absolute filesystem path for
+                    #             the wwwroot directory. Passed explicitly so
+                    #             Invoke-RequestHandler does not need to resolve
+                    #             it from $httpHost internally (defensive design).
+                    #
+                    # -ErrorPages The hashtable of custom error page paths from
+                    #             $httpHost['error']. Passed explicitly here for
+                    #             the same reason: Invoke-RequestHandler no longer
+                    #             reads $script:httpHost — it only uses what it
+                    #             receives as parameters. This makes the function
+                    #             fully self-contained and Runspace-safe.
+                    #
+                    # $httpHost and $wwwRoot are both plain variables injected
+                    # into this Runspace via Set-RunspaceVariable. No $script:
+                    # prefix is needed or valid here.
+                    # -------------------------------------------------------
+                    $errorPages = if ($null -ne $httpHost -and $httpHost.ContainsKey('error') -and
+                                      $null -ne $httpHost['error']) {
+                        # Safely read the error pages hashtable from injected $httpHost.
+                        $httpHost['error']
+                    } else {
+                        # No error pages configured — pass an empty hashtable.
+                        # This prevents null-reference errors in Invoke-RequestHandler's
+                        # ContainsKey() calls for 404, 500, 403 etc.
+                        @{}
+                    }
+
+                    Invoke-RequestHandler -Context $context `
+                                          -WwwRoot $wwwRoot `
+                                          -ErrorPages $errorPages
                 }
             }
             catch {

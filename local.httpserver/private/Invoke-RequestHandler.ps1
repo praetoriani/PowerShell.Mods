@@ -18,41 +18,77 @@ function Invoke-RequestHandler {
     Version:        v1.00.00
     Author:         Praetoriani
     Date Created:   18.04.2026
-    Last Updated:   18.04.2026
+    Last Updated:   26.04.2026
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [System.Net.HttpListenerContext]$Context,
 
+    # WwwRoot: The root directory for serving static files.
+    # Default is an empty string — the actual value is resolved in Section 1
+    # from the injected $httpHost variable (which is a plain variable inside
+    # the Runspace, NOT a $script: variable).
+    # Never use $script:httpHost here — $script: does not exist in a Runspace!
     [Parameter(Mandatory = $false)]
-    [string]$WwwRoot = $script:httpHost.Get_Item("wwwroot"),
+    [string]$WwwRoot = "",
 
+    # Homepage: The default file served for directory requests (e.g. index.html).
+    # Default is an empty string — resolved in Section 1 from $httpHost['homepage'].
     [Parameter(Mandatory = $false)]
-    [string]$Homepage = $script:httpHost.Get_Item("homepage"),
+    [string]$Homepage = "",
 
+    # ErrorPages: Hashtable of custom error page paths, keyed by HTTP status code.
+    # e.g. @{ '404' = 'C:\wwwroot\errors\404.html'; '500' = '...' }
+    # Default is an empty hashtable — safer than $null because all downstream
+    # ContainsKey() calls work without a null-guard.
     [Parameter(Mandatory = $false)]
-    [hashtable]$ErrorPages = $script:httpHost.error
+    [hashtable]$ErrorPages = @{}
 )
-
     # ___________________________________________________________________________
     # -> SECTION 1: Initialize and validate parameters
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    # Resolve wwwroot from $httpHost if not provided
+    # -----------------------------------------------------------------------
+    # Resolve WwwRoot from the injected $httpHost variable.
+    #
+    # RUNSPACE CONTEXT — IMPORTANT:
+    # Inside a Runspace, $httpHost is a PLAIN variable that was injected via
+    # Set-RunspaceVariable before the server loop started. It is NOT a
+    # $script: variable. The $script: scope does not exist in a Runspace.
+    #
+    # Correct access:  $httpHost['wwwroot']      ← plain variable, injected
+    # WRONG access:    $script:httpHost.wwwroot  ← $script: scope = null here!
+    # -----------------------------------------------------------------------
     if ([string]::IsNullOrEmpty($WwwRoot)) {
-        if ($null -ne (Get-Variable -Name 'httpHost' -Scope Script -ErrorAction SilentlyContinue)) {
-            $WwwRoot = $script:httpHost.wwwroot
+        if ($null -ne $httpHost -and -not [string]::IsNullOrEmpty($httpHost['wwwroot'])) {
+            # $httpHost was injected by Start-HTTPserver via Set-RunspaceVariable.
+            # Read wwwroot directly from the plain variable — no $script: prefix!
+            $WwwRoot = $httpHost['wwwroot']
         } else {
-            Write-Error "[Invoke-RequestHandler] wwwroot not specified and \$script:httpHost not available"
+            Write-Error "[Invoke-RequestHandler] WwwRoot not specified and `$httpHost is not available in this scope. Was it injected via Set-RunspaceVariable?"
             return
         }
     }
 
-    # Resolve homepage from $httpHost if using default
-    if ($Homepage -eq "index.html" -and $null -ne (Get-Variable -Name 'httpHost' -Scope Script -ErrorAction SilentlyContinue)) {
-        if (-not [string]::IsNullOrEmpty($script:httpHost.homepage)) {
-            $Homepage = $script:httpHost.homepage
+    # -----------------------------------------------------------------------
+    # Resolve Homepage from the injected $httpHost variable.
+    #
+    # We check for an empty string (our new safe default from param())
+    # rather than the old "index.html" sentinel value. If $httpHost provides
+    # a homepage value, we use it. Otherwise we fall back to "index.html"
+    # as a universal static file server default.
+    #
+    # Same Runspace rule as above: access $httpHost as a plain variable,
+    # never with the $script: prefix.
+    # -----------------------------------------------------------------------
+    if ([string]::IsNullOrEmpty($Homepage)) {
+        if ($null -ne $httpHost -and -not [string]::IsNullOrEmpty($httpHost['homepage'])) {
+            # Read homepage setting from the injected plain variable.
+            $Homepage = $httpHost['homepage']
+        } else {
+            # Absolute fallback — every static file server defaults to index.html.
+            $Homepage = "index.html"
         }
     }
 
@@ -198,12 +234,28 @@ param(
         # If you prefer strict RFC compliance, change 413 → 414 and add
         # '414' to the error hashtable in module.config.ps1.
 
-        # get max. URL-Length from module.config.ps1
-        $maxUrlLength = if ($script:httpHost.ContainsKey('maxUrlLength') -and $script:httpHost['maxUrlLength'] -gt 0) {
-            $script:httpHost['maxUrlLength']
+        # -----------------------------------------------------------------------
+        # Resolve maximum URL length from the injected $httpHost configuration.
+        #
+        # $httpHost is a plain variable in this scope (injected via
+        # Set-RunspaceVariable) — NOT a $script: variable.
+        # Access it directly, without any scope prefix.
+        #
+        # If $httpHost is null or does not contain 'maxUrlLength', we fall back
+        # to 4096 — a conservative, universally accepted upper bound for URLs.
+        # -----------------------------------------------------------------------
+        $maxUrlLength = if ($null -ne $httpHost -and
+                            $httpHost.ContainsKey('maxUrlLength') -and
+                            $httpHost['maxUrlLength'] -gt 0) {
+            # Read the configured value from the injected plain variable.
+            $httpHost['maxUrlLength']
         } else {
-            4096  # Safe fallback if not configured in module.consig.ps1
+            # Safe fallback: 4096 characters matches common web server defaults
+            # (Apache, nginx). Any URL longer than this from a browser is either
+            # a bug or a deliberate attack.
+            4096
         }
+
         if ($request.RawUrl.Length -gt $maxUrlLength) {
 
             Write-Warning "[Invoke-RequestHandler] URI too long ($($request.RawUrl.Length) chars), blocked: $($request.RawUrl.Substring(0, [Math]::Min(100, $request.RawUrl.Length)))..."
