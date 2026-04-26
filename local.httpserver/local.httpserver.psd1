@@ -57,6 +57,9 @@ ScriptsToProcess = @('include\system.precheck.ps1')
 FunctionsToExport = @(
     'SetCoreConfig',        # ← This one is important. Without it, we're not able to configure the module
     'Start-HTTPserver',
+    'Stop-LocalHttpServer',
+    'Get-LocalHttpServerStatus',
+    'Restart-LocalHttpServer',
     'ExportServerLog',       # Export the server log to a specified path (public function)
     'GetMimeType'            # Retrieve MIME type based on file extension (public function)
 )
@@ -98,6 +101,9 @@ FileList = @(
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',
     'Public\Start-HTTPserver.ps1',
+    'Public\Stop-LocalHttpServer.ps1',
+    'Public\Get-LocalHttpServerStatus.ps1',
+    'Public\Restart-LocalHttpServer.ps1',
     # Additional scripts
     'include\system.precheck.ps1',
     'include\module.config'
