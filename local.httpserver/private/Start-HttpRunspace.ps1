@@ -202,10 +202,10 @@ function Start-HttpRunspace {
 
         $httpListener.Start()
 
-        Write-Host ""
-        Write-Host "[Runspace] HTTP server is listening on $listenerPrefix" -ForegroundColor Green
-        Write-Host "[Runspace] wwwRoot   : $wwwRoot"                        -ForegroundColor Green
-        Write-Host "[Runspace] Poll interval : ${PollIntervalMs}ms"         -ForegroundColor Gray
+        [Console]::WriteLine("")
+        [Console]::WriteLine("[Runspace] HTTP server is listening on $listenerPrefix")
+        [Console]::WriteLine("[Runspace] wwwRoot   : $wwwRoot")
+        [Console]::WriteLine("[Runspace] Poll interval : ${PollIntervalMs}ms")
 
         # ==============================================================
         # SERVER LOOP
@@ -306,7 +306,7 @@ function Start-HttpRunspace {
             $clientIP  = $req.RemoteEndPoint.Address.ToString()
             $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-            Write-Host "[$timestamp] #$requestCount $($req.HttpMethod) $urlPath  [from $clientIP]" -ForegroundColor White
+            [Console]::WriteLine("[$timestamp] #$requestCount $($req.HttpMethod) $urlPath  [from $clientIP]")
 
             # ----------------------------------------------------------
             # Phase 4: IP Guard for control routes
@@ -462,7 +462,7 @@ function Start-HttpRunspace {
             }
         }
 
-        Write-Host ""
-        Write-Host "[Runspace] HTTP server stopped. Total requests served: $requestCount" -ForegroundColor Cyan
+        [Console]::WriteLine("")
+        [Console]::WriteLine("[Runspace] HTTP server stopped. Total requests served: $requestCount")
     }
 }

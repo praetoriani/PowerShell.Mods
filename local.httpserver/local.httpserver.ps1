@@ -91,7 +91,54 @@ Start-HTTPserver
 # In 'hidden' mode this loop is skipped — the process stays alive as a
 # background process and can only be stopped via Stop-LocalHttpServer,
 # the /sys/ctrl/http-stop route, or by killing the process externally.
+# 
+# 
+# Detect launch context:
+# $MyInvocation.ScriptName is set when running as a script file.
+# $Host.Name is 'ConsoleHost' for interactive PS sessions.
+# If we are running inside an interactive session (dot-sourced or just invoked
+# from the prompt), we do NOT block – the console must stay free.
+# The Runspace keeps the server alive independently of this script.
 
+$isInteractiveSession = ($Host.Name -eq 'ConsoleHost' -and
+                         $null -ne $Host.UI -and
+                         [System.Environment]::UserInteractive)
+
+$runningAsStandaloneScript = ($MyInvocation.InvocationName -like '*.ps1' -and
+                               $MyInvocation.CommandOrigin -eq 'Runspace')
+
+$mode = Get-ServerConfig -Section 'mode'
+
+if ($mode -eq 'console' -and -not $isInteractiveSession) {
+    # Standalone mode: Script runs as an independent process (e.g., Task Scheduler)
+    # Keep-alive loop keeps the process alive
+    Write-Host "[INFO] Running as standalone process. Press Ctrl+C to stop." -ForegroundColor Yellow
+
+    try {
+        while (Test-RunspaceExists -RunspaceName 'http') {
+            Start-Sleep -Seconds 2
+        }
+        Write-Host "[WARN] Server Runspace exited unexpectedly." -ForegroundColor Yellow
+    }
+    finally {
+        Write-Host "[INFO] Shutdown signal received. Stopping server..." -ForegroundColor Cyan
+        Stop-LocalHttpServer -TimeoutMs 5000
+    }
+
+} else {
+    # Interactive mode: Session remains free
+    # The runspace keeps the server alive – no loop required.
+    Write-Host "[INFO] Server running in background. Console is free." -ForegroundColor Green
+    Write-Host "[INFO] Commands available:" -ForegroundColor Gray
+    Write-Host "       Get-LocalHttpServerStatus   → Live-Status anzeigen" -ForegroundColor Gray
+    Write-Host "       Stop-LocalHttpServer         → Server stoppen" -ForegroundColor Gray
+    Write-Host "       Restart-LocalHttpServer      → Server neu starten" -ForegroundColor Gray
+    Write-Host ""
+}
+
+
+
+<#  BACKUP
 if ((Get-ServerConfig -Section 'mode') -eq 'console') {
 
     Write-Host "[INFO] Server is running. Press Ctrl+C to stop." -ForegroundColor Yellow
@@ -113,5 +160,4 @@ if ((Get-ServerConfig -Section 'mode') -eq 'console') {
         Stop-LocalHttpServer -TimeoutMs 5000
     }
 }
-
-
+#>

@@ -463,7 +463,24 @@ param(
         # ___________________________________________________________________________
         # -> SECTION 9: Read and send file content
         # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+        
+        $response.ContentType     = $detectedMime
+        $response.ContentLength64 = $fileBytes.Length
+        $response.StatusCode      = 200
+        $response.StatusDescription = "OK"
 
+        if ($request.HttpMethod -eq 'GET') {
+            $headersSent = $true
+            $response.OutputStream.Write($fileBytes, 0, $fileBytes.Length)
+        } elseif ($request.HttpMethod -eq 'HEAD') {
+            # HEAD: Send headers, but no body
+            # ContentLength64 is already set – that's sufficient.
+            # OutputStream.Close() in the finally statement closes the response correctly.
+            $headersSent = $true
+            # No Write() – intentional
+        }
+        
+        <#
         $fileBytes = [System.IO.File]::ReadAllBytes($resolvedPath)
         
         $response.ContentType = $detectedMime
@@ -477,7 +494,7 @@ param(
             $headersSent = $true
             $response.OutputStream.Write($fileBytes, 0, $fileBytes.Length)
         }
-
+        #>
     } catch {
         # ___________________________________________________________________________
         # -> SECTION 10: Error Handling
