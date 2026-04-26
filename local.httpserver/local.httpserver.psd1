@@ -92,6 +92,8 @@ FileList = @(
     'Private\Test-RunspaceExists.ps1',
     'Private\Invoke-RunspaceFunctionInjection.ps1',
     'Private\ServerStatusFile.ps1',
+    'Private\Start-HttpRunspace.ps1',
+    'Private\Invoke-ConsoleControl.ps1',
     # Public functions
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',
