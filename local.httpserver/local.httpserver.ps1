@@ -92,7 +92,7 @@ Start-HTTPserver
 # background process and can only be stopped via Stop-LocalHttpServer,
 # the /sys/ctrl/http-stop route, or by killing the process externally.
 
-if ($script:config['Mode'] -eq 'console') {
+if ((Get-ServerConfig -Section 'mode') -eq 'console') {
 
     Write-Host "[INFO] Server is running. Press Ctrl+C to stop." -ForegroundColor Yellow
     Write-Host "       Use 'Get-LocalHttpServerStatus' to see live stats." -ForegroundColor Gray

@@ -60,6 +60,7 @@ FunctionsToExport = @(
     'Stop-LocalHttpServer',
     'Get-LocalHttpServerStatus',
     'Restart-LocalHttpServer',
+    'Get-ServerConfig',
     'ExportServerLog',       # Export the server log to a specified path (public function)
     'GetMimeType'            # Retrieve MIME type based on file extension (public function)
 )
@@ -104,6 +105,7 @@ FileList = @(
     'Public\Stop-LocalHttpServer.ps1',
     'Public\Get-LocalHttpServerStatus.ps1',
     'Public\Restart-LocalHttpServer.ps1',
+    'Public\Get-ServerConfig.ps1',
     # Additional scripts
     'include\system.precheck.ps1',
     'include\module.config'
