@@ -13,7 +13,7 @@
       1. Creates a new PowerShell shell (System.Management.Automation
          .PowerShell) and binds it to the already-open Runspace. The shell
          inherits all variables and functions that were previously injected.
-      2. Adds the ScriptBlock — and optional named parameters — to the shell.
+      2. Adds the ScriptBlock - and optional named parameters - to the shell.
       3. Calls BeginInvoke(), which starts execution on the Runspace's
          background thread and returns an IAsyncResult handle IMMEDIATELY.
          The calling thread is NOT blocked.
@@ -55,7 +55,7 @@
     # Retrieve the server loop ScriptBlock from the private function
     $serverSB = (Get-Command -Name 'Start-HttpRunspace').ScriptBlock
 
-    # Start the server asynchronously — returns immediately
+    # Start the server asynchronously - returns immediately
     $ok = New-RunspaceJob -RunspaceName 'http' `
                           -ScriptBlock  $serverSB `
                           -Parameters   @{ Port = 8080; wwwRoot = 'C:\wwwroot' }
@@ -139,7 +139,7 @@ function New-RunspaceJob {
         # ------------------------------------------------------------------
         # BeginInvoke() starts the ScriptBlock on the Runspace's background
         # thread and returns an IAsyncResult handle IMMEDIATELY. The caller
-        # is not blocked at all — this is the key difference from Invoke().
+        # is not blocked at all - this is the key difference from Invoke().
         #
         # We store both the PowerShell shell ($ps) and the handle ($handle)
         # in the store entry. Stop-ManagedRunspace needs the handle to call

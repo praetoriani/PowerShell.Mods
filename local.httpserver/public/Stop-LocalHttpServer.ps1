@@ -10,27 +10,27 @@
     and the entry is removed from the RunspaceStore.
 
     The stop sequence inside Stop-ManagedRunspace (called by this function):
-        1. CancelToken.Set()         — signals the server loop to exit
-        2. $httpListener.Stop()       — unblocks any pending BeginGetContext()
-        3. AsyncWaitHandle.WaitOne()  — waits up to TimeoutMs for clean exit
-        4. EndInvoke()               — retrieves result and collects errors
-        5. PowerShell.Dispose()      — releases PS shell resources
-        6. Runspace.Close()          — releases .NET Runspace
-        7. Runspace.Dispose()        — frees unmanaged kernel resources
-        8. RunspaceStore.Remove()    — removes the entry from the registry
+        1. CancelToken.Set()         - signals the server loop to exit
+        2. $httpListener.Stop()       - unblocks any pending BeginGetContext()
+        3. AsyncWaitHandle.WaitOne()  - waits up to TimeoutMs for clean exit
+        4. EndInvoke()               - retrieves result and collects errors
+        5. PowerShell.Dispose()      - releases PS shell resources
+        6. Runspace.Close()          - releases .NET Runspace
+        7. Runspace.Dispose()        - frees unmanaged kernel resources
+        8. RunspaceStore.Remove()    - removes the entry from the registry
 
 .PARAMETER TimeoutMs
     Maximum time in milliseconds to wait for the server loop to exit
     cleanly before force-closing the Runspace.
 
     The server loop polls the CancelToken every PollIntervalMs (default 500 ms).
-    A TimeoutMs of 3000 gives the loop 6 poll cycles to react — more than enough
+    A TimeoutMs of 3000 gives the loop 6 poll cycles to react - more than enough
     under normal conditions.
 
     Default: 5000 ms.
 
 .PARAMETER Force
-    If specified, TimeoutMs is set to 0 — the Runspace is closed immediately
+    If specified, TimeoutMs is set to 0 - the Runspace is closed immediately
     without waiting for the server loop to finish its current request.
     Use only when the server is unresponsive.
 

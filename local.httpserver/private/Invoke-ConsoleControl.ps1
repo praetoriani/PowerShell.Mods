@@ -12,40 +12,38 @@
     the server is expected to run completely in the background without a
     visible console window.
 
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │  WHY P/INVOKE?                                                      │
-    │                                                                     │
-    │  PowerShell has no native cmdlet to hide its own console window.    │
-    │  The only reliable way to control the console window at runtime     │
-    │  from within the same process is to call the Win32 API directly     │
-    │  via Platform Invocation Services (P/Invoke).                       │
-    │                                                                     │
-    │  The three Win32 functions used here are:                           │
-    │                                                                     │
-    │  kernel32.dll!GetConsoleWindow()                                    │
-    │      Returns the HWND (window handle) of the console window         │
-    │      associated with the current process. Returns IntPtr.Zero       │
-    │      if no console is attached (e.g. when running as a service      │
-    │      or via Start-Process -WindowStyle Hidden).                     │
-    │                                                                     │
-    │  user32.dll!ShowWindow(HWND, nCmdShow)                              │
-    │      Changes the visibility and state of the specified window.      │
-    │      Returns $true on success, $false if the HWND is invalid or     │
-    │      the operation failed. nCmdShow constants:                      │
-    │          0  = SW_HIDE      — completely invisible, no taskbar entry │
-    │          5  = SW_SHOW      — show at current size and position      │
-    │          6  = SW_MINIMIZE  — minimise to taskbar                    │
-    │          9  = SW_RESTORE   — restore from minimised/maximised       │
-    │                                                                     │
-    │  kernel32.dll!FreeConsole()                                         │
-    │      Detaches the current process from its console entirely.        │
-    │      After this call, all Write-Host output is silently discarded.  │
-    │      Used by Disconnect-Console for the 'completely headless' mode  │
-    │      where even hiding is not enough.                               │
-    └─────────────────────────────────────────────────────────────────────┘
+    WHY P/INVOKE?
+
+    PowerShell has no native cmdlet to hide its own console window.
+    The only reliable way to control the console window at runtime 
+    from within the same process is to call the Win32 API directly 
+    via Platform Invocation Services (P/Invoke).                   
+
+    The three Win32 functions used here are:                       
+
+    kernel32.dll!GetConsoleWindow()                                
+        Returns the HWND (window handle) of the console window     
+        associated with the current process. Returns IntPtr.Zero   
+        if no console is attached (e.g. when running as a service  
+        or via Start-Process -WindowStyle Hidden).                 
+
+    user32.dll!ShowWindow(HWND, nCmdShow)                          
+        Changes the visibility and state of the specified window.  
+        Returns $true on success, $false if the HWND is invalid or 
+        the operation failed. nCmdShow constants:                  
+            0  = SW_HIDE      - completely invisible, no taskbar entry
+            5  = SW_SHOW      - show at current size and position  
+            6  = SW_MINIMIZE  - minimise to taskbar                
+            9  = SW_RESTORE   - restore from minimised/maximised   
+
+    kernel32.dll!FreeConsole()
+        Detaches the current process from its console entirely.
+        After this call, all Write-Host output is silently discarded.
+        Used by Disconnect-Console for the 'completely headless' mode
+        where even hiding is not enough.
 
     TYPE REGISTRATION (Add-Type guard):
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
     Add-Type compiles the C# P/Invoke declaration at module load time.
     Because a .NET type can only be defined ONCE per AppDomain (the entire
     PowerShell process), we guard the Add-Type call with a type existence
@@ -58,11 +56,11 @@
         "Cannot add type. The type name 'WinConsoleControl' already exists."
 
     The PSTypeName accelerator checks the AppDomain's type table without
-    throwing an exception — it returns $null for unknown types, which
+    throwing an exception - it returns $null for unknown types, which
     evaluates to $false in the condition above.
 
     COMPATIBILITY:
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
     These P/Invoke declarations are compatible with:
       - PowerShell 5.1  (Windows PowerShell, .NET Framework 4.x)
       - PowerShell 7.x  (PowerShell Core, .NET 6/8)
@@ -76,11 +74,11 @@
         gracefully on non-Windows platforms.
 
     FUNCTIONS PROVIDED:
-    ──────────────────────────────────────────────────────────────────────
-    Hide-ConsoleWindow    — SW_HIDE   (0): invisible, no taskbar entry
-    Show-ConsoleWindow    — SW_SHOW   (5): restore to visible state
-    Minimize-ConsoleWindow — SW_MINIMIZE (6): collapse to taskbar
-    Disconnect-Console    — FreeConsole(): full console detach (headless)
+    ----------------------------------------------------------------------
+    Hide-ConsoleWindow    - SW_HIDE   (0): invisible, no taskbar entry
+    Show-ConsoleWindow    - SW_SHOW   (5): restore to visible state
+    Minimize-ConsoleWindow - SW_MINIMIZE (6): collapse to taskbar
+    Disconnect-Console    - FreeConsole(): full console detach (headless)
 
 .NOTES
     Author        : Praetoriani (a.k.a. M.Sczepanski)
@@ -111,9 +109,9 @@ using System.Runtime.InteropServices;
 /// </summary>
 public class WinConsoleControl
 {
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
     // kernel32.dll imports
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
 
     /// <summary>
     /// Returns the HWND of the console window attached to the calling process.
@@ -125,16 +123,16 @@ public class WinConsoleControl
     /// <summary>
     /// Detaches the calling process from its console.
     /// All subsequent console I/O (Write-Host, Write-Error, etc.) is silently
-    /// discarded. This is NOT reversible within the same process — once detached,
+    /// discarded. This is NOT reversible within the same process - once detached,
     /// the process cannot re-attach to a console without starting a new one.
     /// Returns true on success, false if the process was not attached to a console.
     /// </summary>
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool FreeConsole();
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
     // user32.dll imports
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
 
     /// <summary>
     /// Sets the show state of the specified window.
@@ -152,9 +150,9 @@ public class WinConsoleControl
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
     // ShowWindow nCmdShow constants
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
 
     /// <summary>Hides the window completely. No taskbar button is shown.</summary>
     public const int SW_HIDE     = 0;
@@ -187,7 +185,7 @@ public class WinConsoleControl
 
 .DESCRIPTION
     The window becomes invisible and its taskbar button is removed.
-    The process continues running normally — all code, timers and Runspaces
+    The process continues running normally - all code, timers and Runspaces
     keep executing. Only the visual representation is gone.
 
     To make the window reappear, call Show-ConsoleWindow. The window handle
@@ -216,7 +214,7 @@ function Hide-ConsoleWindow {
 
     # Guard: P/Invoke calls only make sense on Windows
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        Write-Verbose "[Hide-ConsoleWindow] Non-Windows platform detected — skipping (no-op)."
+        Write-Verbose "[Hide-ConsoleWindow] Non-Windows platform detected - skipping (no-op)."
         return $false
     }
 
@@ -225,7 +223,7 @@ function Hide-ConsoleWindow {
     if ($hwnd -eq [IntPtr]::Zero) {
         # No console window exists. This happens when PowerShell was launched
         # with -WindowStyle Hidden or as a Windows service. There is nothing
-        # to hide — return $true because the desired state (no visible window)
+        # to hide - return $true because the desired state (no visible window)
         # is already achieved.
         Write-Verbose "[Hide-ConsoleWindow] No console window found (IntPtr.Zero). Process may have been started headless."
         return $true
@@ -275,7 +273,7 @@ function Show-ConsoleWindow {
     param()
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        Write-Verbose "[Show-ConsoleWindow] Non-Windows platform detected — skipping (no-op)."
+        Write-Verbose "[Show-ConsoleWindow] Non-Windows platform detected - skipping (no-op)."
         return $false
     }
 
@@ -322,7 +320,7 @@ function Minimize-ConsoleWindow {
     param()
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        Write-Verbose "[Minimize-ConsoleWindow] Non-Windows platform detected — skipping (no-op)."
+        Write-Verbose "[Minimize-ConsoleWindow] Non-Windows platform detected - skipping (no-op)."
         return $false
     }
 
@@ -353,11 +351,11 @@ function Minimize-ConsoleWindow {
     FreeConsole() severs the connection between the process and its console
     window. After this call:
       - The console window is closed (if this process was the only one
-        attached to it — which is always the case for a normal PowerShell
+        attached to it - which is always the case for a normal PowerShell
         session started by the user).
       - All subsequent Write-Host, Write-Error, Write-Warning output is
         silently discarded (no visible output, no error thrown).
-      - The process itself continues running normally — Runspaces, timers
+      - The process itself continues running normally - Runspaces, timers
         and background jobs are unaffected.
       - There is NO way to re-attach a console to an existing process
         using only PowerShell. You would need to call AllocConsole() via
@@ -369,33 +367,33 @@ function Minimize-ConsoleWindow {
          service with NO user interaction expected after startup.
       2. The installer or management layer will communicate with the server
          exclusively through the control routes (/sys/ctrl/*) or the status
-         file — never through console output.
+         file - never through console output.
 
     DO NOT use this function if:
       - You ever need to see Write-Host output for diagnostics.
       - You might need to call Stop-LocalHttpServer interactively.
-      - You are unsure — use Hide-ConsoleWindow instead, which is always
+      - You are unsure - use Hide-ConsoleWindow instead, which is always
         reversible with Show-ConsoleWindow.
 
     RELATIONSHIP TO Hide-ConsoleWindow:
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
     Hide-ConsoleWindow (SW_HIDE) hides the window but the process stays
     attached. The window can be shown again with Show-ConsoleWindow.
 
     Disconnect-Console (FreeConsole) is permanent for the process lifetime.
-    It produces a truly headless process — no window, no console, nothing.
+    It produces a truly headless process - no window, no console, nothing.
 
 .OUTPUTS
     [bool]
-    $true  — FreeConsole() succeeded (process was attached and is now detached).
-    $false — FreeConsole() failed (process was not attached, or non-Windows).
+    $true  - FreeConsole() succeeded (process was attached and is now detached).
+    $false - FreeConsole() failed (process was not attached, or non-Windows).
 
 .EXAMPLE
-    # Hidden mode — fully headless, no recovery possible
+    # Hidden mode - fully headless, no recovery possible
     if ($script:config['Mode'] -eq 'hidden') {
         $detached = Disconnect-Console
         if (-not $detached) {
-            Write-Warning "Could not detach console — falling back to Hide-ConsoleWindow."
+            Write-Warning "Could not detach console - falling back to Hide-ConsoleWindow."
             Hide-ConsoleWindow
         }
     }
@@ -406,7 +404,7 @@ function Disconnect-Console {
     param()
 
     if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        Write-Verbose "[Disconnect-Console] Non-Windows platform detected — skipping (no-op)."
+        Write-Verbose "[Disconnect-Console] Non-Windows platform detected - skipping (no-op)."
         return $false
     }
 
@@ -425,7 +423,7 @@ function Disconnect-Console {
     }
     else {
         # FreeConsole() returns $false if the process was not attached to a
-        # console. This is not necessarily an error — it may have already been
+        # console. This is not necessarily an error - it may have already been
         # detached or started without one.
         Write-Warning "[Disconnect-Console] FreeConsole() returned false. Process may not have been attached to a console."
     }

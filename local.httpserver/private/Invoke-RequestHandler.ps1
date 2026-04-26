@@ -26,33 +26,33 @@ param(
     [System.Net.HttpListenerContext]$Context,
 
     # WwwRoot: The root directory for serving static files.
-    # Default is an empty string — the actual value is resolved in Section 1
+    # Default is an empty string - the actual value is resolved in Section 1
     # from the injected $httpHost variable (which is a plain variable inside
     # the Runspace, NOT a $script: variable).
-    # Never use $script:httpHost here — $script: does not exist in a Runspace!
+    # Never use $script:httpHost here - $script: does not exist in a Runspace!
     [Parameter(Mandatory = $false)]
     [string]$WwwRoot = "",
 
     # Homepage: The default file served for directory requests (e.g. index.html).
-    # Default is an empty string — resolved in Section 1 from $httpHost['homepage'].
+    # Default is an empty string - resolved in Section 1 from $httpHost['homepage'].
     [Parameter(Mandatory = $false)]
     [string]$Homepage = "",
 
     # ErrorPages: Hashtable of custom error page paths, keyed by HTTP status code.
     # e.g. @{ '404' = 'C:\wwwroot\errors\404.html'; '500' = '...' }
-    # Default is an empty hashtable — safer than $null because all downstream
+    # Default is an empty hashtable - safer than $null because all downstream
     # ContainsKey() calls work without a null-guard.
     [Parameter(Mandatory = $false)]
     [hashtable]$ErrorPages = @{}
 )
     # ___________________________________________________________________________
     # -> SECTION 1: Initialize and validate parameters
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
     # -----------------------------------------------------------------------
     # Resolve WwwRoot from the injected $httpHost variable.
     #
-    # RUNSPACE CONTEXT — IMPORTANT:
+    # RUNSPACE CONTEXT - IMPORTANT:
     # Inside a Runspace, $httpHost is a PLAIN variable that was injected via
     # Set-RunspaceVariable before the server loop started. It is NOT a
     # $script: variable. The $script: scope does not exist in a Runspace.
@@ -63,7 +63,7 @@ param(
     if ([string]::IsNullOrEmpty($WwwRoot)) {
         if ($null -ne $httpHost -and -not [string]::IsNullOrEmpty($httpHost['wwwroot'])) {
             # $httpHost was injected by Start-HTTPserver via Set-RunspaceVariable.
-            # Read wwwroot directly from the plain variable — no $script: prefix!
+            # Read wwwroot directly from the plain variable - no $script: prefix!
             $WwwRoot = $httpHost['wwwroot']
         } else {
             Write-Error "[Invoke-RequestHandler] WwwRoot not specified and `$httpHost is not available in this scope. Was it injected via Set-RunspaceVariable?"
@@ -87,7 +87,7 @@ param(
             # Read homepage setting from the injected plain variable.
             $Homepage = $httpHost['homepage']
         } else {
-            # Absolute fallback — every static file server defaults to index.html.
+            # Absolute fallback - every static file server defaults to index.html.
             $Homepage = "index.html"
         }
     }
@@ -117,7 +117,7 @@ param(
         $ErrorPages = @{}
     }
     
-    # Secure access to error pages — $ErrorPages comes as a parameter,
+    # Secure access to error pages - $ErrorPages comes as a parameter,
     # therefore it is evaluated in the scope of the caller (where $script:httpHost is visible)
     $resolvedErrorPages = if ($null -ne $ErrorPages) { $ErrorPages } else { @{} }
     
@@ -127,7 +127,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 2: HTTP Method validation (Whitelist: GET, HEAD)
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
         $allowedMethods = @('GET', 'HEAD')
         if ($request.HttpMethod -notin $allowedMethods) {
@@ -136,7 +136,7 @@ param(
             $response.StatusDescription = "Method Not Allowed"
 
             # RFC 9110 requires an "Allow" header listing the accepted methods.
-            # This is MANDATORY for a spec-compliant 405 response —
+            # This is MANDATORY for a spec-compliant 405 response -
             # without it, clients cannot know which methods are valid.
             $response.Headers.Add("Allow", ($allowedMethods -join ', '))
 
@@ -173,7 +173,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 2b: URL Validation (400 Bad Request)
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         # Checks if the URL contains invalid characters or an incorrect encoding.
         # Such requests are rejected with a 400 Bad Request before they reach the
         # path mapping code.
@@ -210,7 +210,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 2c: Request-URI Length Limit (413 Content Too Large)
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         # Rejects requests with excessively long URLs before any filesystem
         # operations are performed.
         #
@@ -229,7 +229,7 @@ param(
         # RFC NOTE:
         # RFC 9110 §15.5.15 defines 414 (URI Too Long) for this exact case.
         # We use 413 here because it is already configured in module.config.ps1
-        # and our ErrorPages hashtable. The user experience is identical —
+        # and our ErrorPages hashtable. The user experience is identical -
         # both codes signal "your request is too big, try again."
         # If you prefer strict RFC compliance, change 413 → 414 and add
         # '414' to the error hashtable in module.config.ps1.
@@ -238,11 +238,11 @@ param(
         # Resolve maximum URL length from the injected $httpHost configuration.
         #
         # $httpHost is a plain variable in this scope (injected via
-        # Set-RunspaceVariable) — NOT a $script: variable.
+        # Set-RunspaceVariable) - NOT a $script: variable.
         # Access it directly, without any scope prefix.
         #
         # If $httpHost is null or does not contain 'maxUrlLength', we fall back
-        # to 4096 — a conservative, universally accepted upper bound for URLs.
+        # to 4096 - a conservative, universally accepted upper bound for URLs.
         # -----------------------------------------------------------------------
         $maxUrlLength = if ($null -ne $httpHost -and
                             $httpHost.ContainsKey('maxUrlLength') -and
@@ -293,7 +293,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 3: URL to Filesystem Path Mapping
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
         # Get the requested URL path and decode it
         $urlPath = [System.Uri]::UnescapeDataString($request.Url.LocalPath)
@@ -309,14 +309,14 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 4: Path Traversal Protection
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         # CRITICAL SECURITY: Ensure resolved path is within wwwroot.
         #
         # NOTE ON PATTERN CHOICE:
         # Unlike 404/400 (where $resolvedPath is redirected to the error page and
         # the pipeline continues normally), we use the direct-send pattern here.
         # Reason: $resolvedPath currently holds the attacker-controlled path that
-        # escaped wwwroot. Reusing it — even redirected — in the downstream pipeline
+        # escaped wwwroot. Reusing it - even redirected - in the downstream pipeline
         # would be confusing and fragile. A clean early-exit is safer and clearer
         # for a security-critical code path.
 
@@ -365,7 +365,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 5: Directory to index.html mapping
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
         if (Test-Path -Path $resolvedPath -PathType Container) {
             if ([string]::IsNullOrEmpty($Homepage)) {
@@ -377,7 +377,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 6: File existence check and 404 handling
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
 
         if (-not (Test-Path -Path $resolvedPath -PathType Leaf)) {
@@ -409,7 +409,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 7: MIME Type detection
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
         $detectedMime = "application/octet-stream"
         try {
@@ -420,7 +420,7 @@ param(
 
         # ___________________________________________________________________________
         # -> SECTION 8: Security Response Headers
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
         # --- Existing headers (unchanged) ---
         $response.Headers.Add("X-Content-Type-Options", "nosniff")
@@ -433,7 +433,7 @@ param(
         # This is the most important XSS-mitigation header a server can send.
         # For a local static file server, "default-src 'self'" is the correct
         # and sufficient default. If your web app loads fonts or scripts from
-        # external CDNs (e.g. Google Fonts), you would need to extend this —
+        # external CDNs (e.g. Google Fonts), you would need to extend this -
         # but that is a per-app customization, not a server default.
         $response.Headers.Add("Content-Security-Policy", "default-src 'self'")
 
@@ -449,7 +449,7 @@ param(
         # Disables browser APIs that a static file server has no legitimate
         # use for. This prevents any loaded page from accidentally (or
         # maliciously) requesting geolocation, camera or microphone access.
-        # Format: feature=(allowlist) — empty () means "disabled for all origins".
+        # Format: feature=(allowlist) - empty () means "disabled for all origins".
         $response.Headers.Add("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
 
         # Remove or neutralize Server header
@@ -462,7 +462,7 @@ param(
         
         # ___________________________________________________________________________
         # -> SECTION 9: Read and send file content
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
         $fileBytes = [System.IO.File]::ReadAllBytes($resolvedPath)
         
@@ -481,7 +481,7 @@ param(
     } catch {
         # ___________________________________________________________________________
         # -> SECTION 10: Error Handling
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         
         Write-Error "[Invoke-RequestHandler] Error processing request: $($_.Exception.Message)"
         # Only try to send 500 if the stream hasn't startet
@@ -518,7 +518,7 @@ param(
     } finally {
         # ___________________________________________________________________________
         # -> SECTION 11: Cleanup
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         
         try {
             $response.OutputStream.Close()

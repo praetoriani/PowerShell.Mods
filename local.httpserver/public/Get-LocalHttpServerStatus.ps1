@@ -3,8 +3,8 @@
     Returns the current status of the local HTTP server.
 
 .DESCRIPTION
-    Reads live status information from the HTTP Runspace store and — if the
-    server is running — queries the $requestCount variable directly from the
+    Reads live status information from the HTTP Runspace store and - if the
+    server is running - queries the $requestCount variable directly from the
     Runspace via Get-RunspaceVariable. Outputs a formatted status report to
     the console and returns a PSCustomObject for programmatic use.
 
@@ -12,7 +12,7 @@
     is returned and a short informational message is written.
 
     LIVE TELEMETRY:
-    ─────────────────────────────────────────────────────────────────────
+    ---------------------------------------------------------------------
     $requestCount is a variable maintained by the Start-HttpRunspace loop.
     It is incremented on every successfully accepted request and is readable
     from the host thread via Get-RunspaceVariable (SessionStateProxy.GetVariable).
@@ -25,17 +25,17 @@
 
 .OUTPUTS
     PSCustomObject with properties:
-        Name          [string]     — always 'http'
-        State         [string]     — 'running', 'stopped', 'created', 'error', 'not_found'
-        RunspaceState [string]     — raw RunspaceStateInfo.State from the .NET object
-        IsCompleted   [bool]       — whether the async job has finished
-        HadErrors     [bool]       — whether the PowerShell shell recorded errors
-        StartTime     [DateTime]   — when Start-HTTPserver was called
-        Uptime        [TimeSpan]   — how long the server has been running
-        Port          [int]        — the configured port number
-        wwwRoot       [string]     — the configured web root path
-        RequestCount  [int]        — total requests processed since start
-        Exists        [bool]       — whether a RunspaceStore entry exists
+        Name          [string]     - always 'http'
+        State         [string]     - 'running', 'stopped', 'created', 'error', 'not_found'
+        RunspaceState [string]     - raw RunspaceStateInfo.State from the .NET object
+        IsCompleted   [bool]       - whether the async job has finished
+        HadErrors     [bool]       - whether the PowerShell shell recorded errors
+        StartTime     [DateTime]   - when Start-HTTPserver was called
+        Uptime        [TimeSpan]   - how long the server has been running
+        Port          [int]        - the configured port number
+        wwwRoot       [string]     - the configured web root path
+        RequestCount  [int]        - total requests processed since start
+        Exists        [bool]       - whether a RunspaceStore entry exists
 
 .NOTES
     Author        : Praetoriani (a.k.a. M.Sczepanski)
@@ -58,7 +58,7 @@ function Get-LocalHttpServerStatus {
     $status = Get-RunspaceStatus -RunspaceName 'http'
 
     # ------------------------------------------------------------------
-    # Server not running — short report and early return
+    # Server not running - short report and early return
     # ------------------------------------------------------------------
 
     if (-not $status.Exists -or $status.State -ne 'running') {
@@ -77,11 +77,11 @@ function Get-LocalHttpServerStatus {
     }
 
     # ------------------------------------------------------------------
-    # Server is running — read live telemetry from the Runspace
+    # Server is running - read live telemetry from the Runspace
     # ------------------------------------------------------------------
     # Get-RunspaceVariable reads $requestCount directly from the Runspace's
     # SessionState via SessionStateProxy.GetVariable(). This is thread-safe
-    # for a single integer read — no synchronization primitive needed.
+    # for a single integer read - no synchronization primitive needed.
 
     $liveRequestCount = Get-RunspaceVariable -RunspaceName 'http' -VariableName 'requestCount'
 

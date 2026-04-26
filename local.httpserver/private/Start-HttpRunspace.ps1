@@ -7,28 +7,28 @@
     It contains the complete server loop that Start-HTTPserver (public)
     packages as a ScriptBlock and passes to New-RunspaceJob via BeginInvoke().
 
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │  CALLING CHAIN (for orientation)                                    │
-    │                                                                     │
-    │  local.httpserver.ps1 (launcher)                                    │
-    │     └──► Start-HTTPserver          [public]                         │
-    │               ├── New-ManagedRunspace       [private]               │
-    │               ├── Set-RunspaceVariable      [private]  (×6)         │
-    │               ├── Invoke-RunspaceFunctionInjection [private]        │
-    │               └── New-RunspaceJob           [private]               │
-    │                       └──► Start-HttpRunspace  [private] ◄── HERE   │
-    │                                (runs inside the Runspace)           │
-    └─────────────────────────────────────────────────────────────────────┘
 
-    SCOPE ISOLATION — INJECTED VARIABLES:
-    ──────────────────────────────────────────────────────────────────────
+    CALLING CHAIN (for orientation)
+
+    local.httpserver.ps1 (launcher)
+       └--► Start-HTTPserver          [public]
+                 ├-- New-ManagedRunspace       [private]
+                 ├-- Set-RunspaceVariable      [private]  (×6)
+                 ├-- Invoke-RunspaceFunctionInjection [private]
+                 └-- New-RunspaceJob           [private]
+                         └--► Start-HttpRunspace  [private] ◄-- HERE
+                                (runs inside the Runspace)
+
+    
+    SCOPE ISOLATION - INJECTED VARIABLES:
+    ----------------------------------------------------------------------
     A Runspace has ZERO access to $script: variables of the host module.
     Every variable listed below must be injected via Set-RunspaceVariable
     BEFORE New-RunspaceJob is called. If any injection is missing, the
     server loop will fail with a NullReferenceException or silent misbehavior.
 
     Variable         Injected by         Type            Purpose
-    ─────────────────────────────────────────────────────────────────────
+    ---------------------------------------------------------------------
     $httpHost        Set-RunspaceVariable  [hashtable]   Domain, port, wwwroot,
                                                           homepage, error pages, etc.
     $httpRouter      Set-RunspaceVariable  [hashtable]   Control route map
@@ -40,21 +40,21 @@
                                                           Cooperative stop signal.
                                                           Set() by Stop-ManagedRunspace
                                                           to request a clean shutdown.
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
 
     INJECTED FUNCTIONS:
-    ──────────────────────────────────────────────────────────────────────
-    Invoke-RequestHandler  — Handles GET/HEAD requests for static files
-    Invoke-RouteHandler    — Handles control route calls (/sys/ctrl/*)
-    GetMimeType            — MIME type detection (used by Invoke-RequestHandler)
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
+    Invoke-RequestHandler  - Handles GET/HEAD requests for static files
+    Invoke-RouteHandler    - Handles control route calls (/sys/ctrl/*)
+    GetMimeType            - MIME type detection (used by Invoke-RequestHandler)
+    ----------------------------------------------------------------------
 
     NON-BLOCKING ACCEPT PATTERN (the most important design decision):
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
     The classic HttpListener.GetContext() blocks the thread indefinitely
     until a request arrives. In a Runspace context this means Stop-ManagedRunspace
     would have to wait for the NEXT HTTP request before the loop can check
-    the CancelToken — which could be minutes or never.
+    the CancelToken - which could be minutes or never.
 
     Solution: BeginGetContext() + AsyncWaitHandle.WaitOne(PollIntervalMs)
 
@@ -70,16 +70,16 @@
     Stop-ManagedRunspace sets the CancelToken. Default PollIntervalMs = 500.
 
     CONTROL ROUTE SECURITY (IP Guard):
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
     Routes under /sys/ctrl/ are only accessible from localhost (127.0.0.1
     or ::1). Any request from a non-localhost IP receives a 403 Forbidden
     response immediately, before any routing logic is executed. This guard
-    is the innermost line of defence — the outer line is the firewall or
+    is the innermost line of defence - the outer line is the firewall or
     OS-level binding that prevents the server from listening on a public
     network interface in the first place.
 
     REQUEST COUNTER:
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
     The variable $requestCount is incremented for every successfully
     accepted request. It is readable from outside the Runspace via:
         Get-RunspaceVariable -RunspaceName 'http' -VariableName 'requestCount'
@@ -122,7 +122,7 @@ function Start-HttpRunspace {
     )
 
     # ------------------------------------------------------------------
-    # Runtime variables — readable from outside via Get-RunspaceVariable
+    # Runtime variables - readable from outside via Get-RunspaceVariable
     # ------------------------------------------------------------------
 
     # Counts every successfully accepted request (EndGetContext succeeded).
@@ -143,7 +143,7 @@ function Start-HttpRunspace {
     # ------------------------------------------------------------------
     # Every variable in this block was injected by Start-HTTPserver via
     # Set-RunspaceVariable. If any is missing or null, we write a clear
-    # error and exit — an unclear NullReferenceException deep inside the
+    # error and exit - an unclear NullReferenceException deep inside the
     # loop is much harder to diagnose than this explicit check here.
 
     if ($null -eq $httpHost) {
@@ -168,7 +168,7 @@ function Start-HttpRunspace {
     # ------------------------------------------------------------------
     # The prefix format required by HttpListener is:
     #     http://<host>:<port>/
-    # The trailing slash is MANDATORY — HttpListener rejects prefixes
+    # The trailing slash is MANDATORY - HttpListener rejects prefixes
     # without it with an ArgumentException ("The prefix ... is invalid").
     #
     # If $httpHost does not contain a 'domain' key, we fall back to '+',
@@ -186,7 +186,7 @@ function Start-HttpRunspace {
     $listenerPrefix = "http://${domain}:${Port}/"
 
     # ------------------------------------------------------------------
-    # Main try/finally block — ensures $httpListener is always closed
+    # Main try/finally block - ensures $httpListener is always closed
     # ------------------------------------------------------------------
     try {
 
@@ -196,7 +196,7 @@ function Start-HttpRunspace {
 
         # AuthenticationSchemes.Anonymous: the server does not challenge
         # clients for credentials. This is correct for a local static file
-        # server — authentication is handled at the application layer if
+        # server - authentication is handled at the application layer if
         # needed, not at the transport layer.
         $httpListener.AuthenticationSchemes = [System.Net.AuthenticationSchemes]::Anonymous
 
@@ -241,10 +241,10 @@ function Start-HttpRunspace {
             catch [System.Net.HttpListenerException] {
                 # ErrorCode 995 = ERROR_OPERATION_ABORTED
                 # This is thrown when Stop() is called while BeginGetContext()
-                # is in progress. This is a NORMAL, EXPECTED shutdown path —
+                # is in progress. This is a NORMAL, EXPECTED shutdown path -
                 # not an error. Break the loop silently.
                 if ($_.Exception.ErrorCode -eq 995) {
-                    Write-Verbose "[Start-HttpRunspace] BeginGetContext() aborted (995) — clean shutdown."
+                    Write-Verbose "[Start-HttpRunspace] BeginGetContext() aborted (995) - clean shutdown."
                     break
                 }
                 # Any other HttpListenerException is genuinely unexpected.
@@ -261,11 +261,11 @@ function Start-HttpRunspace {
             # Wait up to PollIntervalMs for a request to arrive
             $requestArrived = $asyncResult.AsyncWaitHandle.WaitOne($PollIntervalMs)
 
-            # Check stop conditions first — even if a request arrived,
+            # Check stop conditions first - even if a request arrived,
             # honour the CancelToken immediately if it was set during WaitOne()
             if ($CancelToken.IsSet -or -not $httpListener.IsListening) {
                 # A request may have arrived simultaneously with the stop signal.
-                # We do NOT process it — the server is shutting down.
+                # We do NOT process it - the server is shutting down.
                 # The client will receive a connection reset, which is acceptable
                 # during a deliberate server shutdown.
                 Write-Verbose "[Start-HttpRunspace] CancelToken set or listener stopped. Exiting loop."
@@ -286,7 +286,7 @@ function Start-HttpRunspace {
             }
             catch [System.Net.HttpListenerException] {
                 if ($_.Exception.ErrorCode -eq 995) {
-                    Write-Verbose "[Start-HttpRunspace] EndGetContext() aborted (995) — clean shutdown."
+                    Write-Verbose "[Start-HttpRunspace] EndGetContext() aborted (995) - clean shutdown."
                     break
                 }
                 Write-Warning "[Start-HttpRunspace] EndGetContext() failed (code $($_.Exception.ErrorCode)): $($_.Exception.Message)"
@@ -315,7 +315,7 @@ function Start-HttpRunspace {
             # control route. Control routes are ONLY accessible from localhost.
             # This check is performed here, in the loop, rather than inside
             # Invoke-RouteHandler, so that the guard runs before ANY routing
-            # logic is executed — including route-lookup table access.
+            # logic is executed - including route-lookup table access.
 
             $isSysCtrlPath = $urlPath.StartsWith(
                 '/sys/ctrl/',
@@ -355,17 +355,17 @@ function Start-HttpRunspace {
             #
             # Both functions were injected into this Runspace by
             # Invoke-RunspaceFunctionInjection before the loop started.
-            # They are available as normal functions — no special calling
+            # They are available as normal functions - no special calling
             # convention required.
 
             try {
                 if ($isSysCtrlPath) {
-                    # Control route — handler owns the full response lifecycle
+                    # Control route - handler owns the full response lifecycle
                     Invoke-RouteHandler -Context $context -UrlPath $urlPath
                 }
                 else {
                     # -------------------------------------------------------
-                    # Static file request — dispatch to Invoke-RequestHandler.
+                    # Static file request - dispatch to Invoke-RequestHandler.
                     #
                     # We pass three parameters explicitly:
                     #
@@ -380,7 +380,7 @@ function Start-HttpRunspace {
                     # -ErrorPages The hashtable of custom error page paths from
                     #             $httpHost['error']. Passed explicitly here for
                     #             the same reason: Invoke-RequestHandler no longer
-                    #             reads $script:httpHost — it only uses what it
+                    #             reads $script:httpHost - it only uses what it
                     #             receives as parameters. This makes the function
                     #             fully self-contained and Runspace-safe.
                     #
@@ -393,7 +393,7 @@ function Start-HttpRunspace {
                         # Safely read the error pages hashtable from injected $httpHost.
                         $httpHost['error']
                     } else {
-                        # No error pages configured — pass an empty hashtable.
+                        # No error pages configured - pass an empty hashtable.
                         # This prevents null-reference errors in Invoke-RequestHandler's
                         # ContainsKey() calls for 404, 500, 403 etc.
                         @{}
@@ -407,7 +407,7 @@ function Start-HttpRunspace {
             catch {
                 # Last-resort catch: if a handler throws an unhandled exception,
                 # log it and attempt to send a 500 response if the stream is
-                # still open. The server loop continues — one bad request should
+                # still open. The server loop continues - one bad request should
                 # not kill the entire server.
                 $lastError = $_.Exception.Message
                 Write-Error "[Start-HttpRunspace] Unhandled exception in request handler: $lastError"
@@ -423,7 +423,7 @@ function Start-HttpRunspace {
                     }
                 }
                 catch {
-                    # Stream already closed by the handler — nothing to do
+                    # Stream already closed by the handler - nothing to do
                     Write-Verbose "[Start-HttpRunspace] Could not send 500 fallback: $($_.Exception.Message)"
                 }
             }
@@ -438,7 +438,7 @@ function Start-HttpRunspace {
         # Fatal exception outside the loop (e.g. HttpListener.Start() failed
         # because the port is already in use, or the prefix is invalid).
         $lastError = $_.Exception.Message
-        Write-Error "[Start-HttpRunspace] Fatal error — server could not start or crashed: $lastError"
+        Write-Error "[Start-HttpRunspace] Fatal error - server could not start or crashed: $lastError"
     }
     finally {
         # ------------------------------------------------------------------

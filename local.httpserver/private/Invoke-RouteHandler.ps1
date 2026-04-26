@@ -29,7 +29,7 @@ function Invoke-RouteHandler {
         [string]$UrlPath
     )
 
-    # Shortcuts — same pattern as Invoke-RequestHandler
+    # Shortcuts - same pattern as Invoke-RequestHandler
     $response = $Context.Response
 
     # ----------------------------------------------------------------
@@ -104,7 +104,7 @@ function Invoke-RouteHandler {
                 @{ path = $script:httpRouter['stop'];    method = "GET"; description = "Gracefully shuts down the HTTP server." }
                 @{ path = $script:httpRouter['restart']; method = "GET"; description = "Restarts the server (same port and wwwroot)." }
                 @{ path = $script:httpRouter['status'];  method = "GET"; description = "Returns uptime, port, wwwroot and request stats as JSON." }
-                @{ path = $script:httpRouter['alive'];   method = "GET"; description = "Minimal health check — returns {alive: true, timestamp}." }
+                @{ path = $script:httpRouter['alive'];   method = "GET"; description = "Minimal health check - returns {alive: true, timestamp}." }
                 @{ path = $script:httpRouter['help'];    method = "GET"; description = "Returns this help document." }
                 @{ path = $script:httpRouter['home'];    method = "GET"; description = "Redirects (302) to the configured homepage." }
             )

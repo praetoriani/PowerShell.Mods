@@ -19,7 +19,7 @@
     between the two indicate an unexpected shutdown (crash, external
     disposal, etc.) that the module has not yet processed.
 
-    The function always returns a valid PSCustomObject — even when the
+    The function always returns a valid PSCustomObject - even when the
     named Runspace does not exist (Exists = $false, State = 'not_found').
     This means callers never need to guard against a $null return value.
 
@@ -34,16 +34,16 @@
 
 .OUTPUTS
     PSCustomObject with the following properties:
-      Name          [string]   — the RunspaceName parameter value
-      State         [string]   — logical state from the store
+      Name          [string]   - the RunspaceName parameter value
+      State         [string]   - logical state from the store
                                  ('created'|'running'|'stopped'|
                                   'error'|'not_found')
-      RunspaceState [string]   — actual .NET Runspace state string
-      IsCompleted   [bool]     — whether BeginInvoke() has finished
-      HadErrors     [bool]     — whether the PS shell reported errors
-      StartTime     [DateTime] — when New-ManagedRunspace was called
-      Uptime        [string]   — formatted "Xd HH:MM:SS" or $null
-      Exists        [bool]     — $false when not found in the store
+      RunspaceState [string]   - actual .NET Runspace state string
+      IsCompleted   [bool]     - whether BeginInvoke() has finished
+      HadErrors     [bool]     - whether the PS shell reported errors
+      StartTime     [DateTime] - when New-ManagedRunspace was called
+      Uptime        [string]   - formatted "Xd HH:MM:SS" or $null
+      Exists        [bool]     - $false when not found in the store
 
 .EXAMPLE
     $status = Get-RunspaceStatus -RunspaceName 'http'
@@ -105,7 +105,7 @@ function Get-RunspaceStatus {
     # ------------------------------------------------------------------
     # This is independent of our logical $entry.State and can reveal
     # situations where the runspace died (Broken) without the module
-    # being notified — for example if the background thread threw an
+    # being notified - for example if the background thread threw an
     # unhandled exception that was not caught inside the server loop.
     $dotNetRsState = if ($null -ne $rs) {
         $rs.RunspaceStateInfo.State.ToString()

@@ -4,12 +4,12 @@
 
 .DESCRIPTION
     Stop-ManagedRunspace performs a strict, ordered 8-step shutdown sequence.
-    The order is not arbitrary — each step depends on the previous one having
+    The order is not arbitrary - each step depends on the previous one having
     completed, and deviating from it causes resource leaks, unhandled .NET
     exceptions or hanging threads.
 
     SHUTDOWN SEQUENCE:
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
     Step 1  Set the CancelToken
             ManualResetEventSlim.Set() flips IsSet to $true. The server
             loop inside the Runspace checks this flag after every
@@ -55,7 +55,7 @@
     Step 8  Remove from $script:RunspaceStore
             The store slot is freed. A subsequent call to New-ManagedRunspace
             with the same name will succeed.
-    ──────────────────────────────────────────────────────────────────────
+    ----------------------------------------------------------------------
 
     Each step is wrapped in its own try/catch so that a failure in one step
     does not prevent the remaining cleanup steps from running.
@@ -70,7 +70,7 @@
 
     Default : 5000 (5 seconds). Usually the server loop exits within 500 ms
               after the CancelToken is set and the listener is stopped.
-    Minimum : 0   — skips Step 3 entirely (immediate force-close).
+    Minimum : 0   - skips Step 3 entirely (immediate force-close).
     Maximum : 30000 (30 seconds, sanity cap).
 
     Pass 0 (or use the -Force switch on Stop-LocalHttpServer) when you need
@@ -78,9 +78,9 @@
 
 .OUTPUTS
     [bool]
-    $true  — the runspace was found and the shutdown sequence completed
+    $true  - the runspace was found and the shutdown sequence completed
              (even if individual cleanup steps produced non-fatal warnings).
-    $false — the runspace was not found in $script:RunspaceStore.
+    $false - the runspace was not found in $script:RunspaceStore.
 
 .EXAMPLE
     # Normal graceful stop (waits up to 5 seconds)
@@ -127,7 +127,7 @@ function Stop-ManagedRunspace {
     # ==================================================================
     # STEP 1: Signal the CancelToken
     # ==================================================================
-    # Set() is idempotent — calling it when IsSet is already $true is a
+    # Set() is idempotent - calling it when IsSet is already $true is a
     # no-op. The null-check protects against an entry whose CancelToken
     # was never created (should not happen in normal flow, but defensive
     # coding prevents a NullReferenceException here).
@@ -141,7 +141,7 @@ function Stop-ManagedRunspace {
         }
     }
     else {
-        Write-Verbose "[Stop-ManagedRunspace] Step 1/8: CancelToken already set or null — skipped."
+        Write-Verbose "[Stop-ManagedRunspace] Step 1/8: CancelToken already set or null - skipped."
     }
 
     # ==================================================================
@@ -159,7 +159,7 @@ function Stop-ManagedRunspace {
             Write-Verbose "[Stop-ManagedRunspace] Step 2/8: HttpListener stopped for '$RunspaceName'."
         }
         else {
-            Write-Verbose "[Stop-ManagedRunspace] Step 2/8: HttpListener not found or not listening — skipped."
+            Write-Verbose "[Stop-ManagedRunspace] Step 2/8: HttpListener not found or not listening - skipped."
         }
     }
     catch {
@@ -195,7 +195,7 @@ function Stop-ManagedRunspace {
     }
 
     # ==================================================================
-    # STEP 4: EndInvoke — collect result, surface background errors
+    # STEP 4: EndInvoke - collect result, surface background errors
     # ==================================================================
     # EndInvoke() is mandatory after every BeginInvoke(). It:
     #   - Returns whatever the ScriptBlock returned (we discard it here).
@@ -213,7 +213,7 @@ function Stop-ManagedRunspace {
         }
     }
     else {
-        Write-Verbose "[Stop-ManagedRunspace] Step 4/8: No PowerShell shell or handle — EndInvoke skipped."
+        Write-Verbose "[Stop-ManagedRunspace] Step 4/8: No PowerShell shell or handle - EndInvoke skipped."
     }
 
     # ==================================================================
@@ -234,7 +234,7 @@ function Stop-ManagedRunspace {
     # ==================================================================
     # Close() transitions the Runspace from its current state to Closed
     # and releases the OS thread. Dispose() frees remaining .NET handles
-    # and unmanaged resources. Both must be called — Close() alone leaves
+    # and unmanaged resources. Both must be called - Close() alone leaves
     # the WaitHandle and other disposable members live.
     if ($null -ne $entry.Runspace) {
         try {
@@ -258,7 +258,7 @@ function Stop-ManagedRunspace {
     # ==================================================================
     # ManualResetEventSlim internally holds a kernel WaitHandle that must
     # be explicitly disposed to avoid a handle leak. This is safe to call
-    # even if Set() was called earlier — Dispose() after Set() is valid.
+    # even if Set() was called earlier - Dispose() after Set() is valid.
     if ($null -ne $entry.CancelToken) {
         try {
             $entry.CancelToken.Dispose()

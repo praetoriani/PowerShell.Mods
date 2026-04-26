@@ -6,14 +6,14 @@
     This file contains two tightly related functions that manage the
     httpserver.status.json file in the include\ directory:
 
-      Write-ServerStatusFile — creates or overwrites the status file with
+      Write-ServerStatusFile - creates or overwrites the status file with
                                the current server state and runtime metadata.
-      Remove-ServerStatusFile — deletes the status file when the server stops.
+      Remove-ServerStatusFile - deletes the status file when the server stops.
 
     PURPOSE OF THE STATUS FILE
     ──────────────────────────
     The status file is the bridge between the running server process and any
-    external tool that needs to know whether the server is active — without
+    external tool that needs to know whether the server is active - without
     having access to $script:RunspaceStore, which exists only inside the
     loaded PowerShell module session.
 
@@ -29,7 +29,7 @@
 
     FILE LOCATION
     ─────────────
-    include\httpserver.status.json — relative to $script:root
+    include\httpserver.status.json - relative to $script:root
     (the module root, set in Section 1 of local.httpserver.psm1).
 
     FILE FORMAT (JSON)
@@ -55,7 +55,7 @@
     These two functions are co-located in one file because they share
     the same file path resolution logic. Splitting them into separate
     files would require duplicating the path logic or extracting a third
-    helper — neither of which adds value for just two small functions.
+    helper - neither of which adds value for just two small functions.
 
 .NOTES
     Author        : Praetoriani (a.k.a. M.Sczepanski)
@@ -117,7 +117,7 @@ function Write-ServerStatusFile {
     # from a previous run.
     #
     # $PID is an automatic PowerShell variable containing the process ID
-    # of the current PowerShell host — always available without import.
+    # of the current PowerShell host - always available without import.
     $statusData = [ordered]@{
         status    = $Status
         pid       = $PID
@@ -162,7 +162,7 @@ function Write-ServerStatusFile {
 .DESCRIPTION
     Called by Stop-LocalHttpServer after Stop-ManagedRunspace has returned
     successfully. The absence of the status file is the canonical signal
-    that no server is running — this is safer than relying on a 'stopped'
+    that no server is running - this is safer than relying on a 'stopped'
     state inside the file, because a file with state = 'stopped' could
     theoretically be left behind by a crash before this call was reached.
 
@@ -187,7 +187,7 @@ function Remove-ServerStatusFile {
 
     # Silent no-op if the file is already gone
     if (-not (Test-Path $statusFilePath)) {
-        Write-Verbose "[Remove-ServerStatusFile] Status file not found — nothing to remove."
+        Write-Verbose "[Remove-ServerStatusFile] Status file not found - nothing to remove."
         return $true
     }
 

@@ -12,32 +12,32 @@
     Stop-LocalHttpServer is called.
 
     CALLING CHAIN:
-    ─────────────────────────────────────────────────────────────────────
+    ---------------------------------------------------------------------
     local.httpserver.ps1 (launcher)
-        └──► Start-HTTPserver            [this function]
-                 ├── New-ManagedRunspace      [private]
-                 ├── Set-RunspaceVariable     [private]  (×5)
-                 ├── Invoke-RunspaceFunctionInjection [private]
-                 └── New-RunspaceJob          [private]
-                         └──► Start-HttpRunspace  [private, runs in Runspace]
+        └--► Start-HTTPserver            [this function]
+                 ├-- New-ManagedRunspace      [private]
+                 ├-- Set-RunspaceVariable     [private]  (×5)
+                 ├-- Invoke-RunspaceFunctionInjection [private]
+                 └-- New-RunspaceJob          [private]
+                         └--► Start-HttpRunspace  [private, runs in Runspace]
 
     RUNSPACE SCOPE ISOLATION:
-    ─────────────────────────────────────────────────────────────────────
+    ---------------------------------------------------------------------
     A Runspace has ZERO access to $script: variables of the host module.
     Every variable the server loop needs is explicitly injected via
     Set-RunspaceVariable BEFORE New-RunspaceJob is called.
 
     Variables injected:
-        $httpHost        Hashtable  — Domain, port, wwwroot, error pages
-        $httpRouter      Hashtable  — Control route path map
-        $mimeType        Hashtable  — File extension → MIME type map
-        $wwwRoot         String     — Resolved absolute wwwroot path
-        $CancelToken     ManualResetEventSlim — Cooperative stop signal
+        $httpHost        Hashtable  - Domain, port, wwwroot, error pages
+        $httpRouter      Hashtable  - Control route path map
+        $mimeType        Hashtable  - File extension → MIME type map
+        $wwwRoot         String     - Resolved absolute wwwroot path
+        $CancelToken     ManualResetEventSlim - Cooperative stop signal
 
     Functions injected via Invoke-RunspaceFunctionInjection:
-        Invoke-RequestHandler — Handles static file requests
-        Invoke-RouteHandler   — Handles /sys/ctrl/* control routes
-        GetMimeType           — MIME type lookup (used by RequestHandler)
+        Invoke-RequestHandler - Handles static file requests
+        Invoke-RouteHandler   - Handles /sys/ctrl/* control routes
+        GetMimeType           - MIME type lookup (used by RequestHandler)
 
 .PARAMETER Port
     TCP port number the server will listen on.
@@ -76,7 +76,7 @@ function Start-HTTPserver {
     # ------------------------------------------------------------------
     # Test-RunspaceExists checks $script:RunspaceStore for an entry with
     # name 'http' and State = 'running'. If found, the server is already
-    # running and we must not start a second instance — two HttpListeners
+    # running and we must not start a second instance - two HttpListeners
     # binding to the same port will throw "address already in use".
 
     if (Test-RunspaceExists -RunspaceName 'http') {
@@ -155,30 +155,30 @@ function Start-HTTPserver {
 
     Write-Host "[INFO] Injecting variables into Runspace..." -ForegroundColor Cyan
 
-    # $httpHost — core configuration hashtable (domain, port, wwwroot, error pages, etc.)
+    # $httpHost - core configuration hashtable (domain, port, wwwroot, error pages, etc.)
     Set-RunspaceVariable -RunspaceName 'http' `
                          -VariableName 'httpHost' `
                          -Value $script:httpHost
 
-    # $httpRouter — control route map: route-key → URL path
+    # $httpRouter - control route map: route-key → URL path
     # Example: @{ stop = '/sys/ctrl/http-stop'; status = '/sys/ctrl/http-getstatus'; ... }
     Set-RunspaceVariable -RunspaceName 'http' `
                          -VariableName 'httpRouter' `
                          -Value $script:httpRouter
 
-    # $mimeType — file extension → MIME type map used by Invoke-RequestHandler
+    # $mimeType - file extension → MIME type map used by Invoke-RequestHandler
     Set-RunspaceVariable -RunspaceName 'http' `
                          -VariableName 'mimeType' `
                          -Value $script:mimeType
 
-    # $wwwRoot — resolved absolute path to the web root directory
+    # $wwwRoot - resolved absolute path to the web root directory
     # We inject the already-resolved $resolvedRoot, not the raw $wwwRoot param,
     # so the Runspace always works with a canonical absolute path.
     Set-RunspaceVariable -RunspaceName 'http' `
                          -VariableName 'wwwRoot' `
                          -Value $resolvedRoot
 
-    # $CancelToken — ManualResetEventSlim stop signal
+    # $CancelToken - ManualResetEventSlim stop signal
     # Created by New-ManagedRunspace and stored in the RunspaceStore entry.
     # Stop-ManagedRunspace calls $CancelToken.Set() to signal the server loop
     # to exit on its next poll interval (≤ PollIntervalMs, default 500 ms).
@@ -196,13 +196,13 @@ function Start-HTTPserver {
     # them by re-defining them inside the Runspace via PowerShell.AddScript().
     #
     # Functions injected:
-    #   Invoke-RequestHandler — static file handler (called in the server loop)
-    #   Invoke-RouteHandler   — /sys/ctrl/* handler (called in the server loop)
-    #   GetMimeType           — MIME lookup helper (called by RequestHandler)
+    #   Invoke-RequestHandler - static file handler (called in the server loop)
+    #   Invoke-RouteHandler   - /sys/ctrl/* handler (called in the server loop)
+    #   GetMimeType           - MIME lookup helper (called by RequestHandler)
     #
     # Invoke-RunspaceFunctionInjection reads each function's ScriptBlock via
     # Get-Command, wraps it in "function Name { ... }" and executes it inside
-    # the Runspace — making the function available as a normal PS function.
+    # the Runspace - making the function available as a normal PS function.
 
     Write-Host "[INFO] Injecting functions into Runspace..." -ForegroundColor Cyan
 
@@ -229,7 +229,7 @@ function Start-HTTPserver {
     # New-RunspaceJob:
     #   1. Creates a PowerShell shell ($ps) and binds it to the Runspace
     #   2. Adds the ScriptBlock and parameters
-    #   3. Calls $ps.BeginInvoke() — NON-BLOCKING, returns IAsyncResult immediately
+    #   3. Calls $ps.BeginInvoke() - NON-BLOCKING, returns IAsyncResult immediately
     #   4. Stores the PS shell and Handle in $script:RunspaceStore['http']
     #   5. Sets State → 'running'
     #
@@ -273,11 +273,11 @@ function Start-HTTPserver {
     # ------------------------------------------------------------------
     # In 'hidden' mode the console window is hidden after the server starts
     # so the user sees no window at all. In 'console' mode the window stays
-    # open — the caller (launcher) is responsible for keeping the process
+    # open - the caller (launcher) is responsible for keeping the process
     # alive (see local.httpserver.ps1 for the wait-loop pattern).
 
     if ($script:config['Mode'] -eq 'hidden') {
-        Write-Verbose "[Start-HTTPserver] Mode = hidden — hiding console window."
+        Write-Verbose "[Start-HTTPserver] Mode = hidden - hiding console window."
         Hide-ConsoleWindow
     }
 
@@ -295,6 +295,6 @@ function Start-HTTPserver {
     Write-Host "========================================"  -ForegroundColor Green
     Write-Host ""
 
-    # Return nothing — the function exits here and the console is free.
+    # Return nothing - the function exits here and the console is free.
     # The server continues running in the background Runspace.
 }

@@ -15,7 +15,7 @@
         Stop-ManagedRunspace can call $httpListener.Stop() on it directly,
         which forces BeginGetContext() to return immediately.
 
-    Uses SessionStateProxy.GetVariable() — the symmetric counterpart to
+    Uses SessionStateProxy.GetVariable() - the symmetric counterpart to
     the SetVariable() call used in Set-RunspaceVariable. The variable value
     is returned as-is (by reference for objects, by value for value types),
     so mutations to a returned hashtable or array will affect the object
@@ -32,7 +32,7 @@
 
 .PARAMETER VariableName
     The name of the variable to read from inside the Runspace.
-    Do NOT include the $ prefix — pass 'requestCount', not '$requestCount'.
+    Do NOT include the $ prefix - pass 'requestCount', not '$requestCount'.
 
 .OUTPUTS
     The variable's current value, or $null if the variable could not be

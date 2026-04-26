@@ -30,7 +30,7 @@
     An alternative would be to use InitialSessionState.Commands.Add() to
     pre-populate the session state before the Runspace is opened, but that
     requires the function definitions to be available as
-    SessionStateFunctionEntry objects at Runspace creation time — before
+    SessionStateFunctionEntry objects at Runspace creation time - before
     variables are injected. The string injection approach is more flexible
     and works correctly with functions that reference $script: variables
     that are injected separately via Set-RunspaceVariable.
@@ -43,10 +43,10 @@
     which is always the case in normal usage.
 
     Call order in Start-HTTPserver:
-      1. New-ManagedRunspace       — open the Runspace
-      2. Set-RunspaceVariable      — inject config variables
+      1. New-ManagedRunspace       - open the Runspace
+      2. Set-RunspaceVariable      - inject config variables
       3. Invoke-RunspaceFunctionInjection  ← HERE
-      4. New-RunspaceJob           — start the server loop
+      4. New-RunspaceJob           - start the server loop
 
 .PARAMETER RunspaceName
     The key under which the target Runspace is registered in
@@ -66,8 +66,8 @@
 
 .OUTPUTS
     [bool]
-    $true  — all listed functions were injected successfully.
-    $false — the runspace was not found, or one or more functions failed
+    $true  - all listed functions were injected successfully.
+    $false - the runspace was not found, or one or more functions failed
              to inject. Individual failures are logged via Write-Warning.
 
 .EXAMPLE
@@ -144,8 +144,8 @@ function Invoke-RunspaceFunctionInjection {
         # defines the function in that Runspace's session state, making
         # it callable by name from the server loop ScriptBlock.
         #
-        # $funcInfo.ScriptBlock already contains only the body — not the
-        # "function FunctionName { ... }" wrapper — so we add it here.
+        # $funcInfo.ScriptBlock already contains only the body - not the
+        # "function FunctionName { ... }" wrapper - so we add it here.
         $funcDefinitionString = "function $funcName {`n$($funcInfo.ScriptBlock)`n}"
 
         # --------------------------------------------------------------
@@ -163,7 +163,7 @@ function Invoke-RunspaceFunctionInjection {
             $tempShell.Runspace = $entry.Runspace
 
             $tempShell.AddScript($funcDefinitionString) | Out-Null
-            $tempShell.Invoke() | Out-Null   # synchronous — blocks until done
+            $tempShell.Invoke() | Out-Null   # synchronous - blocks until done
 
             # Check whether the definition script itself produced errors
             if ($tempShell.HadErrors) {

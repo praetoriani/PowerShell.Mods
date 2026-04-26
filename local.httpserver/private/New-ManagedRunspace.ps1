@@ -37,20 +37,20 @@
 .PARAMETER ApartmentState
     Threading apartment model for the OS thread that the Runspace runs on.
 
-    MTA (default) — Multi-Threaded Apartment.
+    MTA (default) - Multi-Threaded Apartment.
         Correct for all background server work: HTTP listener, named pipe
         server, file watchers. This is the default for PowerShell itself.
 
-    STA — Single-Threaded Apartment.
+    STA - Single-Threaded Apartment.
         REQUIRED for any runspace that creates WinForms or WPF objects
         (systray icon, desktop UI in Phase 6). COM objects that are
         apartment-threaded (e.g. Shell.Application) also require STA.
-        The apartment state must be set before Open() is called —
+        The apartment state must be set before Open() is called -
         changing it afterward has no effect, which is why this parameter
         exists from Phase 3 onward even though STA is only used in Phase 6.
 
 .OUTPUTS
-    PSCustomObject — the store entry that was created and registered.
+    PSCustomObject - the store entry that was created and registered.
     Returns $null if the Runspace could not be created (duplicate name or
     Open() failure). Always check the return value before proceeding.
 
@@ -78,8 +78,8 @@ function New-ManagedRunspace {
         [string]$Name,
 
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.Runspaces.ApartmentState]
-        $ApartmentState = [System.Management.Automation.Runspaces.ApartmentState]::MTA
+        [System.Threading.ApartmentState]
+        $ApartmentState = [System.Threading.ApartmentState]::MTA
     )
 
     # ------------------------------------------------------------------
@@ -150,7 +150,7 @@ function New-ManagedRunspace {
     #     BeginGetContext() poll timeout (500 ms) and exits when $true.
     #
     # This approach is safer than a boolean flag ($script:shouldStop)
-    # because ManualResetEventSlim is designed for concurrent access —
+    # because ManualResetEventSlim is designed for concurrent access -
     # the main thread writes and the background thread reads without risk
     # of a torn read or a missed update.
     $cancelToken = New-Object System.Threading.ManualResetEventSlim($false)

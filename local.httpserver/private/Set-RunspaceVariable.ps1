@@ -6,8 +6,8 @@
     A Runspace is completely scope-isolated: it has no access to any
     $script: variable defined in the host module (local.httpserver.psm1),
     nor to any variable from the calling function. Every value the
-    background code needs — configuration hashtables, the wwwroot path,
-    the MIME type table, the cancellation token — must be explicitly
+    background code needs - configuration hashtables, the wwwroot path,
+    the MIME type table, the cancellation token - must be explicitly
     pushed into the Runspace using this function.
 
     Set-RunspaceVariable must be called AFTER New-ManagedRunspace (which
@@ -28,7 +28,7 @@
 
 .PARAMETER VariableName
     The name the variable will have inside the Runspace.
-    Do NOT include the $ prefix — pass 'httpHost', not '$httpHost'.
+    Do NOT include the $ prefix - pass 'httpHost', not '$httpHost'.
 
 .PARAMETER Value
     The value to inject. Any PowerShell type is accepted, including
@@ -109,7 +109,7 @@ function Set-RunspaceVariable {
     # SessionStateProxy.SetVariable() writes directly into the Runspace's
     # PowerShell session state. After this call, $VariableName is available
     # as a normal variable inside that Runspace, with the exact Value
-    # provided (no serialisation / deserialisation occurs — the actual
+    # provided (no serialisation / deserialisation occurs - the actual
     # .NET object reference is shared, not a copy).
     #
     # This means complex objects (hashtables, custom .NET types) are passed

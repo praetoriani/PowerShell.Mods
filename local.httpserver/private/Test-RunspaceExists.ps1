@@ -6,7 +6,7 @@
 .DESCRIPTION
     Test-RunspaceExists is a lightweight Boolean guard function used
     throughout local.httpserver to check the server's live state before
-    taking an action. It is intentionally kept minimal — no output, no
+    taking an action. It is intentionally kept minimal - no output, no
     side effects, just a single Boolean result.
 
     It checks TWO conditions that must both be true:
@@ -24,7 +24,7 @@
 
     Conversely, checking only the .NET Runspace state (RunspaceState from
     Get-RunspaceStatus) would require creating a Get-RunspaceStatus object
-    for every guard call — unnecessarily expensive for a condition that is
+    for every guard call - unnecessarily expensive for a condition that is
     checked at the start of Start-HTTPserver, Stop-LocalHttpServer and
     Restart-LocalHttpServer on every invocation.
 
@@ -39,8 +39,8 @@
 
 .OUTPUTS
     [bool]
-    $true  — the runspace exists in the store and has State = 'running'.
-    $false — the runspace is not in the store, or its State is not 'running'.
+    $true  - the runspace exists in the store and has State = 'running'.
+    $false - the runspace is not in the store, or its State is not 'running'.
 
 .EXAMPLE
     # Guard in Start-HTTPserver
@@ -79,7 +79,7 @@ function Test-RunspaceExists {
 
     # Short-circuit evaluation guarantees that ContainsKey() is always
     # evaluated first. If it returns $false, the second operand (.State
-    # comparison) is never evaluated — no KeyNotFoundException possible.
+    # comparison) is never evaluated - no KeyNotFoundException possible.
     #
     # This single expression replaces an if/else block and is equally
     # readable once you understand the intent of the function.
