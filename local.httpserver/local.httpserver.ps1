@@ -104,6 +104,7 @@ if ((Get-ServerConfig -Section 'mode') -eq 'console') {
             Start-Sleep -Seconds 2
         }
         # If we reach here, the Runspace exited on its own (e.g. fatal error)
+        # Exit loop without Ctrl+C → Runspace exited automatically
         Write-Host "[WARN] Server Runspace exited unexpectedly." -ForegroundColor Yellow
     }
     finally {
