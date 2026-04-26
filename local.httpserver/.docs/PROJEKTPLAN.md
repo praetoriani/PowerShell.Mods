@@ -410,15 +410,15 @@ local.httpserver/
 
 ## 📝 Bekannte Issues & Tech Debt
 
-| ID | Beschreibung | Priorität | Phase |
-|----|-------------|-----------|-------|
-| TD-01 | JSON-Konfigurationsdateien bestehen weiterhin parallel zu `module.config.ps1` und sind noch nicht final als Referenz/Backup eingeordnet | 🔴 Hoch | 1.2 |
-| TD-04 | `ExportServerLog.ps1` ist weiterhin nur Stub / unvollständig | 🟡 Mittel | 5.2 |
-| TD-05 | MIME-Konfiguration sollte auf Vollständigkeit und eventuelle Tippfehler geprüft werden | 🟢 Niedrig | 7.4 |
-| TD-06 | Alt-/Referenzdateien (`config.httphost.json`, `config.server.json`, `config.mime.json`) sind noch nicht bereinigt bzw. dokumentiert | 🟢 Niedrig | 7.1 |
-| TD-10 | `local.httpserver.ps1` implementiert das 3-Step-Pattern noch nicht vollständig bis zum tatsächlichen Serverstart | 🔴 Hoch | 1.5 |
-| TD-11 | Dedizierter `Invoke-RouteHandler` für Control-Routes fehlt noch | 🟡 Mittel | 2.1 |
-| TD-12 | Öffentliche Stop-Funktion und Runspace-Architektur fehlen noch | 🔴 Hoch | 3 |
+| ID | Beschreibung | Priorität | Phase | Status |
+|----|--------------|-----------|-------|--------|
+| TD-01 | JSON-Konfigurationsdateien bestehen weiterhin parallel zu `module.config.ps1` und sind noch nicht final als Referenz/Backup eingeordnet | 🔴 Hoch | 1.2 | weiterhin offen |
+| TD-04 | `ExportServerLog.ps1` ist weiterhin nur Stub / unvollständig | 🟡 Mittel | 5.2 | weiterhin offen |
+| TD-05 | MIME-Konfiguration sollte auf Vollständigkeit und eventuelle Tippfehler geprüft werden | 🟢 Niedrig | 7.4 | weiterhin offen |
+| TD-06 | Alt-/Referenzdateien (`config.httphost.json`, `config.server.json`, `config.mime.json`) sind noch nicht bereinigt bzw. dokumentiert | 🟢 Niedrig | 7.1 | weiterhin offen |
+| TD-10 | `local.httpserver.ps1` implementiert das 3-Step-Pattern noch nicht vollständig bis zum tatsächlichen Serverstart | 🔴 Hoch | 1.5 | ✓ Erledigt |
+| TD-11 | Dedizierter `Invoke-RouteHandler` für Control-Routes fehlt noch | 🟡 Mittel | 2.1 | ✓ Erledigt |
+| TD-12 | Öffentliche Stop-Funktion und Runspace-Architektur fehlen noch | 🔴 Hoch | 3 | ✓ Erledigt |
 
 ---
 
