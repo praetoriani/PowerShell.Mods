@@ -130,9 +130,9 @@ if ($mode -eq 'console' -and -not $isInteractiveSession) {
     # The runspace keeps the server alive – no loop required.
     Write-Host "[INFO] Server running in background. Console is free." -ForegroundColor Green
     Write-Host "[INFO] Commands available:" -ForegroundColor Gray
-    Write-Host "       Get-LocalHttpServerStatus   → Live-Status anzeigen" -ForegroundColor Gray
-    Write-Host "       Stop-LocalHttpServer         → Server stoppen" -ForegroundColor Gray
-    Write-Host "       Restart-LocalHttpServer      → Server neu starten" -ForegroundColor Gray
+    Write-Host "       Get-LocalHttpServerStatus    ->  Show Live-Status" -ForegroundColor Gray
+    Write-Host "       Stop-LocalHttpServer         ->  Stop/Shutdown the Server" -ForegroundColor Gray
+    Write-Host "       Restart-LocalHttpServer      ->  Restart the whole Server" -ForegroundColor Gray
     Write-Host ""
 }
 

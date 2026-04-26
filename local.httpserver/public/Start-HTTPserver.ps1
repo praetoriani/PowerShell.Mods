@@ -222,7 +222,7 @@ function Start-HTTPserver {
         return
     }
 
-    Write-Host "[OK]   Functions injected (Invoke-RequestHandler, Invoke-RouteHandler, GetMimeType)." -ForegroundColor Green
+    Write-Host "[OK]   Functions injected (Write-RunspaceLog, Invoke-RequestHandler, Invoke-RouteHandler, GetMimeType)." -ForegroundColor Green
 
     # ------------------------------------------------------------------
     # SECTION 6: Start the server loop asynchronously
@@ -285,6 +285,7 @@ function Start-HTTPserver {
     # ------------------------------------------------------------------
     # SUCCESS: Server is running in the background
     # ------------------------------------------------------------------
+    Start-Sleep -Milliseconds 3000
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Green
     Write-Host "  Local HTTP Server started (Runspace)"   -ForegroundColor Green
