@@ -147,19 +147,19 @@ function Start-HttpRunspace {
     # loop is much harder to diagnose than this explicit check here.
 
     if ($null -eq $httpHost) {
-        Write-Error "[Start-HttpRunspace] Required variable `$httpHost was not injected. Aborting."
+        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$httpHost was not injected. Aborting.")
         return
     }
     if ($null -eq $mimeType) {
-        Write-Error "[Start-HttpRunspace] Required variable `$mimeType was not injected. Aborting."
+        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$mimeType was not injected. Aborting.")
         return
     }
     if ($null -eq $CancelToken) {
-        Write-Error "[Start-HttpRunspace] Required variable `$CancelToken was not injected. Aborting."
+        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$CancelToken was not injected. Aborting.")
         return
     }
     if ([string]::IsNullOrEmpty($wwwRoot) -or -not (Test-Path $wwwRoot)) {
-        Write-Error "[Start-HttpRunspace] Required variable `$wwwRoot is missing or path does not exist: '$wwwRoot'. Aborting."
+        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$wwwRoot is missing or path does not exist: '$wwwRoot'. Aborting.")
         return
     }
 
@@ -244,17 +244,17 @@ function Start-HttpRunspace {
                 # is in progress. This is a NORMAL, EXPECTED shutdown path -
                 # not an error. Break the loop silently.
                 if ($_.Exception.ErrorCode -eq 995) {
-                    Write-Verbose "[Start-HttpRunspace] BeginGetContext() aborted (995) - clean shutdown."
+                    [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] BeginGetContext() aborted (995) - clean shutdown.")
                     break
                 }
                 # Any other HttpListenerException is genuinely unexpected.
                 $lastError = $_.Exception.Message
-                Write-Warning "[Start-HttpRunspace] BeginGetContext() failed (code $($_.Exception.ErrorCode)): $lastError"
+                [Console]::WriteLine("[WARN] [Start-HttpRunspace] BeginGetContext() failed (code $($_.Exception.ErrorCode)): $lastError")
                 break
             }
             catch {
                 $lastError = $_.Exception.Message
-                Write-Warning "[Start-HttpRunspace] BeginGetContext() unexpected error: $lastError"
+                [Console]::WriteLine("[WARN] [Start-HttpRunspace] BeginGetContext() unexpected error: $lastError")
                 break
             }
 
@@ -268,7 +268,7 @@ function Start-HttpRunspace {
                 # We do NOT process it - the server is shutting down.
                 # The client will receive a connection reset, which is acceptable
                 # during a deliberate server shutdown.
-                Write-Verbose "[Start-HttpRunspace] CancelToken set or listener stopped. Exiting loop."
+                [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] CancelToken set or listener stopped. Exiting loop.")
                 break
             }
 
@@ -286,14 +286,14 @@ function Start-HttpRunspace {
             }
             catch [System.Net.HttpListenerException] {
                 if ($_.Exception.ErrorCode -eq 995) {
-                    Write-Verbose "[Start-HttpRunspace] EndGetContext() aborted (995) - clean shutdown."
+                    [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] EndGetContext() aborted (995) - clean shutdown.")
                     break
                 }
-                Write-Warning "[Start-HttpRunspace] EndGetContext() failed (code $($_.Exception.ErrorCode)): $($_.Exception.Message)"
+                [Console]::WriteLine("[WARN] [Start-HttpRunspace] EndGetContext() failed (code $($_.Exception.ErrorCode)): $($_.Exception.Message)")
                 continue    # skip this cycle, try again
             }
             catch {
-                Write-Warning "[Start-HttpRunspace] EndGetContext() unexpected error: $($_.Exception.Message)"
+                [Console]::WriteLine("[WARN] [Start-HttpRunspace] EndGetContext() unexpected error: $($_.Exception.Message)")
                 continue
             }
 
@@ -330,7 +330,7 @@ function Start-HttpRunspace {
                 if (-not $isLocalhost) {
                     # Remote client attempting to access a control route.
                     # Respond with 403 and close the connection immediately.
-                    Write-Warning "[Start-HttpRunspace] Control route access denied for non-localhost IP: $clientIP → $urlPath"
+                    [Console]::WriteLine("[WARN] [Start-HttpRunspace] Control route access denied for non-localhost IP: $clientIP → $urlPath")
                     try {
                         $denyBytes = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden")
                         $context.Response.StatusCode      = 403
@@ -340,7 +340,7 @@ function Start-HttpRunspace {
                         $context.Response.OutputStream.Close()
                     }
                     catch {
-                        Write-Verbose "[Start-HttpRunspace] Could not send 403 for IP guard: $($_.Exception.Message)"
+                        [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] Could not send 403 for IP guard: $($_.Exception.Message)")
                     }
                     continue    # next request
                 }
@@ -410,7 +410,7 @@ function Start-HttpRunspace {
                 # still open. The server loop continues - one bad request should
                 # not kill the entire server.
                 $lastError = $_.Exception.Message
-                Write-Error "[Start-HttpRunspace] Unhandled exception in request handler: $lastError"
+                [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Unhandled exception in request handler: $lastError")
 
                 try {
                     if ($context.Response.OutputStream.CanWrite) {
@@ -424,7 +424,7 @@ function Start-HttpRunspace {
                 }
                 catch {
                     # Stream already closed by the handler - nothing to do
-                    Write-Verbose "[Start-HttpRunspace] Could not send 500 fallback: $($_.Exception.Message)"
+                    [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] Could not send 500 fallback: $($_.Exception.Message)")
                 }
             }
 
@@ -438,7 +438,7 @@ function Start-HttpRunspace {
         # Fatal exception outside the loop (e.g. HttpListener.Start() failed
         # because the port is already in use, or the prefix is invalid).
         $lastError = $_.Exception.Message
-        Write-Error "[Start-HttpRunspace] Fatal error - server could not start or crashed: $lastError"
+        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Fatal error - server could not start or crashed: $lastError")
     }
     finally {
         # ------------------------------------------------------------------
@@ -458,7 +458,7 @@ function Start-HttpRunspace {
                 $httpListener.Close()
             }
             catch {
-                Write-Verbose "[Start-HttpRunspace] HttpListener cleanup error (non-fatal): $($_.Exception.Message)"
+                [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] HttpListener cleanup error (non-fatal): $($_.Exception.Message)")
             }
         }
 
