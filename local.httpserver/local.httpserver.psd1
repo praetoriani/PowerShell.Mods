@@ -88,6 +88,10 @@ FileList = @(
     'Private\Get-RunspaceVariable.ps1',
     'Private\New-RunspaceJob.ps1',
     'Private\Get-RunspaceStatus.ps1',
+    'Private\Stop-ManagedRunspace.ps1',
+    'Private\Test-RunspaceExists.ps1',
+    'Private\Invoke-RunspaceFunctionInjection.ps1',
+    'Private\ServerStatusFile.ps1',
     # Public functions
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',
