@@ -197,6 +197,41 @@ if ($script:configinscope) {
 
 
 # ___________________________________________________________________________
+# -> SECTION 2b: Runspace State Store
+# ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+# This hashtable acts as the central state registry for all managed runspaces.
+# It is the ONLY authoritative place where runspace instances, their associated
+# PowerShell shells, async handles, cancellation tokens and metadata are stored.
+#
+# Never store runspace objects in local function variables or module-level
+# scalar variables. Always read from and write to $script:RunspaceStore.
+#
+# The Synchronized() wrapper is mandatory: the main thread and background
+# runspaces may access this store concurrently (e.g. a pipe-server runspace
+# reading state while the HTTP runspace writes its request counter).
+# Synchronized() provides thread-safe reads and writes without manual locks.
+#
+# Structure of each entry (keyed by a short name like 'http', 'pipe', 'tray'):
+#
+#   $script:RunspaceStore['http'] = [PSCustomObject]@{
+#       Runspace    = <RunspaceObject>           # The actual PS Runspace
+#       PowerShell  = <PowerShellObject>         # The PS shell running inside it
+#       Handle      = <IAsyncResult>             # Returned by BeginInvoke()
+#       CancelToken = <ManualResetEventSlim>     # Stop-signal for the loop
+#       StartTime   = <DateTime>                 # When the runspace was started
+#       State       = 'created'|'running'|       # Logical lifecycle state
+#                     'stopped'|'error'
+#       Name        = 'http'                     # Same as the store key
+#   }
+
+$script:RunspaceStore = [System.Collections.Hashtable]::Synchronized(
+    @{}
+)
+
+Write-Verbose "[local.httpserver] Runspace State Store initialized."
+
+
+# ___________________________________________________________________________
 # -> SECTION 3: Load required plugins
 # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 # In this section we're going to import other modules (named as plugins)

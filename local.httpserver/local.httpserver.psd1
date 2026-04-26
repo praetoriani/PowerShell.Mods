@@ -83,6 +83,11 @@ FileList = @(
     'Private\ReadJSON.ps1',
     'Private\Invoke-RequestHandler.ps1',
     'Private\Invoke-RouteHandler.ps1',
+    'Private\New-ManagedRunspace.ps1',
+    'Private\Set-RunspaceVariable.ps1',
+    'Private\Get-RunspaceVariable.ps1',
+    'Private\New-RunspaceJob.ps1',
+    'Private\Get-RunspaceStatus.ps1',
     # Public functions
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',
