@@ -98,6 +98,7 @@ FileList = @(
     'Private\ServerStatusFile.ps1',
     'Private\Start-HttpRunspace.ps1',
     'Private\Invoke-ConsoleControl.ps1',
+    'Private\Write-RunspaceLog.ps1',
     # Public functions
     'Public\ExportServerLog.ps1',
     'Public\GetMimeType.ps1',

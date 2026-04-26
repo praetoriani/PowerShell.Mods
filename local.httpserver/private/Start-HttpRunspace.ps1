@@ -147,19 +147,23 @@ function Start-HttpRunspace {
     # loop is much harder to diagnose than this explicit check here.
 
     if ($null -eq $httpHost) {
-        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$httpHost was not injected. Aborting.")
+        Write-RunspaceLog "[Start-HttpRunspace] Required variable `$httpHost was not injected. Aborting." `
+            -ForegroundColor White -BackgroundColor DarkRed -Prefix "ERROR"
         return
     }
     if ($null -eq $mimeType) {
-        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$mimeType was not injected. Aborting.")
+        Write-RunspaceLog "[Start-HttpRunspace] Required variable `$mimeType was not injected. Aborting." `
+            -ForegroundColor White -BackgroundColor DarkRed -Prefix "ERROR"
         return
     }
     if ($null -eq $CancelToken) {
-        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$CancelToken was not injected. Aborting.")
+        Write-RunspaceLog "[Start-HttpRunspace] Required variable `$CancelToken was not injected. Aborting." `
+            -ForegroundColor White -BackgroundColor DarkRed -Prefix "ERROR"
         return
     }
     if ([string]::IsNullOrEmpty($wwwRoot) -or -not (Test-Path $wwwRoot)) {
-        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Required variable `$wwwRoot is missing or path does not exist: '$wwwRoot'. Aborting.")
+        Write-RunspaceLog "[ERROR] [Start-HttpRunspace] Required variable `$wwwRoot is missing or path does not exist: '$wwwRoot'. Aborting." `
+            -ForegroundColor White -BackgroundColor DarkRed -Prefix "ERROR"
         return
     }
 
@@ -202,10 +206,10 @@ function Start-HttpRunspace {
 
         $httpListener.Start()
 
-        [Console]::WriteLine("")
-        [Console]::WriteLine("[Runspace] HTTP server is listening on $listenerPrefix")
-        [Console]::WriteLine("[Runspace] wwwRoot   : $wwwRoot")
-        [Console]::WriteLine("[Runspace] Poll interval : ${PollIntervalMs}ms")
+        Write-RunspaceLog ""
+        Write-RunspaceLog "HTTP server is listening on $listenerPrefix" -ForegroundColor Green   -Prefix "OK"
+        Write-RunspaceLog "wwwRoot        : $wwwRoot"                   -ForegroundColor Green   -Prefix "OK"
+        Write-RunspaceLog "Poll interval  : ${PollIntervalMs}ms"        -ForegroundColor Green   -Prefix "OK"
 
         # ==============================================================
         # SERVER LOOP
@@ -244,17 +248,20 @@ function Start-HttpRunspace {
                 # is in progress. This is a NORMAL, EXPECTED shutdown path -
                 # not an error. Break the loop silently.
                 if ($_.Exception.ErrorCode -eq 995) {
-                    [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] BeginGetContext() aborted (995) - clean shutdown.")
+                    Write-RunspaceLog "BeginGetContext() aborted (995) - clean shutdown." `
+                                    -ForegroundColor DarkGray -Prefix "INFO"
                     break
                 }
                 # Any other HttpListenerException is genuinely unexpected.
                 $lastError = $_.Exception.Message
-                [Console]::WriteLine("[WARN] [Start-HttpRunspace] BeginGetContext() failed (code $($_.Exception.ErrorCode)): $lastError")
+                Write-RunspaceLog "BeginGetContext() failed (code $($_.Exception.ErrorCode)): $lastError" `
+                                -ForegroundColor Yellow -Prefix "WARN"
                 break
             }
             catch {
                 $lastError = $_.Exception.Message
-                [Console]::WriteLine("[WARN] [Start-HttpRunspace] BeginGetContext() unexpected error: $lastError")
+                Write-RunspaceLog "[WARN] [Start-HttpRunspace] BeginGetContext() unexpected error: $lastError" `
+                                -ForegroundColor Yellow -Prefix "WARN"
                 break
             }
 
@@ -268,7 +275,8 @@ function Start-HttpRunspace {
                 # We do NOT process it - the server is shutting down.
                 # The client will receive a connection reset, which is acceptable
                 # during a deliberate server shutdown.
-                [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] CancelToken set or listener stopped. Exiting loop.")
+                Write-RunspaceLog "CancelToken set or listener stopped. Exiting loop." `
+                                -ForegroundColor DarkGray -Prefix "INFO"
                 break
             }
 
@@ -289,11 +297,13 @@ function Start-HttpRunspace {
                     [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] EndGetContext() aborted (995) - clean shutdown.")
                     break
                 }
-                [Console]::WriteLine("[WARN] [Start-HttpRunspace] EndGetContext() failed (code $($_.Exception.ErrorCode)): $($_.Exception.Message)")
+                Write-RunspaceLog "EndGetContext() failed (code $($_.Exception.ErrorCode)): $($_.Exception.Message)" `
+                                -ForegroundColor Yellow -Prefix "WARN"
                 continue    # skip this cycle, try again
             }
             catch {
-                [Console]::WriteLine("[WARN] [Start-HttpRunspace] EndGetContext() unexpected error: $($_.Exception.Message)")
+                Write-RunspaceLog "[WARN] [Start-HttpRunspace] EndGetContext() unexpected error: $($_.Exception.Message)" `
+                                -ForegroundColor Yellow -Prefix "WARN"
                 continue
             }
 
@@ -306,7 +316,8 @@ function Start-HttpRunspace {
             $clientIP  = $req.RemoteEndPoint.Address.ToString()
             $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-            [Console]::WriteLine("[$timestamp] #$requestCount $($req.HttpMethod) $urlPath  [from $clientIP]")
+            Write-RunspaceLog "[$timestamp] #$requestCount $($req.HttpMethod) $urlPath  [from $clientIP]" `
+                            -ForegroundColor Cyan -Prefix "REQUEST"
 
             # ----------------------------------------------------------
             # Phase 4: IP Guard for control routes
@@ -330,7 +341,8 @@ function Start-HttpRunspace {
                 if (-not $isLocalhost) {
                     # Remote client attempting to access a control route.
                     # Respond with 403 and close the connection immediately.
-                    [Console]::WriteLine("[WARN] [Start-HttpRunspace] Control route access denied for non-localhost IP: $clientIP → $urlPath")
+                    Write-RunspaceLog "Control route access denied for IP: $clientIP -> $urlPath" `
+                                    -ForegroundColor Yellow -Prefix "WARN"
                     try {
                         $denyBytes = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden")
                         $context.Response.StatusCode      = 403
@@ -340,7 +352,8 @@ function Start-HttpRunspace {
                         $context.Response.OutputStream.Close()
                     }
                     catch {
-                        [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] Could not send 403 for IP guard: $($_.Exception.Message)")
+                        Write-RunspaceLog "[Start-HttpRunspace] Could not send 403 for IP guard: $($_.Exception.Message)" `
+                            -ForegroundColor DarkGray -Prefix "INFO"
                     }
                     continue    # next request
                 }
@@ -410,7 +423,8 @@ function Start-HttpRunspace {
                 # still open. The server loop continues - one bad request should
                 # not kill the entire server.
                 $lastError = $_.Exception.Message
-                [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Unhandled exception in request handler: $lastError")
+                Write-RunspaceLog "Unhandled exception in request handler: $lastError" `
+                                -ForegroundColor White -BackgroundColor Red -Prefix "ERROR"
 
                 try {
                     if ($context.Response.OutputStream.CanWrite) {
@@ -424,7 +438,8 @@ function Start-HttpRunspace {
                 }
                 catch {
                     # Stream already closed by the handler - nothing to do
-                    [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] Could not send 500 fallback: $($_.Exception.Message)")
+                    Write-RunspaceLog "[Start-HttpRunspace] Could not send 500 fallback: $($_.Exception.Message)" `
+                        -ForegroundColor DarkGray -Prefix "INFO"
                 }
             }
 
@@ -438,7 +453,8 @@ function Start-HttpRunspace {
         # Fatal exception outside the loop (e.g. HttpListener.Start() failed
         # because the port is already in use, or the prefix is invalid).
         $lastError = $_.Exception.Message
-        [Console]::WriteLine("[ERROR] [Start-HttpRunspace] Fatal error - server could not start or crashed: $lastError")
+        Write-RunspaceLog "Fatal error - server could not start or crashed: $lastError" `
+                        -ForegroundColor White -BackgroundColor DarkRed -Prefix "ERROR"
     }
     finally {
         # ------------------------------------------------------------------
@@ -458,11 +474,13 @@ function Start-HttpRunspace {
                 $httpListener.Close()
             }
             catch {
-                [Console]::WriteLine("[VERBOSE] [Start-HttpRunspace] HttpListener cleanup error (non-fatal): $($_.Exception.Message)")
+                Write-RunspaceLog "[Start-HttpRunspace] HttpListener cleanup error (non-fatal): $($_.Exception.Message)" `
+                    -ForegroundColor DarkGray -Prefix "INFO"
             }
         }
 
-        [Console]::WriteLine("")
-        [Console]::WriteLine("[Runspace] HTTP server stopped. Total requests served: $requestCount")
+        Write-RunspaceLog ""
+        Write-RunspaceLog "HTTP server stopped. Total requests served: $requestCount" `
+                        -ForegroundColor Cyan -Prefix "INFO"
     }
 }

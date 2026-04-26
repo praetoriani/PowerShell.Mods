@@ -209,6 +209,7 @@ function Start-HTTPserver {
     $injectionResult = Invoke-RunspaceFunctionInjection `
         -RunspaceName  'http' `
         -FunctionNames @(
+            'Write-RunspaceLog',
             'Invoke-RequestHandler',
             'Invoke-RouteHandler',
             'GetMimeType'

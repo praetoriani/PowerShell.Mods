@@ -66,7 +66,8 @@ param(
             # Read wwwroot directly from the plain variable - no $script: prefix!
             $WwwRoot = $httpHost['wwwroot']
         } else {
-            Write-Error "[Invoke-RequestHandler] WwwRoot not specified and `$httpHost is not available in this scope. Was it injected via Set-RunspaceVariable?"
+            Write-RunspaceLog "[Invoke-RequestHandler] WwwRoot not specified and `$httpHost is not available in this scope. Was it injected via Set-RunspaceVariable?" `
+                -ForegroundColor White -BackgroundColor Red -Prefix "ERROR"
             return
         }
     }
@@ -258,7 +259,8 @@ param(
 
         if ($request.RawUrl.Length -gt $maxUrlLength) {
 
-            Write-Warning "[Invoke-RequestHandler] URI too long ($($request.RawUrl.Length) chars), blocked: $($request.RawUrl.Substring(0, [Math]::Min(100, $request.RawUrl.Length)))..."
+            Write-RunspaceLog "[Invoke-RequestHandler] URI too long ($($request.RawUrl.Length) chars), blocked: $($request.RawUrl.Substring(0, [Math]::Min(100, $request.RawUrl.Length)))..." `
+                -ForegroundColor Yellow -Prefix "WARN"
 
             $response.StatusCode        = 413
             $response.StatusDescription = "Content Too Large"
@@ -325,7 +327,8 @@ param(
 
         if (-not $resolvedPath.StartsWith($resolvedWwwRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
 
-            Write-Warning "[Invoke-RequestHandler] Path traversal attempt blocked: $urlPath"
+            Write-RunspaceLog "[Invoke-RequestHandler] Path traversal attempt blocked: $urlPath" `
+                -ForegroundColor Yellow -Prefix "WARN"
 
             $response.StatusCode        = 403
             $response.StatusDescription = "Forbidden"
@@ -415,7 +418,8 @@ param(
         try {
             $detectedMime = GetMimeType -FilePath $resolvedPath
         } catch {
-            Write-Warning "[Invoke-RequestHandler] Failed to get MIME type for $resolvedPath : $($_.Exception.Message)"
+            Write-RunspaceLog "[Invoke-RequestHandler] Failed to get MIME type for $resolvedPath : $($_.Exception.Message)" `
+                -ForegroundColor Yellow -Prefix "WARN"
         }
 
         # ___________________________________________________________________________
@@ -464,6 +468,8 @@ param(
         # -> SECTION 9: Read and send file content
         # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         
+        $fileBytes = [System.IO.File]::ReadAllBytes($resolvedPath)
+
         $response.ContentType     = $detectedMime
         $response.ContentLength64 = $fileBytes.Length
         $response.StatusCode      = 200
@@ -481,8 +487,6 @@ param(
         }
         
         <#
-        $fileBytes = [System.IO.File]::ReadAllBytes($resolvedPath)
-        
         $response.ContentType = $detectedMime
         $response.ContentLength64 = $fileBytes.Length
 
@@ -500,7 +504,9 @@ param(
         # -> SECTION 10: Error Handling
         # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         
-        Write-Error "[Invoke-RequestHandler] Error processing request: $($_.Exception.Message)"
+        Write-RunspaceLog "[Invoke-RequestHandler] Error processing request: $($_.Exception.Message)" `
+            -ForegroundColor White -BackgroundColor Red -Prefix "ERROR"
+
         # Only try to send 500 if the stream hasn't startet
         try {
 
@@ -529,7 +535,8 @@ param(
             }
         } catch {
             # If we can't even send error response, just log it
-            Write-Error "[Invoke-RequestHandler] Failed to send error response: $($_.Exception.Message)"
+            Write-RunspaceLog "[Invoke-RequestHandler] Failed to send error response: $($_.Exception.Message)" `
+                -ForegroundColor White -BackgroundColor Red -Prefix "ERROR"
         }
 
     } finally {
