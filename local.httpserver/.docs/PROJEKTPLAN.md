@@ -4,8 +4,8 @@
 > **Repository:** [praetoriani/PowerShell.Mods](https://github.com/praetoriani/PowerShell.Mods/tree/main/local.httpserver)
 > **Autor:** Praetoriani (a.k.a. M. Sczepanski)
 > **Erstellt:** 17.04.2026
-> **Zuletzt aktualisiert:** 19.04.2026
-> **Aktueller Status:** ✅ Phase 1 technisch abnahmefähig, 1.5 weiterhin teilweise umgesetzt; Phase 2 kann begonnen werden (19.04.2026)
+**Zuletzt aktualisiert:** 26.04.2026
+**Aktueller Status:** ✅ Phase 1 abgeschlossen · ✅ Phase 2 abgeschlossen · ✅ Phase 3 abgeschlossen · Phase 4 kann begonnen werden
 ---
 
 ## 🎯 Projektziel
@@ -57,8 +57,8 @@ local.httpserver/
 | Phase | Bezeichnung | Status | Priorität |
 |-------|-------------|--------|-----------|
 | **Phase 1** | Fundament & Basisserver | ✅ Technisch funktionsfähig | 🔴 Kritisch |
-| **Phase 2** | Steuerung & Sicherheit | 🚧 Teilweise begonnen | 🔴 Hoch |
-| **Phase 3** | Hintergrundmodus & Runspaces | ⬜ Offen | 🔴 Hoch |
+| **Phase 2** | Steuerung & Sicherheit | ✅ Abgeschlossen | 🔴 Hoch |
+| **Phase 3** | Hintergrundmodus & Runspaces | ✅ Abgeschlossen | 🔴 Hoch |
 | **Phase 4** | Named Pipes (IPC) | ⬜ Offen | 🟡 Mittel |
 | **Phase 5** | Logging & Monitoring | 🚧 Teilweise begonnen | 🟡 Mittel |
 | **Phase 6** | Erweiterte Modi (SysTray, Desktop) | ⬜ Offen | 🟢 Niedrig |
@@ -199,13 +199,13 @@ local.httpserver/
 
 ### 2.4 – Heartbeat & Mutex-basierte Statuskommunikation (Alternative IPC)
 
-- [ ] Konzept für Mutex-basierte Kommunikation definieren (Steuerdatei / Named Mutex)
-- [ ] `New-Object System.Threading.Mutex` für exklusive Instanz-Kontrolle nutzen
-- [ ] Statusdatei (`httpserver.status.json`) im `include`-Verzeichnis schreiben (PID, Port, Status, Startzeit)
-- [ ] Externe Prozesse können Status durch Lesen dieser Datei abfragen
-- [ ] Statusdatei beim sauberen Shutdown löschen
+- [X] Konzept für Mutex-basierte Kommunikation definieren (Steuerdatei / Named Mutex)
+- [X] `New-Object System.Threading.Mutex` für exklusive Instanz-Kontrolle nutzen
+- [X] Statusdatei (`httpserver.status.json`) im `include`-Verzeichnis schreiben (PID, Port, Status, Startzeit)
+- [X] Externe Prozesse können Status durch Lesen dieser Datei abfragen
+- [X] Statusdatei beim sauberen Shutdown löschen
 
-**Statusbewertung:** Noch nicht begonnen. Macht technisch erst dann vollständig Sinn, wenn die Runspace-Architektur aus Phase 3 steht — weil die Statusdatei von einem Background-Runspace geschrieben und von der Konsole gelesen werden soll. Jetzt im synchronen Blocking-Modus zu implementieren würde bedeuten, ihn sofort wieder zu überarbeiten. Das ist eine bewusste Entscheidung, ihn in Phase 3.1 zu integrieren.
+**Statusbewertung:** Erledigt.
 
 
 ---
@@ -216,46 +216,46 @@ local.httpserver/
 
 ### 3.1 – Runspace-Architektur (`private/Start-HttpRunspace.ps1`)
 
-- [ ] Neue private Funktion `Start-HttpRunspace` anlegen
-- [ ] `[System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()` verwenden
-- [ ] Runspace mit minimalem `InitialSessionState` konfigurieren (nur benötigte Funktionen übergeben)
-- [ ] HTTP-Listener-Loop in den Runspace auslagern
-- [ ] `PowerShell`-Instanz im Runspace asynchron starten (`BeginInvoke`)
-- [ ] Runspace-Handle und PowerShell-Instanz in `$Script:`-Variable speichern (für späteren Stop)
-- [ ] Sauberes Stoppen: `EndInvoke` → `Dispose` des Runspaces
+- [X] Neue private Funktion `Start-HttpRunspace` anlegen
+- [X] `[System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()` verwenden
+- [X] Runspace mit minimalem `InitialSessionState` konfigurieren (nur benötigte Funktionen übergeben)
+- [X] HTTP-Listener-Loop in den Runspace auslagern
+- [X] `PowerShell`-Instanz im Runspace asynchron starten (`BeginInvoke`)
+- [X] Runspace-Handle und PowerShell-Instanz in `$Script:`-Variable speichern (für späteren Stop)
+- [X] Sauberes Stoppen: `EndInvoke` → `Dispose` des Runspaces
 
-**Statusbewertung:** Noch nicht begonnen.
+**Statusbewertung:** Erledigt.
 
 ---
 
 ### 3.2 – Öffentliche Start/Stop-Funktionen (`public/`)
 
 - [x] Startfunktion ist öffentlich vorhanden und funktional nutzbar (`Start-HTTPserver.ps1`)
-- [ ] Öffentliche Stop-Funktion als separate exportierte API implementieren
-- [ ] Beide Funktionen konsistent in `FunctionsToExport` aufnehmen
-- [ ] Auf Runspace-Betrieb umstellen
+- [X] Öffentliche Stop-Funktion als separate exportierte API implementieren
+- [X] Beide Funktionen konsistent in `FunctionsToExport` aufnehmen
+- [X] Auf Runspace-Betrieb umstellen
 
-**Statusbewertung:** Funktional begonnen, architektonisch noch nicht auf Zielstand.
+**Statusbewertung:** Erledigt.
 
 ---
 
 ### 3.3 – Konsolenfenster ausblenden (`hidden`-Mode)
 
-- [ ] P/Invoke auf `ShowWindow` / `FreeConsole` aus `user32.dll` / `kernel32.dll` nutzen
-- [ ] Nur aktivieren wenn `$Script:Config.Mode -eq 'hidden'`
-- [ ] Sicherstellen dass versteckter Prozess via Task-Manager noch sichtbar und beendbar ist
+- [X] P/Invoke auf `ShowWindow` / `FreeConsole` aus `user32.dll` / `kernel32.dll` nutzen
+- [X] Nur aktivieren wenn `$Script:Config.Mode -eq 'hidden'`
+- [X] Sicherstellen dass versteckter Prozess via Task-Manager noch sichtbar und beendbar ist
 
-**Statusbewertung:** Noch nicht begonnen.
+**Statusbewertung:** Erledigt.
 
 ---
 
 ### 3.4 – `local.httpserver.ps1` auf Runspace-Architektur umstellen
 
-- [ ] Launcher ruft öffentliche Startfunktion auf
-- [ ] Im `hidden`-Mode: Fenster ausblenden nach erfolgreichem Start
-- [ ] Im `console`-Mode: Statusanzeige in der Konsole (Uptime, Port, wwwroot)
+- [X] Launcher ruft öffentliche Startfunktion auf
+- [X] Im `hidden`-Mode: Fenster ausblenden nach erfolgreichem Start
+- [X] Im `console`-Mode: Statusanzeige in der Konsole (Uptime, Port, wwwroot)
 
-**Statusbewertung:** Noch nicht begonnen.
+**Statusbewertung:** Erledigt.
 
 ---
 
