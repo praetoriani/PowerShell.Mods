@@ -93,10 +93,33 @@ param(
         }
     }
 
+    # -----------------------------------------------------------------------
+    # Resolve ErrorPages from the injected $httpHost variable.
+    #
+    # $httpHost['error'] contains a hashtable of custom error page paths,
+    # keyed by HTTP status code as strings ('400', '403', '404', etc.).
+    # The $ErrorPages parameter defaults to an empty hashtable @{} when
+    # Invoke-RequestHandler is called without an explicit -ErrorPages argument
+    # (which is the normal case from the server loop).
+    #
+    # We fill it here from the injected $httpHost plain variable.
+    # Same Runspace rule as above: no $script: prefix!
+    # -----------------------------------------------------------------------
+    if ($ErrorPages.Count -eq 0) {
+        if ($null -ne $httpHost -and
+            $httpHost.ContainsKey('error') -and
+            $httpHost['error'] -is [hashtable]) {
+            $ErrorPages = $httpHost['error']
+        }
+    }
+
+
     $request = $Context.Request
     $response = $Context.Response
     $headersSent = $false
-<#
+    
+    
+    <# ====================================================================================================
     # Secure error page cache – everything gathered centrally here.
     $ErrorPages = @{}
 
@@ -121,8 +144,9 @@ param(
     # Secure access to error pages - $ErrorPages comes as a parameter,
     # therefore it is evaluated in the scope of the caller (where $script:httpHost is visible)
     $resolvedErrorPages = if ($null -ne $ErrorPages) { $ErrorPages } else { @{} }
-    
-#>
+    ==================================================================================================== #>
+
+
     try {
 
 
@@ -550,11 +574,24 @@ param(
         # ___________________________________________________________________________
         # -> SECTION 11: Cleanup
         # ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-        
+        # Flush and close the response properly.
+        # OutputStream.Close() alone is not sufficient for HttpListenerResponse -
+        # the response object itself must be closed via response.Close() to
+        # guarantee that all HTTP headers and body data are flushed to the client.
+        # Without response.Close(), the browser may hang waiting for the connection
+        # to terminate cleanly (the TCP FIN is never sent).
+        try {
+            $response.OutputStream.Flush()
+        } catch { Write-RunspaceLog "Failed flushing output stream." -ForegroundColor Yellow -Prefix "WARN" }
         try {
             $response.OutputStream.Close()
-        } catch {
-            # Stream might already be closed
-        }
+        } catch { Write-RunspaceLog "Failed closing output stream properly" -ForegroundColor Yellow -Prefix "WARN" }
+        try {
+            # This is the critical call: closes the HttpListenerResponse and
+            # sends the terminating chunk (for chunked transfer) or signals
+            # end-of-response to the HttpListener. The browser will only
+            # release its loading state after this call completes.
+            $response.Close()
+        } catch { Write-RunspaceLog "Failed closing HttpListenerResponse" -ForegroundColor Yellow -Prefix "WARN" }
     }
 }

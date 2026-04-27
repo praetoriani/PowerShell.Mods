@@ -291,7 +291,17 @@ function Start-HTTPserver {
     # ------------------------------------------------------------------
     # SUCCESS: Server is running in the background
     # ------------------------------------------------------------------
-    Start-Sleep -Milliseconds 3000
+    # Give the Runspace a short moment to initialize the HttpListener
+    # and print its startup messages before the summary box appears.
+    # This is NOT a busy-wait: 800ms is enough for the Runspace to reach
+    # the $httpListener.Start() call and print "[OK] HTTP server is
+    # listening on ...". Interleaved output cannot be fully prevented
+    # with background Runspaces, but this short delay makes the output
+    # readable in the vast majority of cases.
+    # DO NOT increase this value - the server is already running at this
+    # point. The delay only affects cosmetic console output ordering.
+    Start-Sleep -Milliseconds 800
+    
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Green
     Write-Host "  Local HTTP Server started (Runspace)"   -ForegroundColor Green
