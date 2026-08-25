@@ -202,9 +202,9 @@ function RemoveDir {
         catch [System.IO.IOException] {
             return OPSreturn -Code -1 -Message "I/O error when deleting directory '$NormalizedPath': $($_.Exception.Message). The directory may be in use."
         }
-        catch [System.IO.DirectoryNotFoundException] {
-            return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' was not found during deletion operation"
-        }
+        #catch [System.IO.DirectoryNotFoundException] {
+        #    return OPSreturn -Code -1 -Message "Directory '$NormalizedPath' was not found during deletion operation"
+        #}
         catch {
             return OPSreturn -Code -1 -Message "Failed to delete directory '$NormalizedPath': $($_.Exception.Message)"
         }
