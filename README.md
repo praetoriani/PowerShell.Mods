@@ -28,7 +28,8 @@ This repository hosts a growing collection of standalone PowerShell modules deve
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/Version-1.02.06-blue)
+[![VPDLX Release](https://github.com/praetoriani/PowerShell.Mods/actions/workflows/vpdlx-release.yml/badge.svg)](https://github.com/praetoriani/PowerShell.Mods/actions/workflows/vpdlx-release.yml)
+![Version](https://img.shields.io/badge/Version-1.02.07-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-orange)
 
