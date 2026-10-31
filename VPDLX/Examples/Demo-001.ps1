@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Demo-001 - Interactive step-by-step walkthrough of VPDLX v1.01.02
+    Demo-001 - Interactive step-by-step walkthrough of VPDLX v1.02.07
 
 .DESCRIPTION
     This script provides an interactive, guided demonstration of the VPDLX module
@@ -31,9 +31,9 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.01.02
+    Version : 1.02.07
     Author  : Praetoriani (a.k.a. M.Sczepanski)
-    Updated : 06.04.2026
+    Updated : 30.10.2026
 
     Run this script from any directory - the module path is resolved automatically
     via $PSScriptRoot. The demo creates temporary export files in $env:TEMP during

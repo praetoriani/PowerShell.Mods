@@ -33,10 +33,10 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.02.04
+    Version : 1.02.07
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 11.04.2026
-    Updated : 17.04.2026
+    Updated : 30.10.2026
 
     NEW v1.02.04:
       This file was introduced as part of the Performance & Quality

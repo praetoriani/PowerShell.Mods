@@ -35,10 +35,10 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.02.06
+    Version : 1.02.07
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Created : 05.04.2026
-    Updated : 11.04.2026
+    Updated : 30.10.2026
 
     FEATURE (11.04.2026, v1.02.06 - Priorität 10):
       Added configurable minimum log level. When specified during
@@ -502,6 +502,23 @@ class Logfile {
     # NEW v1.02.06.
     hidden [string] $_minLevelName
 
+    # Maximum number of entries held in the in-memory buffer (0 = unlimited).
+    # With an attach target the buffer is flushed (appended) to the physical
+    # file as soon as it holds this many entries. Without a target the buffer
+    # acts as a ring buffer: the oldest entry is dropped when the limit is
+    # exceeded.
+    # NEW v1.02.07 (Block B).
+    hidden [int] $_maxEntries
+
+    # Target directory for the physical log file ('' = no attach target).
+    hidden [string] $_attachPath
+
+    # Attach format: txt | log | csv | ndjson ('' when no target is set).
+    hidden [string] $_attachAs
+
+    # When $true the file name carries the current date: <Name>_yyyy-MM-dd.<ext>
+    hidden [bool] $_dailyFile
+
 
     # ── Static definitions ───────────────────────────────────────────────────
 
@@ -538,13 +555,36 @@ class Logfile {
         fatal    = '  [FATAL]     ->  '
     }
 
+    # Numeric severity ranks used by minimum-level filtering. Lower values
+    # represent less severe events; the keys are normalised lowercase levels.
+    static [hashtable] $LevelSeverity = @{
+        trace    = 0
+        debug    = 1
+        verbose  = 2
+        info     = 3
+        warning  = 4
+        error    = 5
+        critical = 6
+        fatal    = 7
+    }
+
+    # File extensions of the append-capable attach formats.
+    # json and html cannot be appended to and are therefore not listed.
+    # NEW v1.02.07 (Block B).
+    static [hashtable] $AttachExtensions = @{
+        txt    = '.txt'
+        log    = '.log'
+        csv    = '.csv'
+        ndjson = '.ndjson'
+    }
+
 
     # ── Constructors ────────────────────────────────────────────────────────────
 
     # Primary constructor: creates a new Logfile with no minimum level filter.
     # All log levels are accepted.
     Logfile([string] $name) {
-        $this._InitLogfile($name, '')
+        $this._InitLogfile($name, '', 0, '', '', $false)
     }
 
     # Overloaded constructor: creates a new Logfile with a configurable
@@ -564,7 +604,28 @@ class Logfile {
     #
     # NEW v1.02.06 (Priorität 10).
     Logfile([string] $name, [string] $minLevel) {
-        $this._InitLogfile($name, $minLevel)
+        $this._InitLogfile($name, $minLevel, 0, '', '', $false)
+    }
+
+    # Full constructor with buffer limit and physical attach target.
+    #
+    # Parameters:
+    #   name       - Logfile name
+    #   minLevel   - Minimum log level ('' = no filter)
+    #   maxEntries - Buffer limit (0 = unlimited). With attachPath set, the
+    #                buffer is appended to the file whenever it reaches this
+    #                count; without attachPath the oldest entry is dropped.
+    #   attachPath - Target directory ('' = no physical target)
+    #   attachAs   - txt | log | csv | ndjson ('' = txt when attachPath is set)
+    #   dailyFile  - $true -> file name <Name>_yyyy-MM-dd.<ext>
+    #
+    # Note: the legacy constructors keep maxEntries = 0 (unlimited) so that
+    # existing callers see no behaviour change.
+    #
+    # NEW v1.02.07 (Block B).
+    Logfile([string] $name, [string] $minLevel, [int] $maxEntries,
+            [string] $attachPath, [string] $attachAs, [bool] $dailyFile) {
+        $this._InitLogfile($name, $minLevel, $maxEntries, $attachPath, $attachAs, $dailyFile)
     }
 
 
@@ -577,7 +638,8 @@ class Logfile {
     # Parameters:
     #   name     - The logfile name to validate and register
     #   minLevel - The minimum log level string, or '' for no filter
-    hidden [void] _InitLogfile([string] $name, [string] $minLevel) {
+    hidden [void] _InitLogfile([string] $name, [string] $minLevel, [int] $maxEntries,
+                               [string] $attachPath, [string] $attachAs, [bool] $dailyFile) {
 
         # ── Validate: not null / empty / whitespace ──────────────────────────
         if ([string]::IsNullOrWhiteSpace($name)) {
@@ -646,12 +708,46 @@ class Logfile {
             $resolvedMinName  = $normalizedMin
         }
 
+        # ── Validate buffer limit and attach target (v1.02.07) ───────────────
+        if ($maxEntries -lt 0) {
+            throw [System.ArgumentException]::new(
+                "Parameter 'maxEntries' must be 0 (unlimited) or greater.",
+                'maxEntries'
+            )
+        }
+
+        [string] $resolvedAttachPath = ''
+        [string] $resolvedAttachAs   = ''
+        if (-not [string]::IsNullOrWhiteSpace($attachPath)) {
+            $resolvedAttachPath = $attachPath.Trim()
+            if ($resolvedAttachPath.IndexOfAny([System.IO.Path]::GetInvalidPathChars()) -ge 0) {
+                throw [System.ArgumentException]::new(
+                    "Parameter 'attachPath' contains invalid path characters.",
+                    'attachPath'
+                )
+            }
+            $resolvedAttachAs = if ([string]::IsNullOrWhiteSpace($attachAs)) { 'txt' }
+                                else { $attachAs.Trim().ToLower() }
+            if (-not [Logfile]::AttachExtensions.ContainsKey($resolvedAttachAs)) {
+                [string] $validFormats = ([Logfile]::AttachExtensions.Keys | Sort-Object) -join ', '
+                throw [System.ArgumentException]::new(
+                    "Parameter 'attachAs' ('$attachAs') is not an appendable format. " +
+                    "Valid formats: $validFormats.",
+                    'attachAs'
+                )
+            }
+        }
+
         # ── Initialise internal fields ────────────────────────────────────────
         $this.Name           = $trimmedName
         $this._data          = [System.Collections.Generic.List[string]]::new()
         $this._details       = [FileDetails]::new()
         $this._minLevelIndex = $resolvedMinIndex
         $this._minLevelName  = $resolvedMinName
+        $this._maxEntries    = $maxEntries
+        $this._attachPath    = $resolvedAttachPath
+        $this._attachAs      = $resolvedAttachAs
+        $this._dailyFile     = $dailyFile
 
         # ── Register in the module-level FileStorage ──────────────────────────
         $script:storage.Add($trimmedName, $this)
@@ -671,6 +767,68 @@ class Logfile {
         [string] $ts     = (Get-Date).ToString('[dd.MM.yyyy | HH:mm:ss]')
         [string] $prefix = [Logfile]::LogLevels[$level]
         return "$ts$prefix$message"
+    }
+
+    # Resolves the full physical target file path, or '' if no attach target
+    # is configured. Format: <attachPath>\<Name>[_yyyy-MM-dd]<.ext>
+    # NEW v1.02.07 (Block B).
+    hidden [string] ResolveAttachFile() {
+        if ([string]::IsNullOrEmpty($this._attachPath)) { return '' }
+        [string] $base = $this.Name
+        if ($this._dailyFile) {
+            $base = $base + '_' + (Get-Date).ToString('yyyy-MM-dd')
+        }
+        return [System.IO.Path]::Combine(
+            $this._attachPath,
+            $base + [Logfile]::AttachExtensions[$this._attachAs]
+        )
+    }
+
+    # Applies the buffer limit after entries were added.
+    #
+    #   No attach target : ring buffer - the oldest entries are dropped until
+    #                      at most _maxEntries remain.
+    #   Attach target    : while the buffer holds >= _maxEntries entries, the
+    #                      first _maxEntries lines are APPENDED to the physical
+    #                      file and removed from the buffer (chunks of exactly
+    #                      _maxEntries lines, also for large Print() batches).
+    #                      If the write fails, the buffer is kept, a warning is
+    #                      issued and the next flush retries. No exception is
+    #                      thrown from here.
+    #   $final = $true   : additionally append the remaining (smaller) buffer.
+    #                      Used by Destroy().
+    #
+    # NEW v1.02.07 (Block B).
+    hidden [void] _Flush([bool] $final) {
+        if ([string]::IsNullOrEmpty($this._attachPath)) {
+            if ($this._maxEntries -gt 0 -and $this._data.Count -gt $this._maxEntries) {
+                $this._data.RemoveRange(0, $this._data.Count - $this._maxEntries)
+            }
+            return
+        }
+
+        [string] $file = $this.ResolveAttachFile()
+
+        if ($this._maxEntries -gt 0) {
+            while ($this._data.Count -ge $this._maxEntries) {
+                [string[]] $chunk = $this._data.GetRange(0, $this._maxEntries).ToArray()
+                $res = VPDLXappendcore -FilePath $file -Lines $chunk -Format $this._attachAs
+                if ($res.code -ne 0) {
+                    Write-Warning "VPDLX: Flush of '$($this.Name)' failed, buffer kept. $($res.msg)"
+                    return
+                }
+                $this._data.RemoveRange(0, $this._maxEntries)
+            }
+        }
+
+        if ($final -and $this._data.Count -gt 0) {
+            $res = VPDLXappendcore -FilePath $file -Lines $this._data.ToArray() -Format $this._attachAs
+            if ($res.code -ne 0) {
+                Write-Warning "VPDLX: Final flush of '$($this.Name)' failed, data lost. $($res.msg)"
+                return
+            }
+            $this._data.Clear()
+        }
     }
 
     # Validates a log level string and returns the normalised (lowercase) key.
@@ -788,6 +946,8 @@ class Logfile {
         }
 
         $this._data.Add($this.BuildEntry($normalizedLevel, $message))
+        # Apply buffer limit (flush to file or ring-buffer trim) - v1.02.07.
+        $this._Flush($false)
         $this._details.RecordWrite()
         $this._details.SetEntryCount($this._data.Count)
     }
@@ -875,6 +1035,10 @@ class Logfile {
             $this._data.Add($this.BuildEntry($normalizedLevel, $msg))
         }
 
+        # Apply buffer limit once for the whole batch (chunks of exactly
+        # _maxEntries lines are flushed) - v1.02.07.
+        $this._Flush($false)
+
         # Record as a single batch interaction and set the accurate entry count.
         $this._details.RecordPrint()
         $this._details.SetEntryCount($this._data.Count)
@@ -951,9 +1115,9 @@ class Logfile {
     # Matching strategy:
     #   - The normalised level is converted to its uppercase bracket notation
     #     (e.g. 'warning' -> '[WARNING]').
-    #   - Each line is checked with String.Contains() - faster than a regex
-    #     pipeline for simple fixed-string searches and avoids PowerShell
-    #     pipeline overhead on large logs.
+    #   - The level field is compared at its fixed position immediately after
+    #     the 23-character timestamp and two separator spaces. Message text
+    #     containing a level marker therefore cannot produce a false match.
     #
     # Returns an empty array (never $null) if no matching lines are found.
     #
@@ -974,11 +1138,17 @@ class Logfile {
         [string] $normalizedLevel = $this.ValidateLevel($level)
         [string] $marker          = "[$($normalizedLevel.ToUpper())]"
 
-        # Use a typed List and a direct foreach loop with .Contains() instead
-        # of Where-Object pipeline - avoids regex overhead and pipeline cost.
+        # The timestamp format is 23 characters, followed by two spaces;
+        # compare only the level field at offset 25 so message content cannot
+        # accidentally match the requested level marker.
+        [int] $levelOffset = 25
         $results = [System.Collections.Generic.List[string]]::new()
         foreach ($line in $this._data) {
-            if ($line.Contains($marker)) {
+            if ($line.Length -ge ($levelOffset + $marker.Length) -and
+                [string]::Compare(
+                    $line, $levelOffset, $marker, 0, $marker.Length,
+                    [System.StringComparison]::OrdinalIgnoreCase
+                ) -eq 0) {
                 $results.Add($line)
             }
         }
@@ -1037,6 +1207,11 @@ class Logfile {
         # Throws ObjectDisposedException if this instance was already destroyed.
         $this.GuardDestroyed()
 
+        # v1.02.07: append the remaining buffer to the attach target (if any)
+        # before releasing the data. Failures only warn; destroy proceeds.
+        try { $this._Flush($true) }
+        catch { Write-Warning "VPDLX: Final flush of '$($this.Name)' raised: $($_.Exception.Message)" }
+
         try {
             # Attempt to deregister from FileStorage.
             # Remove() throws InvalidOperationException if the name is not found
@@ -1084,6 +1259,33 @@ class Logfile {
     [int] EntryCount() {
         $this.GuardDestroyed()
         return $this._data.Count
+    }
+
+
+    # ── Buffer / attach target inspection (v1.02.07) ─────────────────────────
+
+    # Returns the configured buffer limit (0 = unlimited).
+    [int] GetMaxEntries() {
+        $this.GuardDestroyed()
+        return $this._maxEntries
+    }
+
+    # Returns the target directory, or '' if no attach target is configured.
+    [string] GetAttachPath() {
+        $this.GuardDestroyed()
+        return $this._attachPath
+    }
+
+    # Returns the attach format (txt|log|csv|ndjson), or '' if none.
+    [string] GetAttachAs() {
+        $this.GuardDestroyed()
+        return $this._attachAs
+    }
+
+    # Returns the resolved physical target file path, or '' if none.
+    [string] GetAttachFile() {
+        $this.GuardDestroyed()
+        return $this.ResolveAttachFile()
     }
 
 

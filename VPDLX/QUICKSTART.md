@@ -1,6 +1,6 @@
 # VPDLX - Quick Start Guide
 
-> **Module version:** 1.02.06
+> **Module version:** 1.02.07
 > **Prerequisites:** PowerShell 5.1 or PowerShell 7.x
 
 This guide takes you from zero to a fully working virtual log file in five minutes.
@@ -40,12 +40,36 @@ $r = VPDLXnewlogfile -Logfile 'MyFirstLog'
 # All wrapper functions return a standardised result object:
 # $r.code  -1 = failure   0 = success
 # $r.msg   Human-readable status message
-# $r.data  Return payload (the log file name on success)
+# $r.data  Return payload (the [Logfile] instance on success)
 
 if ($r.code -eq 0) {
-    Write-Host "Created: $($r.data)"
+    Write-Host "Created: $($r.data.Name)"
 }
 ```
+
+**Buffer limit and physical log file (v1.02.07):**
+
+```powershell
+# Default: buffer limit 100 entries. Without a target the buffer is a ring buffer
+# (the oldest entry is dropped once the limit is exceeded).
+$r = VPDLXnewlogfile -Logfile 'RingLog'
+
+# Unlimited buffer (previous behaviour)
+$r = VPDLXnewlogfile -Logfile 'BigLog' -MaxEntries 0
+
+# With a target: the buffer is APPENDED to C:\Logs\SvcLog.csv whenever it holds
+# 100 entries, and the remainder is appended on Destroy() / module removal.
+$r = VPDLXnewlogfile -Logfile 'SvcLog' -MaxEntries 100 `
+        -AttachPath 'C:\Logs' -AttachAs 'csv'
+
+# One file per day: C:\Logs\DayLog_2026-10-30.txt
+$r = VPDLXnewlogfile -Logfile 'DayLog' -AttachPath 'C:\Logs' -DailyFile
+```
+
+Appendable formats: `txt`, `log`, `csv`, `ndjson`. `json` and `html` cannot be appended
+to and stay snapshot-only (`VPDLXexportlogfile`). `EntryCount()` always reports the
+current buffer size. If writing to the file fails, the buffer is kept, a warning is
+issued and the next flush retries.
 
 ### Alternative - Class API (direct)
 
@@ -208,6 +232,9 @@ if ($log.IsEmpty()) {
 
 ## Step 6 - Export to disk
 
+> Export is a **snapshot** (the file is written completely, overwriting with `-Override`).
+> To append continuously, use `VPDLXattachlogfile` (see below) or `-AttachPath` at creation.
+
 `VPDLXexportlogfile` writes a virtual log file as a physical file.
 The target directory is created automatically if it does not exist.
 
@@ -250,6 +277,21 @@ if ($r.code -eq 0) {
 ```
 
 Supported export formats: `txt`, `log`, `csv`, `json`, `html`, `ndjson`
+
+---
+
+### Append the buffer to a file - `VPDLXattachlogfile` (v1.02.07)
+
+```powershell
+# Append the current buffer to a physical file (existing content is kept)
+$r = VPDLXattachlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -AttachAs 'csv'
+
+# Append and empty the buffer afterwards
+$r = VPDLXattachlogfile -Logfile 'MyFirstLog' -LogPath 'C:\Logs' -AttachAs 'txt' -Clear
+
+# Log file created with -AttachPath: target and format are taken from the log file
+$r = VPDLXattachlogfile -Logfile 'SvcLog'
+```
 
 ---
 
@@ -467,5 +509,7 @@ press `<Enter>` before continuing, so you can read each result at your own pace.
   Subsequent method calls on a destroyed instance - including `ToString()` and
   implicit string interpolation - throw `ObjectDisposedException` (fixed in v1.02.03).
 - Individual message length is capped by `[Logfile]::MaxMessageLength` (default 8 192).
-  There is no built-in **entry count** limit. Very large logs accumulate in RAM for
-  the duration of the PowerShell session.
+  Since v1.02.07, `VPDLXnewlogfile` limits the buffer to `-MaxEntries` entries
+  (default 100; `0` = unlimited). With `-AttachPath` the buffer is appended to a
+  physical file, without it the oldest entries are dropped (ring buffer). The direct
+  constructor `[Logfile]::new('Name')` remains unlimited.

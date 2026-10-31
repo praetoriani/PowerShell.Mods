@@ -230,11 +230,11 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.02.06
+    Version : 1.02.07
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
-    Updated : 17.04.2026
+    Updated : 30.10.2026
     Scope   : Public - exported via FunctionsToExport in VPDLX.psd1
 
     CHANGES (11.04.2026, v1.02.06):
@@ -507,32 +507,11 @@ function VPDLXexportlogfile {
                     #   3. Split on ']  [' to separate timestamp and level.
                     #
                     # Fallback: if parsing fails, write the raw line in the Message column.
-                    [string] $ts      = ''
-                    [string] $lvl     = ''
-                    [string] $msg     = ''
-
-                    $arrowParts = $entry -split '  ->  ', 2
-                    if ($arrowParts.Count -eq 2) {
-                        $msg = $arrowParts[1].Trim()
-
-                        # Left part: "[06.04.2026 | 19:58:00]  [INFO]"
-                        # Strip leading '[' and trailing ']', then split on ']  ['
-                        [string] $leftPart = $arrowParts[0].Trim()
-                        $leftPart = $leftPart.TrimStart('[')    # remove opening [
-                        $bracketParts = $leftPart -split '\]\s+\[', 2
-                        if ($bracketParts.Count -eq 2) {
-                            $ts  = $bracketParts[0].Trim()
-                            $lvl = $bracketParts[1].TrimEnd(']').Trim()
-                        } else {
-                            $ts  = $leftPart.Trim()
-                            $lvl = 'UNKNOWN'
-                        }
-                    } else {
-                        # Unparseable line - preserve as raw message
-                        $msg = $entry
-                        $ts  = ''
-                        $lvl = 'RAW'
-                    }
+                    # Central parser (v1.02.07): replaces the former inline parsing code.
+                    $parsed = VPDLXparseentry -Line $entry
+                    [string] $ts  = $parsed.Timestamp
+                    [string] $lvl = $parsed.Level
+                    [string] $msg = $parsed.Message
 
                     # Escape double-quotes in all fields (CSV RFC 4180).
                     $ts  = $ts  -replace '"', '""'
@@ -552,27 +531,11 @@ function VPDLXexportlogfile {
 
                 foreach ($entry in $entries) {
                     # Same parsing approach as CSV above.
-                    [string] $ts  = ''
-                    [string] $lvl = ''
-                    [string] $msg = ''
-
-                    $arrowParts = $entry -split '  ->  ', 2
-                    if ($arrowParts.Count -eq 2) {
-                        $msg = $arrowParts[1].Trim()
-                        [string] $leftPart = $arrowParts[0].Trim().TrimStart('[')
-                        $bracketParts = $leftPart -split '\]\s+\[', 2
-                        if ($bracketParts.Count -eq 2) {
-                            $ts  = $bracketParts[0].Trim()
-                            $lvl = $bracketParts[1].TrimEnd(']').Trim()
-                        } else {
-                            $ts  = $leftPart.Trim()
-                            $lvl = 'UNKNOWN'
-                        }
-                    } else {
-                        $msg = $entry
-                        $ts  = ''
-                        $lvl = 'RAW'
-                    }
+                    # Central parser (v1.02.07): replaces the former inline parsing code.
+                    $parsed = VPDLXparseentry -Line $entry
+                    [string] $ts  = $parsed.Timestamp
+                    [string] $lvl = $parsed.Level
+                    [string] $msg = $parsed.Message
 
                     $jsonEntries.Add([ordered]@{
                         Timestamp = $ts
@@ -610,27 +573,11 @@ function VPDLXexportlogfile {
                 # Build the HTML table rows from parsed log entries.
                 $htmlRows = [System.Text.StringBuilder]::new()
                 foreach ($entry in $entries) {
-                    [string] $ts  = ''
-                    [string] $lvl = ''
-                    [string] $msg = ''
-
-                    $arrowParts = $entry -split '  ->  ', 2
-                    if ($arrowParts.Count -eq 2) {
-                        $msg = $arrowParts[1].Trim()
-                        [string] $leftPart = $arrowParts[0].Trim().TrimStart('[')
-                        $bracketParts = $leftPart -split '\]\s+\[', 2
-                        if ($bracketParts.Count -eq 2) {
-                            $ts  = $bracketParts[0].Trim()
-                            $lvl = $bracketParts[1].TrimEnd(']').Trim()
-                        } else {
-                            $ts  = $leftPart.Trim()
-                            $lvl = 'UNKNOWN'
-                        }
-                    } else {
-                        $msg = $entry
-                        $ts  = ''
-                        $lvl = 'RAW'
-                    }
+                    # Central parser (v1.02.07): replaces the former inline parsing code.
+                    $parsed = VPDLXparseentry -Line $entry
+                    [string] $ts  = $parsed.Timestamp
+                    [string] $lvl = $parsed.Level
+                    [string] $msg = $parsed.Message
 
                     # HTML-escape special characters to prevent injection.
                     $tsHtml  = [System.Net.WebUtility]::HtmlEncode($ts)
@@ -726,27 +673,11 @@ $($htmlRows.ToString().TrimEnd())
 
                 foreach ($entry in $entries) {
                     # Same parsing approach as CSV / JSON above.
-                    [string] $ts  = ''
-                    [string] $lvl = ''
-                    [string] $msg = ''
-
-                    $arrowParts = $entry -split '  ->  ', 2
-                    if ($arrowParts.Count -eq 2) {
-                        $msg = $arrowParts[1].Trim()
-                        [string] $leftPart = $arrowParts[0].Trim().TrimStart('[')
-                        $bracketParts = $leftPart -split '\]\s+\[', 2
-                        if ($bracketParts.Count -eq 2) {
-                            $ts  = $bracketParts[0].Trim()
-                            $lvl = $bracketParts[1].TrimEnd(']').Trim()
-                        } else {
-                            $ts  = $leftPart.Trim()
-                            $lvl = 'UNKNOWN'
-                        }
-                    } else {
-                        $msg = $entry
-                        $ts  = ''
-                        $lvl = 'RAW'
-                    }
+                    # Central parser (v1.02.07): replaces the former inline parsing code.
+                    $parsed = VPDLXparseentry -Line $entry
+                    [string] $ts  = $parsed.Timestamp
+                    [string] $lvl = $parsed.Level
+                    [string] $msg = $parsed.Message
 
                     # Build a single-line JSON object per entry.
                     # ConvertTo-Json -Compress produces a single line with no

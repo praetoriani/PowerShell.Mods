@@ -5,6 +5,39 @@ This file follows a *reverse-chronological* order - the newest version is always
 
 ---
 
+## [1.02.07] - 30.10.2026
+
+### Overview
+Core feature release. Log files now have a configurable **buffer limit** (`MaxEntries`, default 100 in `VPDLXnewlogfile`). When the limit is reached, the buffered entries are **appended** to a physical log file instead of being held in memory indefinitely - which makes manual rotation almost unnecessary. Three defects found during the code review are fixed as well.
+
+### Added
+- **`VPDLXattachlogfile`** (new public function): appends the current buffer of a log file to a physical file. Formats: `txt`, `log`, `csv`, `ndjson` (CSV header only when the file is new/empty). `-Clear` empties the buffer afterwards. `json` and `html` cannot be appended and remain snapshot-only (`VPDLXexportlogfile`).
+- **`VPDLXnewlogfile`** new parameters: `-MaxEntries` (default `100`, `0` = unlimited), `-AttachPath`, `-AttachAs` (`txt`/`log`/`csv`/`ndjson`, default `txt`), `-DailyFile` (file name `<Logfile>_yyyy-MM-dd.<ext>`), `-MinLevel`.
+- **`[Logfile]`**: new constructor `Logfile(name, minLevel, maxEntries, attachPath, attachAs, dailyFile)`, getters `GetMaxEntries()`, `GetAttachPath()`, `GetAttachAs()`, `GetAttachFile()`, static `[Logfile]::AttachExtensions`.
+- `Private/VPDLXparseentry.ps1` (central log line parser) and `Private/VPDLXappendcore.ps1` (shared append logic, UTF-8, `-NoBOM`).
+
+### Changed
+- **Flush behaviour:** with an attach target, `Write()`/`Print()` append exactly `MaxEntries` lines per flush (large `Print()` batches are written in chunks, order preserved). `Destroy()`, `DestroyAll()` and module removal append the remaining buffer. `Reset()` still discards.
+- **Without a target** the buffer is a ring buffer: the oldest entry is dropped when the limit is exceeded.
+- **Write errors** never throw from the class: the buffer is kept, a `Write-Warning` is issued and the next flush retries.
+- **`EntryCount()`** and the metadata counter now report the current buffer size (not the lifetime total).
+- `VPDLXexportlogfile` uses the central parser (the four duplicated parsing blocks were removed; output unchanged).
+- The legacy constructors `[Logfile]::new(name)` and `[Logfile]::new(name, minLevel)` remain **unlimited** (backward compatible).
+
+### Fixed
+- `[Logfile]::LevelSeverity` was referenced in seven places but never defined; it is now defined (trace=0 ... fatal=7), which also makes the minimum-level filter work.
+- `VPDLXdroplogfile`: the success message was not parenthesised and could be passed incorrectly to `VPDLXreturn`.
+- `FilterByLevel()` now compares the level field at its fixed position, so a message containing e.g. `[ERROR]` no longer produces false matches.
+
+### Migration note
+`VPDLXnewlogfile` without `-AttachPath` now limits the buffer to 100 entries (oldest dropped). Use `-MaxEntries 0` to keep the previous unlimited behaviour.
+
+### Known limitations
+- **Thread safety:** the buffer and the target file are not protected against parallel access (several runspaces/threads writing to the same log file). Use one log file per runspace. A locking mechanism (`SemaphoreSlim`/`Mutex`) is planned.
+- Verified so far on Windows PowerShell 5.1 only; a PowerShell 7 test script is provided in `Tests\Manual-Test-PS7.ps1`.
+
+---
+
 ## [1.02.06] - 17.04.2026
 
 ### Overview

@@ -9,7 +9,7 @@
     to create, manage, and query multiple in-memory log files simultaneously,
     and export them to disk in multiple formats when needed.
 
-    Architecture overview (v1.02.06):
+    Architecture overview (v1.02.07):
 
       Classes/
           VPDLXClasses.ps1  - consolidated class file containing all three classes:
@@ -31,6 +31,7 @@
           VPDLXgetalllogfiles.ps1  - list all active log files with metadata (v1.02.05)
           VPDLXresetlogfile.ps1    - clear all entries from a log file (v1.02.05)
           VPDLXfilterlogfile.ps1   - filter log entries by level (v1.02.05)
+          VPDLXattachlogfile.ps1   - append the buffer to a physical file (v1.02.07)
 
     TypeAccelerators:
         [FileDetails], [FileStorage], and [Logfile] are registered as
@@ -62,8 +63,8 @@
 
 .NOTES
     Creation Date : 05.04.2026
-    Last Update   : 17.04.2026
-    Version       : 1.02.06
+    Last Update   : 30.10.2026
+    Version       : 1.02.07
     Author        : Praetoriani (a.k.a. M.Sczepanski)
     Website       : https://github.com/praetoriani/PowerShell.Mods
 
@@ -72,6 +73,19 @@
     - No external dependencies
 
     CHANGELOG:
+    v1.02.07 (30.10.2026):
+      Core feature: buffer limit and continuous append to physical log files.
+        - Bugfixes: [Logfile]::LevelSeverity defined (was referenced but missing);
+          VPDLXdroplogfile success message; FilterByLevel() compares the level
+          field at its fixed position (no false matches inside message text).
+        - [Logfile]: new constructor (name, minLevel, maxEntries, attachPath,
+          attachAs, dailyFile); buffer is flushed (appended) at MaxEntries and
+          on Destroy(); without a target the buffer is a ring buffer.
+        - VPDLXnewlogfile: new parameters -MinLevel, -MaxEntries (default 100,
+          0 = unlimited), -AttachPath, -AttachAs, -DailyFile.
+        - New: VPDLXattachlogfile, Private/VPDLXparseentry.ps1,
+          Private/VPDLXappendcore.ps1. VPDLXexportlogfile uses the central parser.
+
     v1.02.06 (11.04.2026):
       Advanced Features (Priorität 10 der Developer ToDo-Liste):
         - VPDLXexportlogfile: Added HTML export format (self-contained, styled
@@ -147,12 +161,12 @@
 # Read-only module metadata. Accessible externally via: VPDLXcore -KeyID 'appinfo'
 $script:appinfo = @{
     appname    = 'VPDLX'
-    appvers    = '1.02.06'
+    appvers    = '1.02.07'
     appdevname = 'Praetoriani'
     appdevmail = 'mr.praetoriani{at}gmail.com'
     appwebsite = 'https://github.com/praetoriani/PowerShell.Mods'
     datecreate = '05.04.2026'
-    lastupdate = '11.04.2026'  # v1.02.06
+    lastupdate = '30.10.2026'  # v1.02.07
 }
 
 # Supported file formats for VPDLXexportlogfile.

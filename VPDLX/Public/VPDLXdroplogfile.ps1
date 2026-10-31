@@ -82,11 +82,11 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.01.02
+    Version : 1.02.07
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
-    Updated : 17.04.2026
+    Updated : 30.10.2026
     Scope   : Public - exported via Export-ModuleMember in VPDLX.psm1
 #>
 
@@ -191,7 +191,8 @@ function VPDLXdroplogfile {
     # object to return. Callers should set any variable that held the old
     # [Logfile] reference to $null to avoid accidentally calling methods on the
     # now-destroyed zombie instance.
-    return VPDLXreturn -Code 0 `
-        -Message "VPDLXdroplogfile: Log file '$trimmedName' was destroyed successfully. " +
-                 'All data has been permanently removed. Set any held references to $null.'
+    return VPDLXreturn -Code 0 -Message (
+        "VPDLXdroplogfile: Log file '$trimmedName' was destroyed successfully. " +
+        'All data has been permanently removed. Set any held references to $null.'
+    )
 }

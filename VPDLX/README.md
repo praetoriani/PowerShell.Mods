@@ -7,7 +7,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/Version-1.02.06-blue)
+![Version](https://img.shields.io/badge/Version-1.02.07-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-orange)
 ![License](https://img.shields.io/badge/License-Apache-darkgreen)
@@ -23,10 +23,11 @@ When you are ready to persist a log, the built-in export function writes it to d
 | Feature | Details |
 |---|---|
 | Architecture | Fully class-based OOP (`[Logfile]`, `[FileDetails]`, `[FileStorage]`) |
-| Log storage | 100% in-memory &mdash; no disk I/O during runtime |
-| Public API | 9 wrapper functions with consistent return objects |
+| Log storage | In-memory buffer; disk I/O only when a target is set (`-AttachPath`) or on export |
+| Public API | 10 wrapper functions with consistent return objects |
 | Export formats | `txt` &bull; `log` &bull; `csv` &bull; `json` &bull; `html` &bull; `ndjson` |
 | Minimum log level | Per-instance severity filter (new in v1.02.06) |
+| Buffer limit & append | `MaxEntries` (default 100): the buffer is appended to a physical log file or acts as a ring buffer (new in v1.02.07) |
 | Log levels | `trace` `debug` `verbose` `info` `warning` `error` `critical` `fatal` |
 | BOM control | `-NoBOM` switch for Unix-compatible UTF-8 output |
 | Requirements | PowerShell 5.1+ &bull; Windows 10/11 &bull; No admin rights needed |
@@ -54,7 +55,17 @@ VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndjson' -NoBO
 
 # Remove the log from memory when done
 VPDLXdroplogfile -Logfile 'AppLog'
+
+# NEW in v1.02.07: append to a physical file every 100 entries
+# (NOTE: without -AttachPath the buffer now keeps only 100 entries - use -MaxEntries 0 for unlimited)
+$r = VPDLXnewlogfile -Logfile 'SvcLog' -MaxEntries 100 -AttachPath 'C:\Logs' -AttachAs 'csv'
+$r.data.Info('Service started.')   # flushed at the 100th entry and on Destroy()
 ```
+
+#### Important Notes (v1.02.07)
+
+- **Behaviour change:** `VPDLXnewlogfile` now limits the buffer to **100 entries** by default. Without `-AttachPath` the oldest entries are dropped (ring buffer). Use `-MaxEntries 0` for the previous unlimited behaviour. The direct constructor `[Logfile]::new('Name')` stays unlimited.
+- **Thread safety:** a log file must not be written from several runspaces/threads at the same time (no locking). Use one log file per runspace.
 
 #### Public Wrapper Functions
 
@@ -69,6 +80,7 @@ VPDLXdroplogfile -Logfile 'AppLog'
 | `VPDLXgetalllogfiles` | Lists all active log files with their metadata |
 | `VPDLXresetlogfile` | Clears all entries without destroying the log file |
 | `VPDLXfilterlogfile` | Returns entries filtered by log level |
+| `VPDLXattachlogfile` | Appends the buffer to a physical file (txt/log/csv/ndjson) |
 
 #### Entry Format
 
@@ -90,6 +102,7 @@ Example:
 
 | Version | Date | Summary |
 |---|---|---|
+| 1.02.07 | 30.10.2026 | `MaxEntries` buffer limit, append to physical files (`VPDLXattachlogfile`), ring buffer, 3 bugfixes |
 | 1.02.06 | 17.04.2026 | HTML + NDJSON export formats, minimum log level filter |
 | 1.02.05 | 11.04.2026 | `VPDLXgetalllogfiles`, `VPDLXresetlogfile`, `VPDLXfilterlogfile`, core stats |
 | 1.02.04 | 11.04.2026 | Precheck script, `MaxMessageLength`, `-NoBOM` switch |
@@ -114,7 +127,7 @@ PowerShell.Mods/
 ├── VPDLX/                    # Virtual PowerShell Data-Logger eXtension
 │   ├── Classes/              # PowerShell class definitions
 │   ├── Private/              # Internal helper functions
-│   ├── Public/               # Public wrapper functions (9 total)
+│   ├── Public/               # Public wrapper functions (10 total)
 │   ├── Examples/             # Demo scripts
 │   ├── VPDLX.psm1            # Root module
 │   ├── VPDLX.psd1            # Module manifest

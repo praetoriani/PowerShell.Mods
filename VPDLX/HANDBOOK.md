@@ -2,7 +2,7 @@
 
 **Virtual PowerShell Data-Logger eXtension** — Complete Function Reference and Developer Documentation
 
-**Version:** 1.02.06  
+**Version:** 1.02.07  
 **Author:** Praetoriani (M.Sczepanski)  
 **Repository:** https://github.com/praetoriani/PowerShell.Mods/tree/main/VPDLX
 
@@ -37,6 +37,7 @@
 - **Standardized API**: All functions return `[PSCustomObject]` with `.code`, `.msg`, `.data`
 - **No Exceptions**: Error handling via return codes, no try/catch required
 - **Filter Functions**: Filter log entries by level
+- **Buffer Limit & Append** (v1.02.07): `MaxEntries` buffer limit; the buffer is appended to a physical log file (txt/log/csv/ndjson) or acts as a ring buffer
 - **UTF-8 Support**: BOM-free UTF-8 output for maximum compatibility
 
 ---
@@ -159,7 +160,7 @@ Every log entry follows this **fixed format**:
 
 ## Public Functions
 
-VPDLX exports **9 public functions** via `Export-ModuleMember`:
+VPDLX exports **10 public functions** (plus the accessor `VPDLXcore`) via `FunctionsToExport` in `VPDLX.psd1`:
 
 ### Overview
 
@@ -174,6 +175,7 @@ VPDLX exports **9 public functions** via `Export-ModuleMember`:
 | [VPDLXexportlogfile](#vpdlxexportlogfile) | Export to file | PSCustomObject |
 | [VPDLXresetlogfile](#vpdlxresetlogfile) | Clear all entries | PSCustomObject |
 | [VPDLXgetalllogfiles](#vpdlxgetalllogfiles) | List all log files | PSCustomObject |
+| [VPDLXattachlogfile](#vpdlxattachlogfile) | Append buffer to a physical file | PSCustomObject |
 
 ---
 
@@ -184,7 +186,8 @@ VPDLX exports **9 public functions** via `Export-ModuleMember`:
 #### Syntax
 
 ```powershell
-VPDLXnewlogfile -Logfile <string>
+VPDLXnewlogfile -Logfile <string> [-MinLevel <string>] [-MaxEntries <int>]
+                [-AttachPath <string>] [-AttachAs <string>] [-DailyFile]
 ```
 
 #### Parameters
@@ -192,6 +195,23 @@ VPDLXnewlogfile -Logfile <string>
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `Logfile` | `string` | Yes | Log file name (3-64 chars, alphanumeric + `_-.`) |
+| `MinLevel` | `string` | No | Minimum level (`trace`...`fatal`); lower levels are discarded. Default: no filter (v1.02.07) |
+| `MaxEntries` | `int` | No | Buffer limit. Default `100`, `0` = unlimited (v1.02.07) |
+| `AttachPath` | `string` | No | Target directory of the physical log file. Without it the buffer is a ring buffer (v1.02.07) |
+| `AttachAs` | `string` | No | `txt` (default), `log`, `csv`, `ndjson` (v1.02.07) |
+| `DailyFile` | `switch` | No | File name `<Logfile>_yyyy-MM-dd.<ext>` (v1.02.07) |
+
+**Buffer behaviour (v1.02.07):**
+
+- With `-AttachPath`: as soon as the buffer holds `MaxEntries` entries they are **appended** to `<AttachPath>\<Logfile>.<ext>` and removed from the buffer. `Print()` batches are written in chunks of exactly `MaxEntries` lines. `Destroy()`, `DestroyAll()` and module removal append the remaining entries; `Reset()` discards them.
+- Without `-AttachPath`: ring buffer - the oldest entry is dropped when the limit is exceeded.
+- If writing fails, the buffer is kept, a `Write-Warning` is issued and the next flush retries; no exception is thrown.
+- `EntryCount()` reports the current buffer size, not the lifetime total.
+- `[Logfile]::new('Name')` (direct constructor) remains unlimited.
+
+> **Migration note (behaviour change since v1.02.07):** `VPDLXnewlogfile` without `-AttachPath` now keeps at most **100 entries** in memory; from entry 101 on the **oldest entries are dropped** (ring buffer). Earlier versions kept every entry. To keep the previous unlimited behaviour use `-MaxEntries 0`; to keep every entry permanently use `-AttachPath`. Direct use of `[Logfile]::new('Name')` is unchanged (unlimited).
+
+> **Thread safety:** buffer and target file are **not** protected against parallel access. Do not write to the same log file from several runspaces/threads (e.g. `ForEach-Object -Parallel`, `Start-ThreadJob`) at the same time; use one log file per runspace or serialise access yourself.
 
 #### Return Value
 
@@ -214,6 +234,7 @@ VPDLXnewlogfile -Logfile <string>
 - **Name too short/long**: "must be between 3 and 64 characters"
 - **Invalid characters**: "may only contain alphanumeric characters plus underscore, hyphen, and dot"
 - **Duplicate**: "already exists in the current session"
+- **Unknown `MinLevel`**, **non-appendable `AttachAs`** (e.g. `json`, `html`) or invalid `AttachPath`: code -1 with a descriptive message
 
 #### Examples
 
@@ -699,6 +720,39 @@ $result = VPDLXexportlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -ExportAs 'ndj
 
 ---
 
+### VPDLXattachlogfile
+
+**Appends the current buffer of a log file to a physical file (v1.02.07).** Existing content is never overwritten (in contrast to `VPDLXexportlogfile`, which writes a snapshot).
+
+#### Syntax
+
+```powershell
+VPDLXattachlogfile -Logfile <string> [-LogPath <string>] [-AttachAs <string>] [-NoBOM] [-Clear]
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Logfile` | `string` | Yes | Name of the log file |
+| `LogPath` | `string` | No* | Target directory. *Required unless the log file was created with `-AttachPath` |
+| `AttachAs` | `string` | No | `txt`, `log`, `csv`, `ndjson` (default: configured format or `txt`) |
+| `NoBOM` | `switch` | No | New files are written as BOM-free UTF-8 |
+| `Clear` | `switch` | No | Empties the buffer after a successful append |
+
+#### Return Value
+
+`code = 0` with `data` = full path of the file on success; `code = -1` for: unknown log file, empty buffer, no target, `json`/`html` (not appendable), or I/O errors.
+
+#### Examples
+
+```powershell
+$r = VPDLXattachlogfile -Logfile 'AppLog' -LogPath 'C:\Logs' -AttachAs csv -Clear
+if ($r.code -eq 0) { Write-Host "Appended to $($r.data)" }
+```
+
+---
+
 ### VPDLXresetlogfile
 
 **Clears all entries from a log file while keeping the log file itself.**
@@ -863,8 +917,10 @@ VPDLX is based on **3 core classes** in `Classes/`:
 **Main class** for virtual log files.
 
 **Properties**:
-- `Name` (string, read-only): Log file name
 - `LogLevels` (Hashtable, static): Mapping of all 8 levels
+- `LevelSeverity` (Hashtable, static): trace=0 ... fatal=7, used by the minimum-level filter
+- `MaxMessageLength` (int, static): 8192
+- `AttachExtensions` (Hashtable, static): `txt`, `log`, `csv`, `ndjson` (v1.02.07)
 
 **Methods**:
 - `Write(level, message)`: Add entry
@@ -874,22 +930,26 @@ VPDLX is based on **3 core classes** in `Classes/`:
 - `EntryCount()`: Number of entries
 - `IsEmpty()`: Check if empty
 - `Reset()`: Delete all entries
-- `Destroy()`: Destroy instance (destructor pattern)
+- `Destroy()`: Destroy instance (destructor pattern); appends the remaining buffer if an attach target is set (v1.02.07)
+- `GetMaxEntries()`, `GetAttachPath()`, `GetAttachAs()`, `GetAttachFile()`: buffer limit and target (v1.02.07)
+- Constructors: `new(name)`, `new(name, minLevel)` (both unlimited) and `new(name, minLevel, maxEntries, attachPath, attachAs, dailyFile)` (v1.02.07)
 
 ### [FileStorage]
 
-**Singleton** for central log file management.
+**Singleton** for central log file management (one instance per session, held in `$script:storage`).
 
-**Properties**:
-- `_files` (Dictionary<string, Logfile>): Internal storage
+**Internal members** (hidden):
+- `_registry` (`Dictionary<string, Logfile>`): registered instances (typed, no cast needed)
+- `_names` (`List<string>`): registration order
 
 **Methods**:
-- `Add(logfile)`: Register log file
-- `Get(name)`: Retrieve log file
+- `Add(name, instance)`: Register log file
+- `Get(name)`: Retrieve log file (returns `[Logfile]`)
 - `Contains(name)`: Existence check
 - `Remove(name)`: Deregister log file
-- `GetAll()`: All log files as array
+- `GetNames()`: Names of all registered log files
 - `Count()`: Number of registered log files
+- `DestroyAll()`: Destroys every instance (remaining buffers are appended to their attach target first) and clears the registry; also called when the module is removed
 
 **Module Usage**:
 ```powershell
@@ -898,20 +958,18 @@ $script:storage = [FileStorage]::new()  # Singleton in VPDLX.psm1
 
 ### [FileDetails]
 
-**Metadata companion** for `[Logfile]`.
+**Metadata companion** for `[Logfile]` (read via `$log.GetDetails()`).
 
-**Properties**:
-- `Created` (DateTime): Creation time
-- `LastUpdated` (DateTime): Last modification
-- `LastAccessed` (DateTime): Last access
-- `LastAccessType` (string): Type of last access (Write/Read/Filter)
-- `AccessCount` (int): Total access count
-- `EntryCount` (int): Entry count (redundant with Logfile._data.Count)
+**Getters**:
+- `GetCreated()`: Creation time
+- `GetUpdated()`: Last modification
+- `GetLastAccessed()`: Last access
+- `GetLastAccessType()`: Type of last access (e.g. Write, Print, Read, FilterByLevel)
+- `GetEntries()`: Entry count - since v1.02.07 the **current buffer size**, not the lifetime total
+- `GetAxcount()`: Total access count
+- `ToHashtable()` / `ToString()`: Snapshot of all values
 
-**Methods**:
-- `RecordWrite()`: Log write access
-- `RecordRead()`: Log read access
-- `RecordFilter()`: Log filter access
+The `Record*()` methods (`RecordWrite`, `RecordPrint`, `RecordRead`, `RecordFilterByLevel`, ...) are `hidden` and only called by `[Logfile]`.
 
 ---
 
@@ -1016,13 +1074,26 @@ Log-Action -Action 'UserLogin' -Data @{ User='Admin'; IP='192.168.1.1' }
 Log-Action -Action 'FileProcessed' -Data @{ File='data.csv'; Rows=1500 }
 ```
 
-### 6. Log Rotation with Reset
+### 6. Log Rotation with Reset (manual, optional)
+
+Since v1.02.07 manual rotation is usually **not necessary** - see 6b: with `-AttachPath` the buffer is appended to a physical file automatically. Use this snapshot pattern only if you explicitly want dated archive files:
 
 ```powershell
-# Daily log export and reset
+# Snapshot export and reset (Reset() DISCARDS the buffer - it is not appended)
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 VPDLXexportlogfile -Logfile 'AppLog' -LogPath "C:\Logs\Archive\AppLog_$timestamp" -ExportAs 'json'
 VPDLXresetlogfile -Logfile 'AppLog'
+```
+
+### 6b. Continuous Logging to a File (v1.02.07)
+
+```powershell
+# Appends every 100 entries to C:\Logs\AppLog.ndjson, remainder on Destroy()
+$r   = VPDLXnewlogfile -Logfile 'AppLog' -MaxEntries 100 -AttachPath 'C:\Logs' -AttachAs ndjson
+$log = $r.data
+$log.Info('Service started.')
+# ...
+$log.Destroy()   # flushes the remaining buffer
 ```
 
 ### 7. Export All Logs on Script Exit
@@ -1090,4 +1161,4 @@ VPDLXdroplogfile -Logfile 'DeploymentLog'
 
 ---
 
-*Last updated: April 17, 2026 (v1.02.06)*
+*Last updated: October 30, 2026 (v1.02.07)*

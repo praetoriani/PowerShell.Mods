@@ -78,11 +78,11 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.01.02
+    Version : 1.02.07
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 06.04.2026
-    Updated : 17.04.2026
+    Updated : 30.10.2026 (v1.02.07: -MinLevel, -MaxEntries, -AttachPath, -AttachAs, -DailyFile)
     Scope   : Public - exported via Export-ModuleMember in VPDLX.psm1
 #>
 
@@ -94,7 +94,31 @@ function VPDLXnewlogfile {
         # The [Logfile] constructor enforces all naming constraints.
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateNotNullOrEmpty()]
-        [string] $Logfile
+        [string] $Logfile,
+
+        # Minimum log level ('' = no filter). trace|debug|verbose|info|warning|error|critical|fatal
+        # NEW v1.02.07.
+        [Parameter(Mandatory = $false)]
+        [string] $MinLevel = '',
+
+        # Buffer limit (default 100, 0 = unlimited). With -AttachPath the buffer is
+        # appended to the physical file whenever it reaches this count; without
+        # -AttachPath it is a ring buffer (oldest entry dropped at the limit).
+        # NEW v1.02.07.
+        [Parameter(Mandatory = $false)]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int] $MaxEntries = 100,
+
+        # Target directory of the physical log file (optional). NEW v1.02.07.
+        [Parameter(Mandatory = $false)]
+        [string] $AttachPath = '',
+
+        # Format of the physical file: txt | log | csv | ndjson (default txt). NEW v1.02.07.
+        [Parameter(Mandatory = $false)]
+        [string] $AttachAs = '',
+
+        # Adds the date to the file name: <Logfile>_yyyy-MM-dd.<ext>. NEW v1.02.07.
+        [switch] $DailyFile
     )
 
     # ── Step 1: Pre-flight - verify the VPDLX core is accessible ─────────────
@@ -150,7 +174,9 @@ function VPDLXnewlogfile {
     # standardised return object rather than letting them propagate as
     # terminating errors to the caller.
     try {
-        $newLogfile = [Logfile]::new($trimmedName)
+        $newLogfile = [Logfile]::new(
+            $trimmedName, $MinLevel, $MaxEntries, $AttachPath, $AttachAs, $DailyFile.IsPresent
+        )
     }
     catch [System.ArgumentException] {
         # Thrown by the constructor for invalid name format (too short/long,

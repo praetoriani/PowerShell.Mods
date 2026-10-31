@@ -1,0 +1,279 @@
+<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
+
+# VPDLX v1.02.07 — Developer ToDo-Liste
+
+**Stand:** 30.10.2026 | **Basis:** VPDLX v1.01.02 – Developer ToDo-Liste (Prioritäten 1–10 unverändert übernommen) | **Zusammengeführt mit:** `TODO.TXT`
+
+
+***
+
+## 🔴 Priorität 1 — Kritische Bugfixes (Sofort)
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`Destroy()` — Vollständige Härtung** | `Logfile.Destroy()` erhält `GuardDestroyed()` am Anfang (Issue \#1) **und** ein `try/catch/finally`-Konstrukt um `storage.Remove()` (Issue \#6) — beide Fixes in einem einzigen Commit umgesetzt (**v1.02.03, 11.04.2026**) | 3 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | `GuardDestroyed()` in `Destroy()` einbauen | Erster Aufruf in `Destroy()` ist nun `$this.GuardDestroyed()` — altes `if`-Konstrukt entfernt (**v1.02.03**) | 1 |
+| ✅ | `try/catch/finally` um `storage.Remove()` | `finally`-Block setzt `_data` und `_details` **immer** auf `$null`, `catch`-Block schreibt `Write-Verbose`-Warnung (**v1.02.03**) | 2 |
+| ✅ | Altes `if ($null -ne $this._data)`-Konstrukt entfernen | Nach Einbau von `GuardDestroyed()` redundant — entfernt (**v1.02.03**) | 1 |
+
+
+***
+
+## 🔴 Priorität 2 — Bugfix-Duo `FilterByLevel()` + `RecordFilter()`
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`FilterByLevel()` + `RecordFilter()` — Zwei-in-einem Fix** | `RecordFilter()` an die korrekte Position verschieben (Issue \#2) **und** den Label-String `'Filter'` auf `'FilterByLevel'` aktualisieren (Issue \#4) — beide Fixes betreffen dieselben Dateien und gehören in einen Commit (**v1.02.03, 11.04.2026**) | 2 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | `RecordFilter()`-Aufruf nach die `foreach`-Schleife verschieben | In `Logfile.FilterByLevel()` den `$this._details.RecordFilter()`-Aufruf von **vor** die Schleife auf **nach** die Schleife und vor `return` versetzt (**v1.02.03**) | 1 |
+| ✅ | Label-String in `FileDetails.RecordFilter()` korrigieren | `$this._lastAccessType = 'Filter'` geändert zu `$this._lastAccessType = 'FilterByLevel'` (**v1.02.03**) | 1 |
+| ✅ | (Optional) `RecordFilter()` in `RecordFilterByLevel()` umbenennen | Kosmetische interne Umbenennung der `hidden`-Methode + Update des einzigen Call-Site in `Logfile.ps1` (**v1.02.03**) | 1 |
+
+
+***
+
+## 🟠 Priorität 3 — `ToString()` nach `Destroy()` absichern
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`ToString()` NullReferenceException beheben** | `Logfile.ToString()` wirft nach `Destroy()` eine `NullReferenceException` durch unbewachten Zugriff auf `_details.GetCreated()` — `GuardDestroyed()` an erster Stelle eingebaut (Issue \#3, **v1.02.03, 11.04.2026**) | 2 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | `GuardDestroyed()` in `ToString()` einbauen | Erster Aufruf in `ToString()` ist nun `$this.GuardDestroyed()` (**v1.02.03**) | 1 |
+| ✅ | Partielle `_data`-Nullprüfung in `ToString()` entfernen | `if/else`-Konstrukt entfernt — `_data` ist nach `GuardDestroyed()` garantiert non-null (**v1.02.03**) | 1 |
+
+
+***
+
+## 🟠 Priorität 4 — Export-Konfigurationskonflikt auflösen
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`FunctionsToExport` — Einzelne Autorität festlegen** | Den Konflikt zwischen `VPDLX.psd1`-Manifest und `Export-ModuleMember` in `VPDLX.psm1` auflösen — Manifest als alleinige Quelle der Wahrheit festgelegt (Issue \#5, **v1.02.03, 11.04.2026**) | 3 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | `FunctionsToExport` in `VPDLX.psd1` vollständig und korrekt pflegen | Explizite Liste aller Public-Funktionen eingetragen, SINGLE SOURCE OF TRUTH-Kommentarblock ergänzt (**v1.02.03**) | 2 |
+| ✅ | `Export-ModuleMember`-Aufruf in `VPDLX.psm1` entfernen / kommentieren | Sektion 7 in `VPDLX.psm1` bereinigt — `Export-ModuleMember` durch erklärenden Kommentar ersetzt (**v1.02.03**) | 2 |
+| ✅ | Dynamische `$PublicFunctions`-Logik in Sektion 7 dokumentieren | Kommentar ergänzt, der klar erklärt, warum Manifest Vorrang hat (**v1.02.03**) | 1 |
+
+
+***
+
+## 🟡 Priorität 5 — `VPDLXreturn` Erweiterbarkeit sicherstellen
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`[ValidateSet(0, -1)]` durch `[ValidateRange]` ersetzen** | Den hard-codierten `[ValidateSet(0, -1)]`-Constraint in `VPDLXreturn.ps1` durch `[ValidateRange(-99, 99)]` ersetzt und Status-Code-Konventionen im Code-Kommentar dokumentiert (Issue \#8, **v1.02.03, 11.04.2026**) | 2 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | `[ValidateRange(-99, 99)]` einbauen | Attribut in der `$Code`-Parameterdeklaration ersetzt (**v1.02.03**) | 1 |
+| ✅ | Status-Code-Konvention dokumentieren | Kommentar über `$Code` ergänzt: `0` = Erfolg, `-1` = Allg. Fehler, `1..99` = Partial-Success, `-2..-99` = Typisierte Fehler (**v1.02.03**) | 1 |
+
+
+***
+
+## 🟡 Priorität 6 — Typsicherheit `FileStorage.Get()` verbessern
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`FileStorage` Typsicherheit — Architekturentscheidung treffen und umsetzen** | `FileStorage.Get()` gibt `[object]` zurück statt `[Logfile]` — Forward-Reference-Problem durch Klassen-Konsolidierung gelöst (Issue \#9, **v1.02.03, 11.04.2026**) | 6 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | Entscheidung: Eine Datei vs. drei Dateien | **Option A gewählt:** alle drei Klassen in `VPDLXClasses.ps1` zusammengeführt (**v1.02.03**) | 2 |
+| ✅ | **(Option A)** Klassen in `VPDLXClasses.ps1` zusammenführen | `FileDetails.ps1`, `FileStorage.ps1`, `Logfile.ps1` in `Classes\VPDLXClasses.ps1` zusammengeführt (**v1.02.03**) | 5 |
+| ✅ | **(Option A)** `FileList`-Eintrag in `VPDLX.psd1` aktualisieren | Manifest-`FileList` auf `Classes\VPDLXClasses.ps1` umgestellt (**v1.02.03**) | 1 |
+| ✅ | **(Option A)** `$script:ClassFiles`-Array in `VPDLX.psm1` anpassen | Sektion 2 in `VPDLX.psm1` auf `VPDLXClasses.ps1` umgestellt (**v1.02.03**) | 1 |
+| ✅ | **(Option B)** Runtime-Typprüfung in `FileStorage.Add()` einbauen | Durch Option A überflüssig — `Add()` akzeptiert jetzt `[Logfile]` statt `[object]`, Compile-Time-Typsicherheit (**v1.02.03**) | 2 |
+| ✅ | `Get()`-Methode mit Kommentar und Cast-Beispiel dokumentieren | `Get()` gibt jetzt `[Logfile]` zurück — Cast nicht mehr nötig, Kommentar aktualisiert (**v1.02.03**) | 1 |
+
+
+***
+
+## 🟡 Priorität 7 — `Print()` Diagnose verbessern
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`Print()` Validierungsfehler mit Element-Index anreichern** | Die `foreach`-Schleife in `Logfile.Print()` um Index-Tracking ergänzt, `ArgumentException` enthält jetzt 0-basierten Index und Preview des fehlerhaften Wertes (Issue \#7, **v1.02.03, 11.04.2026**) | 3 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | Index-Counter `$idx` in die `foreach`-Schleife einbauen | `[int] $idx = 0` vor der Schleife, `$idx++` am Ende jedes Schleifendurchlaufs (**v1.02.03**) | 1 |
+| ✅ | `try/catch [ArgumentException]` um `ValidateMessage()` wickeln | Im `catch`-Block neue Exception mit angereicherter Meldung `"messages[$idx]: ..."` geworfen — `ValidateMessage()` unverändert (**v1.02.03**) | 2 |
+| ✅ | Wert-Preview im Fehlertext implementieren | Offending-Value-Vorschau: `(null)`, `(empty string)` oder escaped/gekürzter String (max. 40 Zeichen, `\r`/`\n` sichtbar) (**v1.02.03**) | 2 |
+
+
+***
+
+## 🔵 Priorität 8 — Globaler Session-Cleanup (`DestroyAll`)
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`DestroyAll()` implementieren und in `OnRemove` integrieren** | `FileStorage.DestroyAll()` erstellt, in `OnRemove`-Handler integriert und über `VPDLXcore -KeyID 'destroyall'` zugänglich (Issue \#10, **v1.02.03, 11.04.2026**) | 4 |
+
+**Unter-Tasks:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | `DestroyAll()`-Methode in `FileStorage` implementieren | Keys-Snapshot vor Iteration, `Destroy()` pro Instanz mit `try/catch`, finales `_registry.Clear()` + `_names.Clear()` (**v1.02.03**) | 3 |
+| ✅ | `OnRemove`-Handler in `VPDLX.psm1` um `DestroyAll()` erweitern | Vor der TypeAccelerator-Entfernung `$script:storage.DestroyAll()` aufgerufen, mit `try/catch` abgesichert (**v1.02.03**) | 2 |
+| ✅ | (Optional) `VPDLXcore -KeyID 'destroyall'` implementieren | Neuen `switch`-Case in `VPDLXcore` ergänzt, ruft `DestroyAll()` auf und gibt `VPDLXreturn` mit Anzahl zurück (**v1.02.03**) | 2 |
+
+
+***
+
+## 🔵 Priorität 9 — Performance \& Qualitätsverbesserungen
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`ScriptsToProcess` Precheck-Skript erstellen** | `VPDLX.Precheck.ps1` angelegt und in `VPDLX.psd1` unter `ScriptsToProcess` eingetragen — prüft PS-Version (`Major -ge 5`, bei PS 5.x zusätzlich `Minor -ge 1`) und gibt klare `Write-Error`- bzw. `Write-Warning`-Meldungen vor dem Modul-Load (**v1.02.04, 11.04.2026**) | 3 |
+| ✅ | **Encoding-Option für Export verbessern** | `VPDLXexportlogfile` um `-NoBOM`-Switch erweitert — nutzt `[System.Text.UTF8Encoding]::new($false)` via `[System.IO.StreamWriter]` für BOM-freie UTF-8-Ausgabe, kompatibel mit externen Log-Aggregatoren (ELK, Splunk, Grafana Loki) (**v1.02.04, 11.04.2026**) | 4 |
+| ✅ | **Eingabelängen-Limit für Nachrichten** | Neue statische Property `[Logfile]::MaxMessageLength` (Standard: 8192) — `ValidateMessage()` prüft `$Message.Length` gegen diesen Wert und wirft `ArgumentException` bei Überschreitung. Setter validiert `>= 1` (**v1.02.04, 11.04.2026**) | 3 |
+
+**Unter-Tasks für Precheck-Skript:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | `VPDLX.Precheck.ps1` erstellen | PS-Versionscheck (`Major -ge 5`, `Minor -ge 1`), aussagekräftige `Write-Error`-/`Write-Warning`-Meldungen, `throw` bei nicht unterstützter Version (**v1.02.04**) | 2 |
+| ✅ | `ScriptsToProcess` in `VPDLX.psd1` aktivieren | Auskommentierten Eintrag aktiviert und auf `'VPDLX.Precheck.ps1'` gesetzt (**v1.02.04**) | 1 |
+
+
+***
+
+## 🟢 Priorität 10 — Neue Features \& Erweiterungen
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`VPDLXgetalllogfiles` implementieren** | Public Wrapper implementiert — gibt alle aktiven Logfile-Instanzen als `[PSCustomObject]`-Array mit Name, EntryCount, Created, Updated, LastAccessed, AccessCount zurück. Read-only Operation, modifiziert keine Logfile-Metadaten (**v1.02.05, 11.04.2026**) | 4 |
+| ✅ | **`VPDLXresetlogfile` implementieren** | Public Wrapper für `Logfile.Reset()` implementiert — leert Logfile-Inhalt, aktualisiert Metadaten via `ApplyReset()`, gibt Entry-Count vor dem Reset in `.data` zurück. Log bleibt registriert und sofort wieder nutzbar (**v1.02.05, 11.04.2026**) | 3 |
+| ✅ | **`VPDLXfilterlogfile` implementieren** | Public Wrapper für `Logfile.FilterByLevel()` implementiert — filtert nach Level mit `[ValidateSet]`-Tab-Completion, gibt strukturiertes `PSCustomObject { Entries, Count, Level }` in `.data` zurück (**v1.02.05, 11.04.2026**) | 4 |
+| ✅ | **Neue Export-Formate: HTML + NDJSON** | Export-System um `html` (formatierter Log-Bericht mit CSS) und `ndjson` (Newline-Delimited JSON für Log-Streaming) erweitert — HTML mit Self-Contained CSS, Level-spezifischer Zeilenfärbung, XSS-sicherem HTML-Encoding und StringBuilder-Performance. NDJSON mit ConvertTo-Json -Compress pro Zeile. Beide Formate unterstützen -NoBOM und -Override (**v1.02.06, 11.04.2026**) | 6 |
+| ✅ | **Konfigurierbarer Mindest-Log-Level** | Neuer Konstruktor-Überladung `[Logfile]::new('ProdLog', 'warning')` implementiert — Einträge unterhalb des konfigurierten Mindest-Levels werden von Write() und Print() lautlos verworfen. Statische `LevelSeverity`-Hashtable (trace=0..fatal=7), versteckte Felder `$_minLevelIndex`/`$_minLevelName`, gemeinsame `_InitLogfile()`-Methode für beide Konstruktoren, öffentliche `GetMinLogLevel()`-Methode, `ToString()` erweitert (**v1.02.06, 11.04.2026**) | 6 |
+| ✅ | **`VPDLXcore -KeyID 'stats'` — Modul-Statistiken** | Neuer Core-Key implementiert — liefert ActiveLogfiles, TotalEntries, MaxEntries, MaxEntriesLog, MinEntries, MinEntriesLog, ModuleVersion als `PSCustomObject`. Read-only Operation (**v1.02.05, 11.04.2026**) | 4 |
+
+
+***
+
+## 🟣 Priorität 11 — Release v1.02.07: Bugfixes, Kernfeature & Dokumentation
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **Block A — Bugfixes** | `LevelSeverity` korrigiert, Meldung in `VPDLXdroplogfile` korrigiert, `FilterByLevel()` mit fester Positionsbestimmung des Levels (**v1.02.07, 30.10.2026**) | 3 |
+| ✅ | **Block B — Kernfeature: Puffer-Limit & Anhängen an physische Dateien** | `MaxEntries`-Puffer, Chunk-Flush per `AppendAllText`, Ringpuffer ohne Ziel, `-AttachPath`/`-AttachAs`/`-DailyFile` in `VPDLXnewlogfile`, neue Funktion `VPDLXattachlogfile`, neue private Helfer `VPDLXparseentry` und `VPDLXappendcore`, Flush bei `Destroy()`/`OnRemove` (**v1.02.07, 30.10.2026**) | 8 |
+| ✅ | **Block C — Dokumentation** | `CHANGELOG.md`, `README.md`, `QUICKSTART.md`, `HANDBOOK.md`, `Demo-002` sowie Versionsangleichung auf 1.02.07 in psd1, psm1 und allen Code-Headern (**v1.02.07, 30.10.2026**) | 4 |
+| ✅ | **Testlauf 003** | 43 von 43 Tests bestanden, dokumentiert in `UNIT-TESTING.MD` (Läufe 001–003) | 4 |
+| ✅ | **Testlauf 004** | Last-/Flush-/Fehlertests 11/11 und `-Override`-Export 14/14 unter Windows PowerShell 5.1; kompletter Lauf inkl. Demo unter PowerShell 7.6.9 Core vom Anwender mit GESAMT: BESTANDEN bestätigt (31.10.2026) | 4 |
+| ✅ | **Entwickler-Dokumentation und ToDo-Liste für v1.02.07** | Diese Datei sowie `VPDLX v1.02.07 - Entwickler Dokumentation.md` erstellt (**30.10.2026**) | 2 |
+
+**Unter-Tasks Block B:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | Neue Felder und Konstruktor in `Logfile` | `_maxEntries`, `_attachPath`, `_attachAs`, `_dailyFile`; 6-Parameter-Konstruktor; Getter `GetMaxEntries/GetAttachPath/GetAttachAs/GetAttachFile` | 4 |
+| ✅ | `_Flush()` und `ResolveAttachFile()` | Aufruf in `Write()`, `Print()` und `Destroy()` (final); bei Schreibfehler Puffer behalten + `Write-Warning` | 5 |
+| ✅ | `VPDLXparseentry` / `VPDLXappendcore` | Parser (Trennung an `'  ->  '`, Fallback `RAW`/`UNKNOWN`), Append für txt/log/csv/ndjson (CSV-Header nur bei neuer/leerer Datei) | 4 |
+| ✅ | `VPDLXexportlogfile` auf `VPDLXparseentry` umgestellt | Vier duplizierte Parser-Blöcke entfernt | 2 |
+| ✅ | `VPDLXattachlogfile` | Parameter `-Logfile`, `-LogPath`, `-AttachAs`, `-NoBOM`, `-Clear` | 4 |
+
+***
+
+## 🟣 Priorität 12 — Übernahme aus `TODO.TXT`
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **`LICENSE.md` erstellen** | Apache 2.0 mit `NOTICE`-Datei (Alternative CC BY 4.0 wurde nicht gewählt) — `LICENSE` und `NOTICE` liegen im Projektverzeichnis | 2 |
+| ✅ | **Public-Wrapper `VPDLXgetalllogfiles`** | Umgesetzt in v1.02.05 (siehe Priorität 10) | 4 |
+| ✅ | **Public-Wrapper `VPDLXresetlogfile`** | Umgesetzt in v1.02.05 (siehe Priorität 10) | 3 |
+| ✅ | **Public-Wrapper `VPDLXfilterlogfile`** | Umgesetzt in v1.02.05 (siehe Priorität 10) | 4 |
+| ✅ | **Public-Wrapper `VPDLXexportlogfile`** | Bereits vor v1.02.05 vorhanden; in v1.02.06 um HTML/NDJSON erweitert und in v1.02.07 auf `VPDLXparseentry` umgestellt | 4 |
+
+> Die drei leeren Platzhalterzeilen der `TODO.TXT` wurden nicht übernommen. `TODO.TXT` wird nach der Übernahme gelöscht.
+
+
+***
+
+## ⚪ Priorität 13 — Qualitätssicherung & Dokumentation (offen)
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ☐ | **Pester-Test-Suite erstellen** | Vollständige Pester-v5-Testsuite für alle Klassen und Public-Wrapper-Funktionen (inkl. neuer Funktion `VPDLXattachlogfile` und Flush-/Ringpuffer-Logik) — Basis für CI/CD-Integration | 8 |
+| ☐ | **Inline-Dokumentation vervollständigen** | Alle Public-Funktionen und Klassen-Methoden mit vollständigen Comment-Based-Help-Blöcken (`.SYNOPSIS`, `.DESCRIPTION`, `.PARAMETER`, `.EXAMPLE`) versehen | 5 |
+| ✅ | **`HANDBOOK.md` bereinigen** | Abschnitt „Class Architecture" listet noch veraltete `FileStorage._files`/`GetAll`/`Add`; „Log Rotation with Reset" ist weiterhin Best Practice 6 und wurden korrigiert bzw. auf Ringpuffer/Attach umgestellt (**30.10.2026**) | 3 |
+| ✅ | **Migrationshinweis `MaxEntries`** | Default `MaxEntries = 100` in `VPDLXnewlogfile` vs. unbegrenzter direkter Konstruktor jetzt in README und HANDBOOK als Verhaltensänderung hervorgehoben, CHANGELOG bereits vorhanden (**30.10.2026**) | 2 |
+| ✅ | **`.gitignore` prüfen** | Eintrag `TODO.TXT` entfernt, `PROMPT.TXT` und `**/.backup/` bleiben (**30.10.2026**) | 1 |
+| ✅ | **`CHANGELOG.md` pflegen** | Bis einschließlich 1.02.07 aktuell (früherer Punkt „CHANGELOG für v1.01.02" damit erledigt/obsolet) | 2 |
+
+**Unter-Tasks Pester-Test-Suite:**
+
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ☐ | Teststruktur und `Tests/`-Verzeichnis anlegen | `Tests/Unit/`, `Tests/Integration/` anlegen, `Pester`-Dependency in `psd1` oder separatem `requirements.psd1` deklarieren | 3 |
+| ☐ | `[Logfile]`-Klasse testen | Konstruktor-Validierung, `Write/Print/Read/Reset/FilterByLevel/Destroy` — inkl. Post-Destroy-Verhalten, Doppel-Destroy, `MaxEntries`, Ringpuffer, Chunk-Flush | 6 |
+| ☐ | `[FileStorage]`-Klasse testen | `Add/Get/Remove/Contains/GetCount/GetNames/DestroyAll` — inkl. Fehlerszenarien | 4 |
+| ☐ | `[FileDetails]`-Klasse testen | Alle `Record*()`-Methoden, `ToHashtable()`, Timestamp-Format-Validierung | 4 |
+| ☐ | Public-Wrapper-Funktionen testen | Je eine `Describe`-Suite pro Wrapper (alle 10 Wrapper) — Happy-Path + Fehlerpfade | 5 |
+| ☐ | TypeAccelerator-Registrierung testen | `[Logfile]` und `[FileDetails]` existieren nach `Import-Module` und werden nach `Remove-Module` entfernt | 3 |
+
+***
+
+## ⚪ Priorität 14 — Tests & Robustheit (offen)
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ✅ | **Test unter PowerShell 7** | `Tests\Manual-Test-PS7.ps1` unter PowerShell 7.6.9 Core ausgeführt; Basis 5/5, Run004 11/11, Override 14/14 und Demo-002 bestanden; Orchestrator meldet GESAMT: BESTANDEN (31.10.2026) | 4 |
+| ✅ | **`-Override`-Export testen** | `Tests\Manual-Test-Override.ps1`: 14/14 bestanden unter Windows PowerShell 5.1, alle 6 Formate (Testlauf 004, **30.10.2026**); unter PS7 über das PS7-Skript mitgeprüft | 2 |
+| ✅ | **Last-Tests (Teilumfang)** | Viele Writes, große `Print()`-Stapel, 50 Instanzen, Schreibfehler (Pfad unter Datei, gesperrte Datei, ungültige Zeichen): 11/11 bestanden (Testlauf 004, **30.10.2026**) | 4 |
+| ☐ | **Dauer-/Tageswechseltest** | `-DailyFile` über Mitternacht, mehrstündiger Dauerlauf, parallele Runspaces (nicht Teil von Testlauf 004) | 3 |
+| ☐ | **Performance-Profil je `MaxEntries`** | Beobachtung aus Testlauf 004: ca. 1,4 ms/Write bei MaxEntries 1000 vs. ca. 0,6 ms bei 100 — Ursache unklar (Hypothese), mit `Measure-Command` profilieren | 3 |
+| ☐ | **Cleanup in `Demo-002.ps1` härten** | `Remove-Item` im `finally` in eigenen `try/catch` kapseln (Exitcode 1 in Sandbox bei verweigertem Löschen im Temp) | 1 |
+| ☐ | **Thread-Safety** | Zugriffe auf Puffer und Zieldatei mit `SemaphoreSlim`/`Mutex` absichern — für 1.02.07 als bekannte Einschränkung in README, HANDBOOK und CHANGELOG dokumentiert (**30.10.2026**) | 7 |
+
+***
+
+## ⚪ Priorität 15 — Optionale Ideen (offen, aus Entwickler-Dokumentation v1.01.02 §7)
+
+| Status | Aufgabe | Beschreibung | Schweregrad |
+| :-- | :-- | :-- | :-- |
+| ☐ | **XML-Export** | Zusätzliches Exportformat `xml` | 3 |
+| ☐ | **Log-Tagging mit strukturierten Feldern** | Eintragsbezogene Zusatzfelder (Key/Value) für Export und Filter | 6 |
+| ☐ | **`MaxInstances`-Limit** | Obergrenze für gleichzeitig registrierte Logfile-Instanzen | 3 |
+| ☐ | **Whitelist für Exportpfade** | Konfigurierbare Zielpfad-Beschränkung für Export/Attach (Sicherheit) | 4 |
+| ☐ | **`-OnFull AutoExport`** | Alternative Pufferstrategie: bei vollem Puffer automatisch exportieren | 4 |
+
+
+***
+
+> **Hinweis zur Bearbeitungsreihenfolge:** Die Prioritäten 1–12 sind vollständig abgeschlossen (v1.02.03 – v1.02.07, inkl. Übernahme der `TODO.TXT`). Offen sind noch Pester und Inline-Dokumentation (Priorität 13) sowie Dauer-/Tageswechseltests, Performance-Profil und Thread-Safety (Priorität 14). Der Test unter PowerShell 7 ist am 31.10.2026 bestanden. Priorität 15 enthält optionale Ideen ohne Termin.

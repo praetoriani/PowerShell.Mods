@@ -89,11 +89,11 @@
 
 .NOTES
     Module  : VPDLX - Virtual PowerShell Data-Logger eXtension
-    Version : 1.02.05
+    Version : 1.02.07
     Author  : Praetoriani (a.k.a. M.Sczepanski)
     Website : https://github.com/praetoriani/PowerShell.Mods
     Created : 11.04.2026
-    Updated : 17.04.2026
+    Updated : 30.10.2026
     Scope   : Public - exported via FunctionsToExport in VPDLX.psd1
 #>
 
